@@ -5202,6 +5202,17 @@ export const api = {
     item(id: string): Promise<DiscoveredMediaDetail> {
       return request<DiscoveredMediaDetail>(`/media-discovery/items/${id}`);
     },
+    importItem(id: string): Promise<{
+      watchlistItemId: string | null;
+      rssRuleId: string | null;
+      failureReason: string | null;
+      alreadyExisted: boolean;
+    }> {
+      return request(`/media-discovery/items/${id}/import`, { method: 'POST' });
+    },
+    declineItem(id: string) {
+      return request(`/media-discovery/items/${id}/decline`, { method: 'POST' });
+    },
     removalPlan(id: string): Promise<DiscoveryRemovalPlan> {
       return request<DiscoveryRemovalPlan>(`/media-discovery/items/${id}/removal-plan`);
     },
@@ -6718,6 +6729,7 @@ export interface DiscoveryTemplate {
   providers: string[];
   upcomingWindowDays: number;
   /** New/upcoming eligibility — see the discovery template docs. */
+  autoMonitorEnabled: boolean;
   requireUpcoming: boolean;
   gracePeriodDays: number;
   /** review | ignore */

@@ -4085,6 +4085,15 @@ model DiscoveryTemplate {
   autoAddLimitPerWeek Int @default(30)
 
   createdBy String?
+  /// Whether this template may create monitoring on its own.
+  ///
+  /// Off means everything it would have auto-monitored lands in review instead,
+  /// with the reason saying so — the title still qualifies, it just waits for a
+  /// person. This is a switch rather than "clear the auto-monitor categories",
+  /// because the categories are what say a title is WANTED, and emptying them to
+  /// stop automation also loses the record of what you were looking for.
+  autoMonitorEnabled Boolean @default(true)
+
   // --- new / upcoming eligibility -----------------------------------------
   /// Auto-monitoring is limited to series that have not premiered yet.
   ///

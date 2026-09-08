@@ -215,6 +215,54 @@ Three things retraction never does:
   on it.
 - **It never overrules a watchlist entry you paused, archived or completed.**
 
+## Reviewing instead of automating
+
+A template can be told **not** to act on its own: turn off *Monitor matching
+titles automatically*. Everything it would have monitored is then held for review
+with the reason "Qualified, but this template does not monitor automatically",
+and waits for you.
+
+This is a switch rather than "clear the auto-monitor categories". The categories
+record what you are **looking for**; emptying them to stop automation throws that
+away too.
+
+### Deciding on a held title
+
+Every held card carries **Import** and **Decline** beside its reason, because the
+decision belongs where the explanation is.
+
+- **Import** runs the *same* creation path an automatic monitor takes — watchlist
+  entry, generated rule with its ladder and target path, and the intake directory
+  if the template asks for one. An imported title is configured identically to one
+  the engine acted on itself, because it is the same code. A second creation path
+  would be a second set of bugs.
+- **Decline** files it as ignored, so it stops reappearing without losing the
+  record that it was seen and declined. Removing it from the catalogue entirely is
+  the separate, explicit delete.
+
+Two things Import does differently from automation, both deliberate:
+
+- **The automatic-add limit does not apply.** That limit paces the *engine*; a
+  person clicking Import has already made the decision it exists to defer to.
+- **The identity gate still applies.** Importing something already monitored links
+  to what exists rather than creating a duplicate — which is exactly when somebody
+  might approve a show they already have.
+
+An unready template still refuses: importing into a template with no usable match
+preferences would produce the half-configured monitoring the readiness check
+exists to prevent, just reached by hand.
+
+### Being told there is something to review
+
+Discovery publishes **"Discoveries need review"** whenever a run holds titles back,
+summarised per run rather than one per title.
+
+To get it by **email**: **Account → Notifications**, find *Discoveries need
+review*, and enable the email channel. It is off by default — and so is every
+other external channel for every event — because a channel you have not connected
+cannot deliver, so turning it on for you would produce silent failures rather than
+mail. Email also needs SMTP configured under **Settings → Email settings**.
+
 ## The identity gate: nothing is created for a show you already have
 
 Before a watchlist entry, an acquisition rule or an intake directory is created,

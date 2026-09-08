@@ -150,7 +150,9 @@
     "returningSeries": {
       "existingOnly": "Only ones already here",
       "review": "Show for review"
-    }
+    },
+    "autoMonitorEnabled": "Monitor matching titles automatically",
+    "autoMonitorEnabledHint": "Off means a qualifying title is held for review instead, and you decide whether to import it. Nothing is lost — the title still matched."
   },
   "preview": {
     "heading": "If this template ran now, over {{examined}} discovered titles:",
@@ -351,5 +353,14 @@
     "limited_theatrical": "Limited theatrical",
     "wide_theatrical": "In cinemas",
     "unknown": "Release"
+  },
+  "review": {
+    "import": "Import",
+    "decline": "Decline",
+    "importing": "Importing…",
+    "imported": "Imported “{{title}}” — watchlist entry and acquisition rule created",
+    "importedExisting": "“{{title}}” was already monitored — linked to what exists",
+    "declined": "Declined “{{title}}”",
+    "partial": "Imported “{{title}}”, with a problem: {{reason}}"
   }
 }

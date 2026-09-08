@@ -150,7 +150,9 @@
     "returningSeries": {
       "existingOnly": "Solo las que ya están aquí",
       "review": "Mostrar para revisión"
-    }
+    },
+    "autoMonitorEnabled": "Vigilar automáticamente los títulos que coincidan",
+    "autoMonitorEnabledHint": "Desactivado significa que un título que califique se retiene para revisión y tú decides si importarlo. No se pierde nada — el título igual coincidió."
   },
   "preview": {
     "heading": "Si esta plantilla se ejecutara ahora, sobre {{examined}} títulos descubiertos:",
@@ -351,5 +353,14 @@
     "limited_theatrical": "Estreno limitado",
     "wide_theatrical": "En cines",
     "unknown": "Lanzamiento"
+  },
+  "review": {
+    "import": "Importar",
+    "decline": "Rechazar",
+    "importing": "Importando…",
+    "imported": "Se importó «{{title}}» — se crearon la entrada de lista y la regla de adquisición",
+    "importedExisting": "«{{title}}» ya estaba vigilado — se enlazó con lo existente",
+    "declined": "Se rechazó «{{title}}»",
+    "partial": "Se importó «{{title}}», con un problema: {{reason}}"
   }
 }

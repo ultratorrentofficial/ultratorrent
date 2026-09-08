@@ -141,6 +141,22 @@ export function TemplateForm({
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {t('form.sections.eligibility')}
           </h3>
+          {/*
+            * The switch that decides whether this template acts on its own.
+            * First in the section, because it governs everything below it.
+            */}
+          <label className="flex items-start gap-2 text-sm">
+            <Checkbox
+              checked={form.autoMonitorEnabled ?? true}
+              onCheckedChange={(v) => set('autoMonitorEnabled', Boolean(v))}
+            />
+            <span>
+              {t('form.autoMonitorEnabled')}
+              <span className="block text-xs text-muted-foreground">
+                {t('form.autoMonitorEnabledHint')}
+              </span>
+            </span>
+          </label>
           <label className="flex items-start gap-2 text-sm">
             <Checkbox
               checked={form.requireUpcoming ?? true}

@@ -125,6 +125,34 @@ function DiscoveryCard({
   onToggle: () => void;
 }) {
   const { t } = useTranslation('mediaDiscovery');
+  const toast = useToast();
+  const qc = useQueryClient();
+
+  /*
+   * Review actions live on the card, next to the reason.
+   *
+   * A held title already carries WHY it is held; the decision belongs in the
+   * same place, or reviewing means reading here and acting somewhere else.
+   */
+  const importItem = useMutation({
+    mutationFn: () => api.mediaDiscovery.importItem(item.id),
+    onSuccess: (r) => {
+      if (r.alreadyExisted) toast.info(t('review.importedExisting', { title: item.title }));
+      else if (r.failureReason) toast.error(t('review.partial', { title: item.title, reason: r.failureReason }));
+      else toast.success(t('review.imported', { title: item.title }));
+      qc.invalidateQueries({ queryKey: ['discovery'] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const decline = useMutation({
+    mutationFn: () => api.mediaDiscovery.declineItem(item.id),
+    onSuccess: () => {
+      toast.success(t('review.declined', { title: item.title }));
+      qc.invalidateQueries({ queryKey: ['discovery'] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const heldForReview = item.decision === 'needs_review' || item.decision === 'review_past_release';
   const lastEvaluation = item.evaluations?.[0] ?? null;
   const tone = decisionTone(item.decision, Boolean(lastEvaluation));
   // The soonest dated release, described in the viewer's own time when the
@@ -217,6 +245,28 @@ function DiscoveryCard({
             )}
             {item.network && <span>· {item.network}</span>}
           </div>
+
+          {heldForReview && (
+            <div className="flex flex-wrap items-center gap-2 pt-0.5">
+              <Button
+                size="sm"
+                className="h-7 text-xs"
+                disabled={importItem.isPending}
+                onClick={() => importItem.mutate()}
+              >
+                {importItem.isPending ? t('review.importing') : t('review.import')}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                disabled={decline.isPending}
+                onClick={() => decline.mutate()}
+              >
+                {t('review.decline')}
+              </Button>
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
             <span>{t('card.sources', { list: item.sourceProviders.join(', ') })}</span>

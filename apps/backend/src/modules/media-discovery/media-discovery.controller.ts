@@ -417,6 +417,58 @@ export class MediaDiscoveryController {
     };
   }
 
+  // --- review actions -------------------------------------------------------
+
+  /**
+   * Import a title held for review — the operator's "yes".
+   *
+   * Runs the same creation path an automatic monitor takes, so the result is
+   * configured identically: watchlist entry, generated rule with its ladder and
+   * target path, and the intake directory if the template asks for one. The
+   * automatic-add limit is deliberately not applied — it paces the engine, and a
+   * person clicking Import has already made the decision it defers to.
+   */
+  @Post('items/:id/import')
+  @RequirePermissions(P.MEDIA_DISCOVERY_MANAGE)
+  importItem(@Param('id') id: string, @Req() req: Request) {
+    return this.evaluation.approve(id, userId(req), reqAuditContext(req));
+  }
+
+  /**
+   * Decline a title held for review — the operator's "no".
+   *
+   * Filed as ignored rather than deleted, so the same title stops reappearing
+   * without losing the record that it was seen and declined. Removing it from
+   * the catalogue entirely is the separate, explicit delete.
+   */
+  @Post('items/:id/decline')
+  @RequirePermissions(P.MEDIA_DISCOVERY_MANAGE)
+  async declineItem(@Param('id') id: string, @Req() req: Request) {
+    const row = await this.prisma.discoveredMedia.findUnique({
+      where: { id },
+      select: { id: true, title: true },
+    });
+    if (!row) throw new BadRequestException('Unknown discovered title.');
+    await this.audit.record({
+      userId: userId(req),
+      ...reqAuditContext(req),
+      action: 'media_discovery.item.declined',
+      objectType: 'discovered_media',
+      objectId: id,
+      metadata: { title: row.title },
+    });
+    return this.prisma.discoveredMedia.update({
+      where: { id },
+      data: {
+        decision: 'ignore',
+        decisionReason: 'Declined on review',
+        discoveryStatus: 'ignored',
+        evaluatedAt: new Date(),
+      },
+      select: { id: true, decision: true, discoveryStatus: true },
+    });
+  }
+
   // --- catalogue management -------------------------------------------------
 
   /**

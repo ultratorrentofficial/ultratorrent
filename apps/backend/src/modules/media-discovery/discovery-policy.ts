@@ -89,6 +89,8 @@ export interface PolicyTemplate {
   blockedFromAutoCategories: string[];
   categoryMatchMode: string;
   minimumConfidence: number;
+  /** When false, a qualifying title is held for a person instead of monitored. */
+  autoMonitorEnabled?: boolean;
   requireUpcoming?: boolean;
   gracePeriodDays?: number;
   /** review | ignore */
@@ -261,6 +263,22 @@ export function evaluateDiscovery(
 
   // Everything below can only DEMOTE an auto-monitor candidate.
   if (!wantsAuto) return verdict('notify', 'Category is configured as notify-only');
+
+  /*
+   * Automation switched off: the title still QUALIFIES, it just waits.
+   *
+   * Checked before the remaining gates so the reason a person reads is the one
+   * that actually applies — being told a title needs review because automation
+   * is off is actionable, being told it failed a threshold it never reached is
+   * not.
+   */
+  if (template.autoMonitorEnabled === false) {
+    add('auto_monitor_switch', 'fail', 'Automatic monitoring is switched off for this template');
+    return verdict(
+      'needs_review',
+      'Qualified, but this template does not monitor automatically — import it to proceed',
+    );
+  }
 
   /*
    * --- NEW / UPCOMING ELIGIBILITY -----------------------------------------

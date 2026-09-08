@@ -11,6 +11,7 @@ export interface DiscoveryTemplateInput {
   mediaType?: string;
   providers?: string[];
   upcomingWindowDays?: number;
+  autoMonitorEnabled?: boolean;
   requireUpcoming?: boolean;
   gracePeriodDays?: number;
   pastReleaseBehavior?: string;
@@ -444,7 +445,7 @@ const POLICY_KEYS = [
   'blockedFromAutoCategories', 'categoryMatchMode', 'minimumConfidence',
   'acquisitionTemplateId', 'rssFeedId', 'storageProfileId', 'pathTemplate',
   'createIntakeDirectory', 'autoAddLimitPerDay', 'autoAddLimitPerWeek',
-  'requireUpcoming', 'gracePeriodDays', 'pastReleaseBehavior', 'returningSeriesBehavior',
+  'autoMonitorEnabled', 'requireUpcoming', 'gracePeriodDays', 'pastReleaseBehavior', 'returningSeriesBehavior',
 ] as const;
 
 /**

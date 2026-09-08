@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { DOMAIN_EVENTS, zeroDecisionCounts } from '@ultratorrent/shared';
 import { DomainEventBus } from '../domain-events/domain-event-bus.service';
@@ -6,6 +6,7 @@ import type { DiscoveryTemplate } from '@prisma/client';
 import type { DiscoveryDecision } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { renderTargetPath } from './discovery-path';
+import { AuditService } from '../audit/audit.service';
 import { evaluateDiscovery, type PolicyTemplate, type PolicyVerdict } from './discovery-policy';
 import { DiscoveryRemovalService } from './discovery-removal.service';
 import { DiscoveryTemplateService } from './discovery-template.service';
@@ -96,6 +97,7 @@ export class DiscoveryEvaluationService {
     private readonly removal: DiscoveryRemovalService,
     private readonly identity: DiscoveryIdentityResolverService,
     private readonly templates: DiscoveryTemplateService,
+    private readonly audit: AuditService,
   ) {}
 
   @Interval('media_discovery_evaluate', TICK_MS)
@@ -391,6 +393,121 @@ export class DiscoveryEvaluationService {
     }
 
     return outcome;
+  }
+
+  /**
+   * Import a title a person approved from review.
+   *
+   * Runs the SAME creation path an automatic monitor takes — watchlist entry,
+   * generated rule with its ladder and target path, intake directory — so an
+   * approved title is configured identically to one the engine acted on itself.
+   * A second creation path would be a second set of bugs, and the two would
+   * drift.
+   *
+   * The identity gate still applies: approving something already monitored links
+   * to what exists rather than creating a duplicate. Budget deliberately does
+   * NOT apply — the automatic-add limit paces the ENGINE, and a person clicking
+   * Import has already made the decision the limit exists to defer to.
+   */
+  async approve(
+    discoveredMediaId: string,
+    userId?: string,
+    ctx: { ipAddress?: string; userAgent?: string } = {},
+  ): Promise<{
+    watchlistItemId: string | null;
+    rssRuleId: string | null;
+    failureReason: string | null;
+    alreadyExisted: boolean;
+  }> {
+    const row = await this.prisma.discoveredMedia.findUnique({
+      where: { id: discoveredMediaId },
+      include: { releaseDates: true },
+    });
+    if (!row) throw new NotFoundException(`Unknown discovered title: ${discoveredMediaId}`);
+
+    /*
+     * The template that judged it, or any enabled one that could build a rule.
+     * A title reaching review without a matched template is possible — the
+     * template may have been deleted since — and the import should still work
+     * rather than refusing on a bookkeeping detail.
+     */
+    const template =
+      (row.matchedTemplateId
+        ? await this.prisma.discoveryTemplate.findUnique({ where: { id: row.matchedTemplateId } })
+        : null) ??
+      (await this.prisma.discoveryTemplate.findFirst({
+        where: { enabled: true, rssFeedId: { not: null }, storageProfileId: { not: null } },
+        orderBy: { createdAt: 'asc' },
+      }));
+    if (!template) {
+      throw new BadRequestException(
+        'No discovery template is configured with a feed and a storage profile, so there is nothing to build a rule from.',
+      );
+    }
+
+    const readiness = await this.templates.acquisitionReadiness(template.acquisitionTemplateId);
+    if (!readiness.ready) throw new BadRequestException(readiness.reason);
+
+    const existing = await this.identity.resolve(row);
+    const profile = template.storageProfileId
+      ? await this.prisma.storageProfile.findUnique({
+          where: { id: template.storageProfileId },
+          include: { movieLibrary: true, tvLibrary: true },
+        })
+      : null;
+
+    await this.audit.record({
+      userId,
+      ...ctx,
+      action: 'media_discovery.item.imported',
+      objectType: 'discovered_media',
+      objectId: row.id,
+      metadata: {
+        title: row.year ? `${row.title} (${row.year})` : row.title,
+        templateName: template.name,
+        existingState: existing.state,
+      },
+    });
+
+    if (existing.state !== 'none') {
+      // Already represented here: link, never duplicate.
+      await this.prisma.discoveredMedia.update({
+        where: { id: row.id },
+        data: {
+          decision: 'already_monitored',
+          decisionReason: existing.detail,
+          discoveryStatus: 'exists',
+          watchlistItemId: existing.watchlistItem?.id ?? null,
+          rssRuleId: existing.rssRule?.id ?? null,
+        },
+      });
+      return {
+        watchlistItemId: existing.watchlistItem?.id ?? null,
+        rssRuleId: existing.rssRule?.id ?? null,
+        failureReason: null,
+        alreadyExisted: true,
+      };
+    }
+
+    const acted = await this.act(row, template, profile, {
+      applies: true, decision: 'auto_monitor', reason: 'Imported by an operator', trace: [],
+    });
+
+    await this.prisma.discoveredMedia.update({
+      where: { id: row.id },
+      data: {
+        decision: 'auto_monitor',
+        decisionReason: acted.failureReason ?? 'Imported by an operator',
+        evaluatedAt: new Date(),
+        matchedTemplateId: template.id,
+        discoveryStatus: this.statusFor('auto_monitor', acted),
+        ...(acted.watchlistItemId ? { watchlistItemId: acted.watchlistItemId } : {}),
+        ...(acted.rssRuleId ? { rssRuleId: acted.rssRuleId } : {}),
+      },
+    });
+
+    this.logger.log(`Imported "${row.title}" on request — rule ${acted.rssRuleId ?? 'not created'}`);
+    return { ...acted, alreadyExisted: false };
   }
 
   /**

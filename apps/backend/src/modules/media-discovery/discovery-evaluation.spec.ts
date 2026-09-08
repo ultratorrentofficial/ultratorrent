@@ -52,14 +52,19 @@ const row = (id: string, over: any = {}) => ({
 
 function harness(opts: {
   rows?: any[]; remaining?: number; watchlistFails?: boolean; ruleFails?: boolean; ruleReason?: string;
-  ruleIsUserModified?: boolean; watchlistStatus?: string; existing?: any; readiness?: any; profile?: any;
+  ruleIsUserModified?: boolean; watchlistStatus?: string; existing?: any; readiness?: any; profile?: any; template?: any;
 } = {}) {
   const evaluations: any[] = [];
   const stamps: any[] = [];
   const prisma: any = {
-    discoveryTemplate: { findMany: jest.fn(async () => [TEMPLATE]) },
+    discoveryTemplate: {
+      findMany: jest.fn(async () => [TEMPLATE]),
+      findUnique: jest.fn(async () => opts.template ?? TEMPLATE),
+      findFirst: jest.fn(async () => opts.template ?? TEMPLATE),
+    },
     discoveredMedia: {
       findMany: jest.fn(async () => opts.rows ?? [row('a')]),
+      findUnique: jest.fn(async () => (opts.rows ?? [row('a')])[0]),
       update: jest.fn(async ({ data }: any) => {
         stamps.push(data);
         return {};
@@ -113,6 +118,7 @@ function harness(opts: {
   const published: any[] = [];
   const bus = { publish: jest.fn((e: any) => { published.push(e); }) };
   const removal = { suppress: jest.fn(async () => undefined) };
+  const audit = { record: jest.fn(async () => undefined) };
   /*
    * The identity gate. Default is "nothing here represents this work" — the only
    * state that may create — so every pre-existing test keeps asserting what it
@@ -132,10 +138,11 @@ function harness(opts: {
   };
 
   return {
-    svc: new DiscoveryEvaluationService(prisma, budget as any, watchlist as any, rules as any, intake as any, bus as any, removal as any, identity as any, templates as any),
+    svc: new DiscoveryEvaluationService(prisma, budget as any, watchlist as any, rules as any, intake as any, bus as any, removal as any, identity as any, templates as any, audit as any),
     removal,
     identity,
     templates,
+    audit,
     prisma, budget, watchlist, rules, intake, evaluations, stamps, published,
   };
 }
@@ -665,5 +672,103 @@ describe('the generated rule carries its target path', () => {
     await h.svc.runAll();
     expect(h.watchlist.linkOrCreate).toHaveBeenCalled();
     expect(genArg(h).savePath).toBeNull();
+  });
+});
+
+/**
+ * Importing a title a person approved from review.
+ *
+ * The point of this path is that it is NOT a second creation path: it runs the
+ * same `act()` an automatic monitor runs, so an approved title ends up
+ * configured identically. Two creation paths would be two sets of bugs, and they
+ * would drift.
+ */
+describe('importing from review', () => {
+  it('creates the watchlist entry, the rule and the directory, exactly as automation would', async () => {
+    const h = harness();
+    const r = await h.svc.approve('a', 'user-1');
+    expect(h.watchlist.linkOrCreate).toHaveBeenCalled();
+    expect(h.rules.generate).toHaveBeenCalled();
+    expect(r.alreadyExisted).toBe(false);
+    expect(r.watchlistItemId).toBe('w1');
+  });
+
+  it('stamps the catalogue row as monitored', async () => {
+    const h = harness();
+    await h.svc.approve('a', 'user-1');
+    expect(h.stamps.at(-1).decision).toBe('auto_monitor');
+    expect(h.stamps.at(-1).decisionReason).toMatch(/Imported by an operator/);
+  });
+
+  /*
+   * The identity gate still applies. Approving something already monitored must
+   * link, not duplicate — that is the whole point of the gate, and a manual
+   * action is exactly when somebody might approve a show they already have.
+   */
+  it('links rather than duplicating when the show is already monitored', async () => {
+    const h = harness({
+      existing: {
+        state: 'already_monitored', matchedBy: 'external_id', matchedIdNamespace: 'tmdb',
+        watchlistItem: { id: 'wl-existing', status: 'active', rssRuleId: 'r-existing', title: 'X' },
+        rssRule: { id: 'r-existing', name: 'X', generatedByDiscovery: false, userModifiedAt: null },
+        libraryItemIds: [], detail: 'Already monitored',
+      },
+    });
+    const r = await h.svc.approve('a', 'user-1');
+    expect(r.alreadyExisted).toBe(true);
+    expect(h.watchlist.linkOrCreate).not.toHaveBeenCalled();
+    expect(h.rules.generate).not.toHaveBeenCalled();
+    expect(r.rssRuleId).toBe('r-existing');
+  });
+
+  /* An unready template cannot be imported into — that would be the half-configured
+   * monitoring the readiness check exists to prevent, just reached by hand. */
+  it('refuses when the template has no usable match preferences', async () => {
+    const h = harness({ readiness: { ready: false, reason: 'Select match preferences' } });
+    await expect(h.svc.approve('a', 'user-1')).rejects.toThrow(/match preferences/);
+    expect(h.watchlist.linkOrCreate).not.toHaveBeenCalled();
+  });
+
+  it('audits the import before acting', async () => {
+    const order: string[] = [];
+    const h = harness();
+    h.audit.record.mockImplementation(async () => { order.push('audit'); });
+    h.watchlist.linkOrCreate.mockImplementation(async () => { order.push('create'); return { watchlistItemId: 'w1', outcome: 'created' }; });
+    await h.svc.approve('a', 'user-1');
+    expect(order[0]).toBe('audit');
+  });
+
+  it('refuses an unknown title rather than inventing one', async () => {
+    const h = harness();
+    h.prisma.discoveredMedia.findUnique = jest.fn(async () => null);
+    await expect(h.svc.approve('nope', 'user-1')).rejects.toThrow(/Unknown discovered title/);
+  });
+});
+
+/**
+ * The switch that decides whether a template acts on its own.
+ */
+describe('auto-monitor switched off', () => {
+  it('holds a qualifying title for review instead of monitoring it', async () => {
+    const h = harness();
+    h.prisma.discoveryTemplate.findMany = jest.fn(async () => [{ ...TEMPLATE, autoMonitorEnabled: false }]);
+    const [outcome] = await h.svc.runAll();
+    expect(outcome.decisions.needs_review).toBe(1);
+    expect(outcome.decisions.auto_monitor).toBe(0);
+    expect(h.watchlist.linkOrCreate).not.toHaveBeenCalled();
+  });
+
+  it('says the title qualified, so the reason is actionable', async () => {
+    const h = harness();
+    h.prisma.discoveryTemplate.findMany = jest.fn(async () => [{ ...TEMPLATE, autoMonitorEnabled: false }]);
+    await h.svc.runAll();
+    expect(h.stamps[0].decisionReason).toMatch(/does not monitor automatically/);
+  });
+
+  it('still monitors when the switch is on', async () => {
+    const h = harness();
+    h.prisma.discoveryTemplate.findMany = jest.fn(async () => [{ ...TEMPLATE, autoMonitorEnabled: true }]);
+    const [outcome] = await h.svc.runAll();
+    expect(outcome.decisions.auto_monitor).toBe(1);
   });
 });
