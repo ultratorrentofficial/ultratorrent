@@ -9,6 +9,8 @@
 export type MediaServerKind = 'plex' | 'jellyfin' | 'emby' | 'kodi';
 
 /** Decrypted connection config passed to a provider at call time. */
+import { parseProviderBaseUrl } from '../../common/provider-url';
+
 export interface MediaServerConfig {
   baseUrl?: string;
   token?: string; // Plex token
@@ -245,7 +247,15 @@ async function fetchJson(
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const res = await fetch(url, { ...init, signal: ctrl.signal });
+    /*
+     * `redirect: 'error'` unless the caller says otherwise.
+     *
+     * Validating the configured host is worth little if the first response can
+     * bounce the request somewhere else — a redirect is precisely how a checked
+     * destination becomes an unchecked one, and no media server needs one for
+     * its own API.
+     */
+    const res = await fetch(url, { redirect: 'error', ...init, signal: ctrl.signal });
     let json: any = null;
     try {
       json = await res.json();
@@ -266,7 +276,8 @@ async function fetchText(
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const res = await fetch(url, { ...init, signal: ctrl.signal });
+    // Same reasoning as fetchJson: a redirect undoes the host validation.
+    const res = await fetch(url, { redirect: 'error', ...init, signal: ctrl.signal });
     let text = '';
     try {
       text = await res.text();
@@ -279,10 +290,19 @@ async function fetchText(
   }
 }
 
+/**
+ * The validated base for one media-server connection.
+ *
+ * Plex, Jellyfin, Emby and Kodi are nearly always on a private address — the same
+ * box, the same Docker network, or the LAN — so private and loopback hosts are
+ * ALLOWED here and must stay allowed. What is enforced is that the endpoint is a
+ * real http(s) URL carrying no embedded credentials; see `common/provider-url.ts`
+ * for why that boundary sits where it does.
+ */
 function requireBaseUrl(cfg: MediaServerConfig): string {
-  const base = (cfg.baseUrl ?? '').replace(/\/+$/, '');
-  if (!base) throw new Error('baseUrl is required');
-  return base;
+  const raw = (cfg.baseUrl ?? '').trim();
+  if (!raw) throw new Error('baseUrl is required');
+  return parseProviderBaseUrl(raw, 'Media server').toString().replace(/\/+$/, '');
 }
 
 function mapPlexType(t?: string): string {

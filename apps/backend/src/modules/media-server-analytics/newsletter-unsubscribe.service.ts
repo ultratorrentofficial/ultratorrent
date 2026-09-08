@@ -66,8 +66,16 @@ export class NewsletterUnsubscribeService {
   }
 
   /** Read a token back, or nothing if it was not issued by this instance. */
-  parse(token: string | undefined): { newsletterId: string; email: string } | null {
-    if (!token) return null;
+  parse(token: unknown): { newsletterId: string; email: string } | null {
+    /*
+     * Typed `unknown` on purpose. The controller already rejects a non-string,
+     * but this method is the one that decides whether a token is authentic, and
+     * an array reaching it would keep running rather than stopping: arrays carry
+     * `lastIndexOf` and `slice` too, and `Buffer.from(['a'])` yields zero bytes
+     * instead of throwing. It happened to fail closed. That is coincidence, not
+     * a guarantee, and it would not survive a refactor of the parsing below.
+     */
+    if (typeof token !== 'string' || !token) return null;
     const dot = token.lastIndexOf('.');
     if (dot <= 0) return null;
     let decoded: string;
@@ -90,7 +98,7 @@ export class NewsletterUnsubscribeService {
   }
 
   /** What the confirmation page needs, without changing anything. */
-  async describe(token: string | undefined): Promise<UnsubscribeOutcome> {
+  async describe(token: unknown): Promise<UnsubscribeOutcome> {
     const parsed = this.parse(token);
     if (!parsed) return { ok: false, reason: 'invalid' };
     const n = await this.prisma.mediaServerNewsletter.findUnique({
@@ -114,7 +122,7 @@ export class NewsletterUnsubscribeService {
    * clicks the link in two different newsletters should be told they are off the
    * list both times, not shown a failure the second time.
    */
-  async unsubscribe(token: string | undefined): Promise<UnsubscribeOutcome> {
+  async unsubscribe(token: unknown): Promise<UnsubscribeOutcome> {
     const parsed = this.parse(token);
     if (!parsed) return { ok: false, reason: 'invalid' };
 

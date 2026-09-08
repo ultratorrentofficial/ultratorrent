@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Query, Header } from '@nestjs/common';
 
+import { singleQueryParam } from '../../common/query-param';
 import { NewsletterUnsubscribeService, type UnsubscribeOutcome } from './newsletter-unsubscribe.service';
 
 /**
@@ -27,7 +28,10 @@ export class NewsletterUnsubscribeController {
   @Header('Cache-Control', 'no-store')
   // Told not to index: this URL contains a token that identifies one person.
   @Header('X-Robots-Tag', 'noindex, nofollow')
-  async confirm(@Query('t') token?: string): Promise<string> {
+  async confirm(@Query('t') raw?: unknown): Promise<string> {
+    // `?t=a&t=b` arrives as an array, `?t[x]=1` as an object. Both are rejected
+    // here so nothing downstream has to reason about a value that is not a string.
+    const token = singleQueryParam(raw);
     return page(await this.unsub.describe(token), token, false);
   }
 
@@ -35,12 +39,17 @@ export class NewsletterUnsubscribeController {
   @Header('Content-Type', 'text/html; charset=utf-8')
   @Header('Cache-Control', 'no-store')
   @Header('X-Robots-Tag', 'noindex, nofollow')
-  async act(@Query('t') token?: string): Promise<string> {
+  async act(@Query('t') raw?: unknown): Promise<string> {
+    const token = singleQueryParam(raw);
     return page(await this.unsub.unsubscribe(token), token, true);
   }
 }
 
-function esc(s: string): string {
+function esc(s: unknown): string {
+  // Defence in depth: the boundary above guarantees a string, and this guarantees
+  // that a future caller who forgets cannot turn a non-string into a TypeError on
+  // a public, unauthenticated page.
+  if (typeof s !== 'string') return '';
   return s.replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
 }

@@ -101,3 +101,57 @@ describe('newsletter unsubscribe', () => {
     }
   });
 });
+
+/**
+ * Parameter tampering.
+ *
+ * `@Query('t') token?: string` is a compile-time claim. Express parses
+ * `?t=a&t=b` into an ARRAY and `?t[x]=1` into an OBJECT, and both reach code
+ * written for a string. Arrays carry `lastIndexOf` and `slice`, so a parser
+ * keeps running rather than stopping, and `Buffer.from(['a'])` coerces to zero
+ * bytes instead of throwing — the old code failed closed by coincidence of
+ * coercion rather than by decision, which would not survive a refactor.
+ *
+ * This is a public, unauthenticated endpoint reached from mail clients, so the
+ * required behaviour is "not a valid link", never a crash.
+ */
+describe('a tampered unsubscribe parameter', () => {
+  const shapes: Array<[string, unknown]> = [
+    ['an array of two values', ['a', 'b']],
+    ['an array whose last element makes lastIndexOf non-zero', ['a', '.']],
+    ['an array containing a dot', ['.']],
+    ['an empty array', []],
+    ['an object', { a: 1 }],
+    ['a nested object', { toString: 'x' }],
+    ['a number', 12345],
+    ['a boolean', true],
+    ['null', null],
+    ['undefined', undefined],
+  ];
+
+  it.each(shapes)('rejects %s rather than parsing it', (_label, value) => {
+    const { svc } = build(['a@example.com']);
+    expect(svc.parse(value as never)).toBeNull();
+  });
+
+  it.each(shapes)('describes %s as an invalid link, without throwing', async (_label, value) => {
+    const { svc } = build(['a@example.com']);
+    await expect(svc.describe(value as never)).resolves.toEqual({ ok: false, reason: 'invalid' });
+  });
+
+  it.each(shapes)('never unsubscribes anyone from %s', async (_label, value) => {
+    const { svc, state } = build(['a@example.com', 'b@example.com']);
+    await expect(svc.unsubscribe(value as never)).resolves.toEqual({ ok: false, reason: 'invalid' });
+    // The list is untouched: a malformed parameter must not remove a recipient.
+    expect(state.emails).toEqual(['a@example.com', 'b@example.com']);
+  });
+
+  /* The legitimate path must still work — this is the half a "fix" can break. */
+  it('still accepts the token it issued', async () => {
+    const { svc, state } = build(['a@example.com', 'b@example.com']);
+    const token = svc.token('n1', 'a@example.com');
+    expect(svc.parse(token)).toEqual({ newsletterId: 'n1', email: 'a@example.com' });
+    await expect(svc.unsubscribe(token)).resolves.toMatchObject({ ok: true });
+    expect(state.emails).toEqual(['b@example.com']);
+  });
+});

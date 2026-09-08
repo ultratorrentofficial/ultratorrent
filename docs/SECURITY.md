@@ -338,6 +338,75 @@ existence and size — immediately before it is touched. There is **no automated
 destructive cleanup action**. See
 [DUPLICATE_CLEANUP_SAFETY.md](DUPLICATE_CLEANUP_SAFETY.md).
 
+## Outbound requests: two trust boundaries, not one
+
+UltraTorrent makes outbound HTTP requests for two completely different reasons,
+and they carry opposite policies. Conflating them is how a self-hosted
+application either breaks or becomes an SSRF proxy.
+
+| | **Configured provider endpoint** | **Request-time / third-party URL** |
+| --- | --- | --- |
+| Module | `common/provider-url.ts` | `common/ssrf.ts` |
+| Destination chosen by | an authenticated admin, persisted as configuration | a remote feed, a provider response, a request parameter |
+| Private / loopback / Docker names | **Allowed** | **Blocked** |
+| Examples | qBittorrent, Prowlarr, Plex, Jellyfin, Emby, Kodi | a remote `.torrent` link, artwork URL, newsletter image |
+
+**Private addresses are allowed for provider endpoints, deliberately.** Nearly
+every UltraTorrent install points at `http://qbittorrent:8080` on a Docker
+network, `http://192.168.1.20:9696` on a LAN, or `http://127.0.0.1:32400` on the
+same box. A guard that blocked loopback and RFC1918 would block the product's
+normal configuration; that is not a hardening measure, it is an outage.
+
+What makes it safe is *where the URL comes from*. A provider endpoint is set by
+an administrator holding the relevant `manage_*` permission and stored as
+configuration. A URL arriving in a request, or inside a third party's JSON, is a
+different thing entirely and goes through `ssrf.ts`, which does block private
+ranges.
+
+Allowing private hosts is not allowing anything. Every configured endpoint is
+still required to be:
+
+- **`http` or `https`.** Other schemes are either meaningless to `fetch` or reach
+  something that is not an HTTP service.
+- **free of embedded credentials.** `user:pass@host` forwards a secret on every
+  request, and `http://real.example@evil.test` reads as one host to a person and
+  another to a parser.
+- **not cloud instance metadata.** Resolved at call time rather than at save
+  time, because a hostname's answer can change in between (DNS rebinding).
+  169.254.169.254 is the standard route from "can make a request" to "has the
+  deployment's credentials".
+
+A **scheme-less endpoint is normalised, not rejected** — `192.168.1.5:8080` is a
+configuration people really have, and an upgrade must not invalidate it.
+
+**Redirects are refused** on provider calls. Validating a host achieves little if
+the first response can bounce the request somewhere else; a redirect is precisely
+how a checked destination becomes an unchecked one, and no provider API needs one.
+
+**Paths are joined structurally**, never concatenated from data. `joinProviderUrl`
+sets the path component on a parsed base, so scheme, host and port always come
+from the configured endpoint — a value like `//evil.example/x` becomes a path,
+not a new origin, which is what plain `new URL(path, base)` would have made it.
+
+## Runtime types are not compile-time types
+
+A handler signature of `@Query('t') token?: string` is a claim the compiler
+checks about *callers*, not about HTTP. Express parses `?t=a&t=b` into an array
+and `?t[x]=1` into an object, and both arrive where a string was declared.
+
+Nothing throws, which is the problem. An array carries `lastIndexOf` and `slice`
+just as a string does, so a parser written for strings keeps running and produces
+nonsense rather than stopping, and `Buffer.from(['a'])` coerces through `Number`
+to zero bytes instead of rejecting. Code in this situation can fail closed *by
+coincidence of coercion* — safe today, and no longer safe after an unrelated
+refactor of the parsing below it.
+
+So the shape is checked at the boundary, before the value reaches anything that
+reasons about it (`common/query-param.ts`). Public endpoints reached from mail
+clients treat a malformed parameter as absent and render their ordinary
+"not a valid link" page, rather than returning a stack trace or a 400 that looks
+like an outage.
+
 ## Secrets management
 
 - All secrets (JWT signing keys, database URL, Redis, admin bootstrap password)

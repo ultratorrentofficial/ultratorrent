@@ -13,6 +13,8 @@
  * This is the qBittorrent analogue of `infrastructure/rtorrent/scgi-client.ts`.
  */
 
+import { joinProviderUrl, parseProviderBaseUrl } from '../../common/provider-url';
+
 export interface QbittorrentClientOptions {
   /** e.g. `http://qbittorrent:8080` (no trailing `/api/v2`). */
   baseUrl: string;
@@ -78,8 +80,17 @@ export class QbittorrentClient implements QbittorrentApi {
   private cookie: string | null = null;
 
   constructor(opts: QbittorrentClientOptions) {
-    this.base = opts.baseUrl.replace(/\/+$/, '');
-    this.api = `${this.base}/api/v2`;
+    /*
+     * Validated at construction, so a malformed or non-HTTP endpoint fails where
+     * an operator can see it rather than at the first background sync.
+     *
+     * Private and loopback addresses are ALLOWED and must stay allowed —
+     * `http://qbittorrent:8080` on a Docker network is the normal deployment.
+     * See `common/provider-url.ts` for why that is safe here and not elsewhere.
+     */
+    const parsed = parseProviderBaseUrl(opts.baseUrl, 'qBittorrent');
+    this.base = parsed.toString().replace(/\/+$/, '');
+    this.api = joinProviderUrl(parsed, '/api/v2');
     this.username = opts.username;
     this.password = opts.password;
     this.timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;

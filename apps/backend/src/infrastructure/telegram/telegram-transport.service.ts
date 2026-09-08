@@ -1,6 +1,22 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 
 const API_BASE = 'https://api.telegram.org';
+
+/**
+ * Build a Bot API endpoint with both variable segments percent-encoded.
+ *
+ * The host is a constant, so this was never a route to another server. What it
+ * WAS is unencoded interpolation into a path: a token or method containing `/`
+ * or `..` silently addresses a different Bot API method than the caller asked
+ * for, and the bug would present as an unrelated Telegram error. Encoding makes
+ * each segment exactly one segment.
+ */
+function telegramEndpoint(token: string, method: string): string {
+  const url = new URL(API_BASE);
+  url.pathname = `/bot${encodeURIComponent(token)}/${encodeURIComponent(method)}`;
+  return url.toString();
+}
+
 /** Telegram rejects a message over 4096 characters outright. */
 const MAX_MESSAGE = 4096;
 /** A photo caption is capped far lower than a message. */
@@ -158,8 +174,9 @@ export class TelegramTransportService {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
     try {
-      const res = await fetch(`${API_BASE}/bot${token}/${method}`, {
+      const res = await fetch(telegramEndpoint(token, method), {
         method: 'POST',
+        redirect: 'error',
         body: form,
         signal: controller.signal,
       });
@@ -190,8 +207,9 @@ export class TelegramTransportService {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
-      const res = await fetch(`${API_BASE}/bot${token}/${method}`, {
+      const res = await fetch(telegramEndpoint(token, method), {
         method: 'POST',
+        redirect: 'error',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
         signal: controller.signal,
