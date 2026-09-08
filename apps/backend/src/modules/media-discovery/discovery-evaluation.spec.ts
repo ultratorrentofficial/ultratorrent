@@ -772,3 +772,50 @@ describe('auto-monitor switched off', () => {
     expect(outcome.decisions.auto_monitor).toBe(1);
   });
 });
+
+/**
+ * Re-evaluating something this engine already monitors.
+ *
+ * The identity gate looks for a watchlist entry and a rule representing the
+ * work — and on a re-evaluation it finds the ones THIS row created. Reported as
+ * `already_monitored`, a correctly-monitored title would be demoted to
+ * "Existing" and vanish from Monitored on every policy edit that reopens
+ * decisions.
+ */
+describe('re-evaluating a title we already monitor', () => {
+  const ours = () =>
+    row('m1', {
+      discoveryStatus: 'monitored',
+      matchedTemplateId: TEMPLATE.id,
+      watchlistItemId: 'wl-ours',
+      rssRuleId: 'r-ours',
+    });
+  const resolvedToOurs = {
+    state: 'already_monitored', matchedBy: 'external_id', matchedIdNamespace: 'tmdb',
+    watchlistItem: { id: 'wl-ours', status: 'active', rssRuleId: 'r-ours', title: 'Show m1' },
+    rssRule: { id: 'r-ours', name: 'Show m1', generatedByDiscovery: true, userModifiedAt: null },
+    libraryItemIds: [], detail: 'Already monitored',
+  };
+
+  it('stays monitored rather than being demoted to Existing', async () => {
+    const h = harness({ rows: [ours()], existing: resolvedToOurs });
+    const [outcome] = await h.svc.runAll();
+    expect(outcome.decisions.auto_monitor).toBe(1);
+    expect(outcome.decisions.already_monitored).toBe(0);
+    expect(h.stamps[0].decision).toBe('auto_monitor');
+  });
+
+  /* Somebody ELSE's monitoring is still reported as already_monitored. */
+  it('still reports monitoring that belongs to something else', async () => {
+    const h = harness({
+      rows: [ours()],
+      existing: {
+        ...resolvedToOurs,
+        watchlistItem: { id: 'wl-theirs', status: 'active', rssRuleId: 'r-theirs', title: 'X' },
+        rssRule: { id: 'r-theirs', name: 'X', generatedByDiscovery: false, userModifiedAt: null },
+      },
+    });
+    const [outcome] = await h.svc.runAll();
+    expect(outcome.decisions.already_monitored).toBe(1);
+  });
+});

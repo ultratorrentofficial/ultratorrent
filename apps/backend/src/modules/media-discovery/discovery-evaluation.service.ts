@@ -288,7 +288,22 @@ export class DiscoveryEvaluationService {
        */
       if (effective.decision === 'auto_monitor' || effective.decision === 'review_past_release') {
         existing = await this.identity.resolve(row);
-        if (existing.state !== 'none') {
+
+        /*
+         * Monitoring THIS row already created is not "already monitored".
+         *
+         * The resolver looks for a watchlist entry and a rule representing this
+         * work — and on a re-evaluation it finds the ones this very row created.
+         * Reported as `already_monitored`, a title the engine is correctly
+         * monitoring would be demoted to "Existing" and disappear from Monitored,
+         * on every policy edit that reopens decisions. It is still monitored, by
+         * us, and should say so.
+         */
+        const isOurOwn =
+          (row.watchlistItemId != null && existing.watchlistItem?.id === row.watchlistItemId) ||
+          (row.rssRuleId != null && existing.rssRule?.id === row.rssRuleId);
+
+        if (existing.state !== 'none' && !isOurOwn) {
           effective = {
             ...verdict,
             decision: EXISTING_STATE_DECISION[existing.state],
