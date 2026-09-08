@@ -45,6 +45,13 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.90.6] - 2026-09-08
+
+### Fixed
+- a rule's download directory is created when the rule is saved, so an acquisition cannot fail on a missing path
+- a generated rule matches only its own show — a match-preference candidate with no show title matched every item in the feed
+- a generated RSS rule is named for its show, without the year
+
 ## [0.90.5] - 2026-09-08
 
 ### Fixed
