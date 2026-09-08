@@ -57,7 +57,7 @@ An RSS feed is a **push** stream — you get what the tracker chose to publish, 
 
 **Recommendation** — the plain-English verdict derived from the status: `recommended` (the show is active), `caution` (on hiatus), `not_recommended` (ended or canceled), or `unknown`.
 
-**Save path** — where the grabbed torrent's data lands. Set per rule; falls back to the engine's default download directory if unset.
+**Save path** — where the grabbed torrent's data lands. Set per rule; falls back to the engine's default download directory if unset. **Saving a rule creates this directory if it is missing**, so a grab cannot fail later on a path that was never there.
 
 ## How it works
 
@@ -136,9 +136,15 @@ When a show's status changes, the refresh job updates every rule that snapshotte
 | **Media type** | `tv`, `anime`, `episode`, `series`, `movie`, … Drives airing-status resolution. | — | Always set it for TV. It is what unlocks the show-status panel. |
 | **Match candidates** | The ranked list built in the Smart Match Builder. | Empty | Rank by what you would actually accept: your ideal release first, your acceptable fallback second. |
 | **Category** | The category applied to the grabbed torrent. | Unset | Set it — it is what most Automation rules key off later. |
-| **Save path** | Where the data lands. | Engine default | Set it to the library folder for this show, so Media Manager picks it up. |
+| **Save path** | Where the data lands. Created on save if missing. | Engine default | Set it to the library folder for this show, so Media Manager picks it up. |
 | **Auto-download** | Whether a match is grabbed automatically or only recorded. | On | Turn it **off** to convert a rule to "backfill only" without deleting it. |
 | **Allow inactive show monitoring** | Permits saving a rule for an ended/canceled show. | Off | Leave off. Turn on only when you are deliberately backfilling. |
+
+### The save path is created when you save the rule
+
+Saving a rule with a save path creates that directory if it does not exist — on create, and on an update that changes the path. An existing directory is a success, not a conflict; an existing **file** at that path is a failure, because the alternative is deleting your file to make room for a folder.
+
+The reason is the failure it prevents. A rule pointing at a directory that does not exist looks perfectly healthy until a release matches it — and then the grab fails inside the torrent client, at the one moment nobody is watching. Directory creation is bounded by the same roots that constrain every torrent save path, so a rule cannot create a folder anywhere the file manager could not.
 
 ### Permissions
 

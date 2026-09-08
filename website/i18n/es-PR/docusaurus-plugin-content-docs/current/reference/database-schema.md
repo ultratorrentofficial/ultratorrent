@@ -2559,6 +2559,7 @@ Tabla: `discovery_templates`
 | `autoAddLimitPerDay` | `Int` |
 | `autoAddLimitPerWeek` | `Int` |
 | `createdBy` | `String?` |
+| `autoMonitorEnabled` | `Boolean` |
 | `requireUpcoming` | `Boolean` |
 | `gracePeriodDays` | `Int` |
 | `pastReleaseBehavior` | `String` |

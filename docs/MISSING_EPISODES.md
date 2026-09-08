@@ -44,11 +44,25 @@ For each monitored series the scan:
    | Status | Meaning |
    |---|---|
    | `owned` | The library has this season/episode. |
-   | `missing` | Aired (has a past air year) and not owned. |
-   | `unaired` | Air year is in the future or unknown — can't be acquired yet. |
+   | `missing` | Aired and not owned. |
+   | `unaired` | Not aired yet — can't be acquired. |
    | `ignored` | You opted this episode out; it survives rescans. |
 
    Season 0 (specials) is excluded from the missing math.
+
+   **How "aired" is decided, and where it is coarse.** When a provider can give an
+   *aired boundary* (the latest season/episode actually broadcast) the split is
+   exact. Without one the fallback compares **years**: an episode is `unaired`
+   only if its air year is unknown or **greater** than the current year. So an
+   episode airing in December, judged in September of the same year, classifies
+   as `missing`.
+
+   That is survivable for a series already airing — the episode is coming, and the
+   search finds nothing until it does. It is **not** survivable for a series that
+   has not premiered at all, because a provider has no aired boundary for one, so
+   the coarse path is the only path and *every* episode of a show premiering later
+   this year is recorded as `missing`. The 15-minute sweep then searches for
+   episodes that do not exist. See below.
 
 The result is per-series counts (owned / total / missing / unaired / ignored) plus a
 season→episode grid. Scans are idempotent — rescanning rebuilds everything except your
@@ -100,3 +114,27 @@ All under `/api/media-acquisition`:
 **Still manual:** the *scan* itself (the catalogue↔library diff) has no scheduler — nothing
 rescans on an interval or on library change. Use **Scan** / **Scan all** to refresh the
 wanted list; only the *search* half is automated.
+
+## Media Discovery does not populate this for unreleased shows
+
+A missing-episode scan answers *"what aired that I do not have?"*. For a series
+that has not premiered the honest answer is **nothing**, and its episodes arrive
+through its generated RSS rule as they are released.
+
+Media Discovery therefore scans a newly monitored series **only if it has already
+premiered**, and an unknown premiere date counts as not premiered. Since
+discovery's remit is new and upcoming series, in practice the automatic path
+never scans — which is the correct outcome, not a gap.
+
+The exception is the only route to a real back catalogue: a **part-aired series
+imported by hand from Needs review**. Discovery never auto-monitors one, because
+the eligibility gate refuses a past premiere, so a person choosing to import it is
+what makes the question meaningful.
+
+:::warning Why this is gated rather than left to the classifier
+Without the gate, the year-granularity fallback above recorded every episode of an
+unreleased show as `missing`. Measured on a live install after one afternoon: 40
+wanted rows across five unreleased titles, 40 searches already spent (13 failed,
+27 no results) on episodes that had not been made. Nothing was grabbed, but the
+indexer traffic was real and repeated every 15 minutes.
+:::

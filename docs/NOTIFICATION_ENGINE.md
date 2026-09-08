@@ -14,6 +14,7 @@ Everything else is decided by UltraTorrent.
 - [Preferences](#preferences)
 - [Channels](#channels)
 - [Presentation](#presentation)
+- [Digests](#digests)
 - [Delivery](#delivery)
 - [API](#api)
 - [Adding an event](#adding-an-event)
@@ -31,8 +32,20 @@ be connected.
 
 The rebuild removes the questions that made that possible. There is deliberately
 **no** rule builder, audience designer, template editor, routing precedence,
-wildcard matching, multi-destination routing, quiet-hours scheduling or digest
-engine. Those are not "not yet"; they are the complexity being refused.
+wildcard matching, multi-destination routing or quiet-hours scheduling. Those are
+not "not yet"; they are the complexity being refused.
+
+**There is no digest *engine*, and that distinction is the point.** Nothing here
+holds notifications back, batches them on a timer, or lets anyone configure a
+window — all of which would mean a scheduler, a pending queue and a set of rules
+about what merges with what. What exists instead is that a *producer* which
+decides about many things at once may say so in one event. Media Discovery does
+this: an evaluation run publishes one `auto_monitored` event carrying every title
+it monitored, rather than one per title. The consolidation is a property of the
+event the producer chose to publish, not a stage this engine performs, so the
+delivery path is unchanged — one event, one notification, one email.
+
+See [Digests](#digests) for the shape a producer uses.
 
 ---
 
@@ -215,10 +228,57 @@ Presentations are built **once per recipient and stored**. Rebuilding at read ti
 would let a catalogue change silently rewrite what a historical notification said,
 and it freezes the permission decision at the moment it was true.
 
-External channels **omit artwork**. Discord renders images only from
+External channels **omit `artwork`**. Discord renders images only from
 anonymously-fetchable URLs; the same reasoning applies to email and Telegram
 rather than reaching into the media integration to attach bytes. A real
 limitation, stated rather than hidden.
+
+That limit is about **library** artwork, which is what rule 3 protects. A digest
+item's `imageUrl` is a different thing and email does render it — see below.
+
+---
+
+## Digests
+
+A notification is usually about one thing. Some producers decide about many at
+once, and for those the presentation carries an optional `items` list.
+
+```ts
+interface PresentationItem {
+  title: string;
+  subtitle?: string | null;   // "2026 · Series"
+  synopsis?: string | null;   // already trimmed by the builder
+  imageUrl?: string | null;   // externally hosted, http/https only
+  facts?: PresentationFact[]; // per-title metadata
+  note?: string | null;       // why THIS title is in THIS digest
+}
+```
+
+**Optional, and the version stays at 2.** Presentations are stored, so historical
+rows predate the field. A renderer must fall back to `summary`, which is always
+written to stand on its own — a surface that ignores `items` entirely still says
+something true.
+
+**`imageUrl` is the one place a presentation holds an address rather than a
+reference, and it does not weaken rule 3.** That rule protects library artwork:
+it sits behind authentication, and a public URL for it would outlive the
+notification carrying it. A discovery poster is a third party's already-public
+CDN URL (TMDB, TVmaze) for a title nobody owns yet — no authentication to leak,
+nothing private to expose — and it is the only way a poster reaches an inbox at
+all, because a mail client cannot authenticate.
+
+It is validated **twice**: in the builder, and again in the email renderer. Only
+`http:` and `https:` become a `src`. The value came from a provider response, and
+a `javascript:` or `data:text/html` URL in an `<img src>` is a scripting vector
+that escaping does not cover. A rejected URL drops the image and keeps the title.
+
+**The producer bounds the list, never the truth.** Media Discovery lists at most
+20 titles and sends the run's real `count` plus an `omitted` figure, so a run of
+200 says 200 rather than quietly showing a prefix as though it were everything.
+
+Wording follows the count: one title reads better named than counted
+("*Youth* was added" beats "1 title was added"), so the singular copy is kept and
+the plural form takes over from two.
 
 ---
 

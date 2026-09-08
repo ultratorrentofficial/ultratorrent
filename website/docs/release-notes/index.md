@@ -12,13 +12,67 @@ keywords: [release notes, changelog, versions, what's new, upgrade]
 This page is generated from `CHANGELOG.md` at build time. **Do not edit it by hand** — change the changelog and rebuild.
 :::
 
-Every released version, newest first. This page shows the **25 most recent** of **205** releases; the complete history lives in [CHANGELOG.md](https://github.com/ultratorrentofficial/ultratorrent/blob/main/CHANGELOG.md).
+Every released version, newest first. This page shows the **25 most recent** of **211** releases; the complete history lives in [CHANGELOG.md](https://github.com/ultratorrentofficial/ultratorrent/blob/main/CHANGELOG.md).
 
 Versions are [semantic](https://semver.org/): a **minor** bump means new capability, a **patch** means fixes only. Upgrading is covered in [Upgrading](/install/upgrading).
 
-## 0.90.3 — 2026-09-07
+## 0.90.9 — 2026-09-08
 
 _Latest release._
+
+### Fixed
+
+- Discovery sends one consolidated notification per run instead of one per title, and each title carries its poster, synopsis, network, premiere, rating and genres
+
+Tagged [`v0.90.9`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.90.9).
+
+## 0.90.8 — 2026-09-08
+
+### Fixed
+
+- A monitored show leaves the Media Discovery catalogue once it grabs its first release; monitoring no longer ends because a premiere date passed; discovery-monitored series now track their missing episodes
+- Unchecking a discovery template's automatic-monitoring or premiere-eligibility box now saves; five template fields were discarded on every save while still clearing the catalogue's decisions
+
+Tagged [`v0.90.8`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.90.8).
+
+## 0.90.7 — 2026-09-08
+
+### Fixed
+
+- re-evaluating an already-monitored title no longer competes for or spends the automatic-add budget
+
+Tagged [`v0.90.7`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.90.7).
+
+## 0.90.6 — 2026-09-08
+
+### Fixed
+
+- a rule's download directory is created when the rule is saved, so an acquisition cannot fail on a missing path
+- a generated rule matches only its own show — a match-preference candidate with no show title matched every item in the feed
+- a generated RSS rule is named for its show, without the year
+
+Tagged [`v0.90.6`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.90.6).
+
+## 0.90.5 — 2026-09-08
+
+### Fixed
+
+- a discovery template can be told not to monitor automatically, and a held title can be imported from review — creating everything an automatic monitor would
+- refresh catalogues no longer contacts providers that are switched off
+- a generated rule records its target path, so a template path template is no longer inert when intake directory creation is off
+- discovery cards show the synopsis, network, rating and status, and a template can filter by network, streaming service or studio
+
+Tagged [`v0.90.5`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.90.5).
+
+## 0.90.4 — 2026-09-08
+
+### Fixed
+
+- discovery matches languages canonically, so a template naming English no longer rejects every TMDB title stored as en; and a title a template ruled out now says why instead of Not evaluated
+
+Tagged [`v0.90.4`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.90.4).
+
+## 0.90.3 — 2026-09-07
 
 ### Fixed
 
@@ -279,67 +333,6 @@ Tagged [`v0.85.4`](https://github.com/ultratorrentofficial/ultratorrent/releases
 - The show poster an operator selects is the one the library shows, and a show's identity can be corrected by searching rather than typing an id
 
 Tagged [`v0.85.3`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.85.3).
-
-## 0.85.2 — 2026-08-19
-
-### Fixed
-
-- A metadata refresh can no longer overwrite a show's identity from a match that contradicts it
-
-Tagged [`v0.85.2`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.85.2).
-
-## 0.85.1 — 2026-08-19
-
-### Fixed
-
-- Show artwork renders, a metadata refresh uses the identity it already has, and that identity can be corrected from the app
-
-Tagged [`v0.85.1`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.85.1).
-
-## 0.85.0 — 2026-08-19
-
-### New
-
-- File Manager: preview images, play video/audio, and read NFO/subtitle files in a kind-aware preview modal
-
-### Fixed
-
-- Remove the dangling breadcrumb separator on a show header
-
-Tagged [`v0.85.0`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.85.0).
-
-## 0.84.1 — 2026-08-19
-
-### Fixed
-
-- Breadcrumbs and a real Back on media pages, and the Library Browser keeps its sort and filters in the URL
-
-Tagged [`v0.84.1`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.84.1).
-
-## 0.84.0 — 2026-08-19
-
-### New
-
-- A TV show owns its metadata and artwork, per show and per season, the way a film always has
-
-### Fixed
-
-- Intake-managed torrents and Managed Intake rules are identifiable at a glance, and the library series picker lists each show once
-- Adopt a torrent qBittorrent already holds instead of failing the add, and stop the missing-episode sweep from re-offering a release the engine refused
-- An episode opens its detail page, so TV metadata, artwork and subtitles are reachable the way a film's always were
-- Stop the renamer filing numbered episodes as extras when their title contains a word like interview or deleted, and make the extras destination idempotent
-- An episode's metadata and still are the episode's own, not its series' repeated on every file
-- Add an optional staging subfolder to a managed-intake torrent add, so a manual download can wait somewhere named under the profile's staging root
-
-Tagged [`v0.84.0`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.84.0).
-
-## 0.83.10 — 2026-08-18
-
-### Fixed
-
-- Rename works inside a show, and a deployed frontend is no longer masked by a cached index.html
-
-Tagged [`v0.83.10`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.83.10).
 
 ## Older releases
 

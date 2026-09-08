@@ -61,13 +61,31 @@ También necesitas `media_acquisition.view` para mirar, y `media_acquisition.man
 | Estado | Significado |
 |--------|-------------|
 | `owned` | La biblioteca tiene esta temporada/episodio. |
-| `missing` | Se estrenó (tiene un año de emisión pasado) y no lo tienes. |
-| `unaired` | Su año de emisión está en el futuro, o se desconoce. Todavía no se puede adquirir. |
+| `missing` | Se transmitió y no lo tienes. |
+| `unaired` | No se ha transmitido. Todavía no se puede adquirir. |
 | `ignored` | Excluiste este episodio a mano. **Sobrevive los reescaneos.** |
 
 La temporada 0 (especiales) queda fuera del cálculo de faltantes.
 
 **`searchStatus`** — lo establece el puente de [indexadores](/modules/indexers): `idle → searching → grabbed | pending_approval | no_results | failed`. Igual que `ignored`, se preserva a través de los reescaneos, así que un episodio ya obtenido nunca se vuelve a buscar. Se limpia automáticamente en cuanto el episodio está en biblioteca.
+
+:::caution "Transmitido" es exacto solo cuando un proveedor da un límite de emisión
+Con un límite — la última temporada/episodio realmente transmitido — la división es precisa. Sin él, el respaldo compara **años**: un episodio cuenta como `unaired` solo si su año de emisión se desconoce o es **mayor** que el año actual. Así que un episodio que sale en diciembre, juzgado en septiembre del mismo año, se clasifica como `missing`.
+
+Para una serie que ya está al aire eso es inofensivo: el episodio va a llegar, y una búsqueda no encuentra nada hasta entonces. Para una serie que **no se ha estrenado** no hay límite posible, así que el camino grueso es el único camino y todos sus episodios quedan como `missing` — por eso las series sin estrenar no se escanean. Ver abajo.
+:::
+
+## El Descubrimiento de Medios no agrega aquí series sin estrenar
+
+Un escaneo de episodios faltantes responde *"¿qué se transmitió que yo no tengo?"*. Para una serie que no se ha estrenado la respuesta es **nada**, y sus episodios llegan por su regla RSS generada según se van lanzando.
+
+Por eso el [Descubrimiento de Medios](/modules/media-discovery) escanea una serie recién vigilada **solo si ya se estrenó**, y una fecha de estreno desconocida cuenta como no estrenada. Como el ámbito del Descubrimiento son series nuevas y próximas, en la práctica su camino automático nunca escanea — y ese es el resultado correcto, no una carencia.
+
+La excepción es la única vía hacia un catálogo anterior real: una **serie ya empezada que importes a mano desde Necesita revisión**. El Descubrimiento nunca auto-vigila una así, porque el filtro de elegibilidad rechaza un estreno pasado, así que elegir importarla es lo que le da sentido a la pregunta.
+
+:::warning Qué evita esto
+Sin ese filtro, el respaldo por año de arriba registraba como `missing` cada episodio de una serie sin estrenar, y el barrido de 15 minutos los buscaba. En una instalación real, tras una tarde: 40 filas para cinco títulos sin estrenar y 40 búsquedas ya gastadas — 13 fallidas, 27 sin resultados — por episodios que no se habían hecho. No se bajó nada, pero el tráfico a los indexadores fue real y se repetía cada 15 minutos.
+:::
 
 ## Cómo funciona
 

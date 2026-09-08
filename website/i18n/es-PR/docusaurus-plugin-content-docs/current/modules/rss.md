@@ -57,7 +57,7 @@ Una fuente RSS es un flujo de **empuje** — recibes lo que el tracker decidió 
 
 **Recomendación** — el veredicto en cristiano derivado del estado: `recommended` (la serie está activa), `caution` (en pausa), `not_recommended` (finalizada o cancelada), o `unknown`.
 
-**Ruta de guardado** — dónde aterrizan los datos del torrent capturado. Se define por regla; si no se define, usa el directorio de descargas por defecto del motor.
+**Ruta de guardado** — dónde aterrizan los datos del torrent capturado. Se define por regla; si no se define, usa el directorio de descargas por defecto del motor. **Guardar una regla crea ese directorio si falta**, para que una captura no falle después por una ruta que nunca existió.
 
 ## Cómo funciona
 
@@ -136,9 +136,15 @@ Cuando el estado de una serie cambia, la tarea de actualización actualiza toda 
 | **Tipo de medio** | `tv`, `anime`, `episode`, `series`, `movie`, … Impulsa la resolución del estado de emisión. | — | Ponlo siempre para TV. Es lo que desbloquea el panel de estado de la serie. |
 | **Candidatos de coincidencia** | La lista rankeada construida en la Creación inteligente. | Vacío | Rankéalos por lo que de verdad aceptarías: tu lanzamiento ideal primero, tu respaldo aceptable segundo. |
 | **Categoría** | La categoría que se le aplica al torrent capturado. | Sin definir | Ponla — es de lo que se agarran después la mayoría de las Reglas de Automatización. |
-| **Ruta de guardado** | Dónde aterrizan los datos. | Predeterminado del motor | Ponla en la carpeta de biblioteca de esa serie, para que el Gestor de Medios la recoja. |
+| **Ruta de guardado** | Dónde aterrizan los datos. Se crea al guardar si falta. | Predeterminado del motor | Ponla en la carpeta de biblioteca de esa serie, para que el Gestor de Medios la recoja. |
 | **Descarga automática** | Si una coincidencia se captura automáticamente o solo se registra. | Activado | **Apágala** para convertir una regla en "solo relleno" sin eliminarla. |
 | **Permitir monitorear series inactivas** | Permite guardar una regla para una serie finalizada/cancelada. | Apagado | Déjalo apagado. Actívalo solo cuando estés rellenando a propósito. |
+
+### La ruta de guardado se crea cuando guardas la regla
+
+Guardar una regla con ruta de guardado crea ese directorio si no existe — al crearla, y en una actualización que cambie la ruta. Un directorio existente es un éxito, no un conflicto; un **archivo** existente en esa ruta es una falla, porque la alternativa sería borrar tu archivo para hacerle sitio a una carpeta.
+
+La razón es la falla que evita. Una regla que apunta a un directorio inexistente se ve perfectamente sana hasta que un lanzamiento coincide con ella — y entonces la captura falla dentro del cliente de torrents, justo en el momento en que nadie está mirando. La creación está acotada por las mismas raíces que limitan toda ruta de guardado de torrents, así que una regla no puede crear una carpeta donde el gestor de archivos no podría.
 
 ### Permisos
 

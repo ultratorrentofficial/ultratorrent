@@ -330,7 +330,8 @@ stored and populated, and simply never passed along.
 | Unknown | `needs_review` |
 | Providers disagree | `needs_review`, with both dates kept |
 
-**These two gates are asked once, on the way in.** They decide whether to *start*
+**Three gates are asked once, on the way in.** The release window, the premiere
+gate and the **automatic-monitoring switch** all decide whether to *start*
 following a show, and they are not re-applied to one already monitored. A
 monitored show's premiere moves into the past on its own; re-asking then answers
 "no" for the one thing guaranteed to happen to every show, and that answer used
@@ -339,6 +340,13 @@ downloading correctly, mid-season, because time passed. Everything else about a
 template *is* re-applied: a category removed, a network dropped or a language
 that no longer qualifies are real answers about the title, and monitoring still
 ends.
+
+The switch belongs in that set for a sharper reason than the other two. Read as a
+retention test it is a demolition button: every title the template monitors would
+return `needs_review`, which is not `auto_monitor`, which is the retraction path
+— so unchecking *"monitor matching titles automatically"* would delete every
+generated rule the template had ever made. Turning it off stops new titles being
+monitored and leaves the existing ones alone.
 
 **Unknown and conflicting dates refuse to automate.** Treating an unknown date as
 acceptable is exactly the case this gate exists to prevent, and it would be

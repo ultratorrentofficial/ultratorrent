@@ -18,7 +18,7 @@ This page is generated from `the @Controller / @Get / @RequirePermissions decora
 Every endpoint below was read from the controllers themselves, including the **exact
 permission** its guard enforces.
 
-- **501 endpoints** across **26 controllers**
+- **503 endpoints** across **26 controllers**
 - Base URL: `http://<host>:<port>/api`
 
 ## Authentication
@@ -448,6 +448,8 @@ From `MediaDiscoveryController`.
 | `GET` | `/api/media-discovery/template-options` | `MEDIA_DISCOVERY_TEMPLATES_MANAGE` | `templateOptions` |
 | `POST` | `/api/media-discovery/preview` | `MEDIA_DISCOVERY_TEMPLATES_MANAGE` | `runPreview` |
 | `POST` | `/api/media-discovery/sync` | `MEDIA_DISCOVERY_PROVIDERS_MANAGE` | `runSync` |
+| `POST` | `/api/media-discovery/items/:id/import` | `MEDIA_DISCOVERY_MANAGE` | `importItem` |
+| `POST` | `/api/media-discovery/items/:id/decline` | `MEDIA_DISCOVERY_MANAGE` | `declineItem` |
 | `GET` | `/api/media-discovery/items/:id/removal-plan` | `MEDIA_DISCOVERY_VIEW` | `removalPlan` |
 | `DELETE` | `/api/media-discovery/items/:id` | `MEDIA_DISCOVERY_MANAGE` | `removeItem` |
 | `GET` | `/api/media-discovery/duplicates` | `MEDIA_DISCOVERY_VIEW` | `duplicates` |

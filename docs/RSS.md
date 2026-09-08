@@ -25,6 +25,29 @@ the **Smart Match Builder** and prioritised in the **Match Preferences** list.
 The scheduler job `rss_poll` (`RssService.pollDue`, 60 s) fetches feeds whose
 refresh interval has elapsed and evaluates enabled rules against new items.
 
+## A rule's save path is created when the rule is saved
+
+Saving a rule with a save path **creates that directory** if it is missing, on
+create and on the updates that change the path. A path that changes to an
+existing directory is a success, not a conflict; an existing *file* at that path
+is a failure, because the alternative is deleting somebody's file to make room
+for a folder.
+
+The reason is the failure it prevents. A rule pointing at a directory that does
+not exist looks completely healthy until a release matches it — and then the grab
+fails inside the torrent client, at the one moment nobody is watching. That is
+the worst possible time to discover a path typo, and it was reaching users
+through discovery-generated rules, which now always record a save path.
+
+Creation is bounded by the same hard roots that constrain every torrent save
+path, so a rule cannot create a directory anywhere the file manager could not.
+
+:::note Recording the path and creating the folder are separate things
+A rule records its save path whether or not the folder was created — these were
+once conflated, which made a path setting do nothing at all unless directory
+creation happened to be switched on.
+:::
+
 ## TV show airing-status awareness
 
 Users can create rules for shows that have already **ended or been canceled**,

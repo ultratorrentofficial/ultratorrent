@@ -17,6 +17,7 @@ different audiences.
 - [The category policy](#the-category-policy)
 - [Match modes](#match-modes)
 - [Scope](#scope)
+- [Automation](#automation-and-what-switching-it-off-does-not-undo)
 - [Thresholds and identity](#thresholds-and-identity)
 - [Destination](#destination)
 - [Limits](#limits)
@@ -107,6 +108,34 @@ different query from "films in cinemas", and the digital date is often a year
 after the theatrical one. Scoping by region matters for the same reason: release
 dates are per-country, and without a region a single foreign TV airing can
 qualify a five-year-old film.
+
+## Automation, and what switching it off does not undo
+
+| Field | Default | What it decides |
+| --- | --- | --- |
+| **Monitor matching titles automatically** | on | Off holds every qualifying title in **Needs review** instead of monitoring it. |
+| **Only auto-monitor series that have not premiered yet** | on | Off drops the premiere gate; the release window still applies. |
+| **Grace period (days)** | 0 | How far past a premiere still counts as upcoming. Max 14 — beyond that it is back-catalogue import, not a grace period. |
+| **When a series already premiered** | review | `review` holds it; `ignore` files it away. Never `auto_monitor`. |
+| **When a returning series is found** | existing_only | Whether a new season of a show you do not monitor is offered at all. |
+
+**Three of these are admission controls, and none of them retracts.** The
+automatic-monitoring switch, the release window and the premiere gate all answer
+*"should I start following this?"*. They are asked once, on the way in, and are
+**not** re-applied to a title the template already monitors.
+
+That distinction is load-bearing rather than pedantic. A monitored show's premiere
+moves into the past on its own, so re-asking answers "no" for the one thing
+guaranteed to happen to every show — and a non-`auto_monitor` verdict for a
+monitored title reaches the retraction path, which deletes its generated rule
+mid-season. Read as a retention test, the automation switch is worse still: every
+monitored title would return `needs_review`, so unchecking one box would dismantle
+everything the template had ever created.
+
+Everything else about a template **is** re-applied. A category you removed, a
+network you dropped, a language that no longer qualifies are real answers about
+the title, and monitoring still ends. Undoing monitoring in bulk deliberately is
+what the removal tool is for, where it is scoped and previewed first.
 
 ## Thresholds and identity
 

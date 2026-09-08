@@ -12,7 +12,7 @@ keywords: [release notes, changelog, versions, what's new, upgrade]
 Esta página se genera desde `CHANGELOG.md` al compilar. **No la edites a mano** — cambia el changelog y vuelve a compilar.
 :::
 
-Cada versión publicada, la más reciente primero. Esta página muestra las **25 más recientes** de **205** versiones; el historial completo está en [CHANGELOG.md](https://github.com/ultratorrentofficial/ultratorrent/blob/main/CHANGELOG.md).
+Cada versión publicada, la más reciente primero. Esta página muestra las **25 más recientes** de **211** versiones; el historial completo está en [CHANGELOG.md](https://github.com/ultratorrentofficial/ultratorrent/blob/main/CHANGELOG.md).
 
 Las versiones son [semánticas](https://semver.org/): un salto **minor** significa capacidad nueva, un **patch** significa solo correcciones. La actualización se cubre en [Actualizar](/install/upgrading).
 
@@ -20,9 +20,63 @@ Las versiones son [semánticas](https://semver.org/): un salto **minor** signifi
 Las entradas del changelog se escriben en inglés en el momento del lanzamiento y se publican tal cual. Los encabezados y la estructura de esta página están traducidos; el texto de cada entrada no lo está.
 :::
 
-## 0.90.3 — 2026-09-07
+## 0.90.9 — 2026-09-08
 
 _Última versión._
+
+### Corregido
+
+- Discovery sends one consolidated notification per run instead of one per title, and each title carries its poster, synopsis, network, premiere, rating and genres
+
+Etiquetada [`v0.90.9`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.90.9).
+
+## 0.90.8 — 2026-09-08
+
+### Corregido
+
+- A monitored show leaves the Media Discovery catalogue once it grabs its first release; monitoring no longer ends because a premiere date passed; discovery-monitored series now track their missing episodes
+- Unchecking a discovery template's automatic-monitoring or premiere-eligibility box now saves; five template fields were discarded on every save while still clearing the catalogue's decisions
+
+Etiquetada [`v0.90.8`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.90.8).
+
+## 0.90.7 — 2026-09-08
+
+### Corregido
+
+- re-evaluating an already-monitored title no longer competes for or spends the automatic-add budget
+
+Etiquetada [`v0.90.7`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.90.7).
+
+## 0.90.6 — 2026-09-08
+
+### Corregido
+
+- a rule's download directory is created when the rule is saved, so an acquisition cannot fail on a missing path
+- a generated rule matches only its own show — a match-preference candidate with no show title matched every item in the feed
+- a generated RSS rule is named for its show, without the year
+
+Etiquetada [`v0.90.6`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.90.6).
+
+## 0.90.5 — 2026-09-08
+
+### Corregido
+
+- a discovery template can be told not to monitor automatically, and a held title can be imported from review — creating everything an automatic monitor would
+- refresh catalogues no longer contacts providers that are switched off
+- a generated rule records its target path, so a template path template is no longer inert when intake directory creation is off
+- discovery cards show the synopsis, network, rating and status, and a template can filter by network, streaming service or studio
+
+Etiquetada [`v0.90.5`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.90.5).
+
+## 0.90.4 — 2026-09-08
+
+### Corregido
+
+- discovery matches languages canonically, so a template naming English no longer rejects every TMDB title stored as en; and a title a template ruled out now says why instead of Not evaluated
+
+Etiquetada [`v0.90.4`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.90.4).
+
+## 0.90.3 — 2026-09-07
 
 ### Corregido
 
@@ -283,67 +337,6 @@ Etiquetada [`v0.85.4`](https://github.com/ultratorrentofficial/ultratorrent/rele
 - The show poster an operator selects is the one the library shows, and a show's identity can be corrected by searching rather than typing an id
 
 Etiquetada [`v0.85.3`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.85.3).
-
-## 0.85.2 — 2026-08-19
-
-### Corregido
-
-- A metadata refresh can no longer overwrite a show's identity from a match that contradicts it
-
-Etiquetada [`v0.85.2`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.85.2).
-
-## 0.85.1 — 2026-08-19
-
-### Corregido
-
-- Show artwork renders, a metadata refresh uses the identity it already has, and that identity can be corrected from the app
-
-Etiquetada [`v0.85.1`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.85.1).
-
-## 0.85.0 — 2026-08-19
-
-### Nuevo
-
-- File Manager: preview images, play video/audio, and read NFO/subtitle files in a kind-aware preview modal
-
-### Corregido
-
-- Remove the dangling breadcrumb separator on a show header
-
-Etiquetada [`v0.85.0`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.85.0).
-
-## 0.84.1 — 2026-08-19
-
-### Corregido
-
-- Breadcrumbs and a real Back on media pages, and the Library Browser keeps its sort and filters in the URL
-
-Etiquetada [`v0.84.1`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.84.1).
-
-## 0.84.0 — 2026-08-19
-
-### Nuevo
-
-- A TV show owns its metadata and artwork, per show and per season, the way a film always has
-
-### Corregido
-
-- Intake-managed torrents and Managed Intake rules are identifiable at a glance, and the library series picker lists each show once
-- Adopt a torrent qBittorrent already holds instead of failing the add, and stop the missing-episode sweep from re-offering a release the engine refused
-- An episode opens its detail page, so TV metadata, artwork and subtitles are reachable the way a film's always were
-- Stop the renamer filing numbered episodes as extras when their title contains a word like interview or deleted, and make the extras destination idempotent
-- An episode's metadata and still are the episode's own, not its series' repeated on every file
-- Add an optional staging subfolder to a managed-intake torrent add, so a manual download can wait somewhere named under the profile's staging root
-
-Etiquetada [`v0.84.0`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.84.0).
-
-## 0.83.10 — 2026-08-18
-
-### Corregido
-
-- Rename works inside a show, and a deployed frontend is no longer masked by a cached index.html
-
-Etiquetada [`v0.83.10`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.83.10).
 
 ## Versiones anteriores
 

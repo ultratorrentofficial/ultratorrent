@@ -143,6 +143,12 @@ Dos reglas que el formulario impone: **Vigilar y Ocultar no pueden solaparse** (
 
 **Los umbrales degradan, no descartan.** Un título por debajo de tu piso de popularidad o calificación pasa a `notify` en vez de desaparecer — es el tipo de título correcto, solo que no uno para añadir automáticamente. **Un valor desconocido no pasa un umbral**; tratar lo desconocido como satisfecho dejaría pasar cada título con metadata pobre por la única puerta puesta para retener cosas.
 
+**Filtra por dónde se transmite una serie.** Las cadenas, los servicios de streaming y los estudios son **alternativas, no requisitos** — un título lleva a lo sumo uno o dos de los tres, así que exigir los tres no coincidiría con nada. Un título califica si *cualquiera* de las fuentes nombradas lo lleva, y dejar los tres vacíos acepta cualquier fuente.
+
+El formulario sugiere los valores que tu catálogo realmente tiene, y eso importa: esto se compara contra lo que **escribió un proveedor**, así que escribir `AppleTV` cuando TMDB dice `Apple TV` produce un filtro que en silencio no coincide con nada. La comparación no distingue mayúsculas, y un título sin cadena no puede satisfacer una lista que nombra cadenas específicas.
+
+**La automatización es opcional.** Apaga *"vigilar automáticamente los títulos que coincidan"* y cada título que califique queda retenido en **Necesita revisión**, donde tú decides. Importar uno desde ahí corre el **mismo** camino de creación que toma una vigilancia automática — entrada de lista de seguimiento, regla generada con su escalera completa y su ruta destino, directorio de entrada — así que un título aprobado queda configurado igual que uno sobre el que el motor actuó por su cuenta.
+
 ### Previsualiza antes de activar
 
 La previsualización corre el **evaluador real** — no una copia de las reglas, que se desviaría de ellas de forma invisible — sobre el catálogo que ya tienes, y no escribe nada.
@@ -192,11 +198,38 @@ Una edición que cambia la **política** — categorías, umbrales, alcance o el
 
 Cuando una reevaluación encuentra que un título auto-vigilado ya no califica, se **retira** su vigilancia: se elimina la regla generada, se archiva la entrada de lista y — si el título quedó fuera de alcance o explícitamente ignorado — sale del catálogo. Cada retirada te notifica, porque deshace algo hecho en tu nombre.
 
-Tres cosas que la retirada nunca hace:
+Cuatro cosas que la retirada nunca hace:
 
 - **Nunca borra medios ni torrents.** Corre desde un barrido en segundo plano que se disparó porque alguien editó una lista de géneros; borrar 40 GB de episodios como efecto secundario de eso sería irrecuperable e invisible.
 - **Nunca toca una regla que editaste.**
 - **Nunca pasa por encima de una entrada de lista que pausaste, archivaste o completaste.**
+- **Nunca desmantela una serie que ya se está descargando.** Un título así ya superó al catálogo de todos modos, así que en vez de retirarse **se gradúa** — ver más abajo.
+
+:::note Que pase el tiempo nunca es razón para dejar de vigilar
+La ventana de lanzamiento, el filtro de estreno y el interruptor de vigilancia automática son controles de **admisión**. Deciden si *empezar* a seguir una serie, y no se vuelven a aplicar a una que ya se vigila.
+
+El estreno de una serie vigilada pasa al pasado por sí solo. Volver a preguntar responde entonces "no" por lo único que le va a pasar a toda serie — y esa respuesta llega al camino de retirada, que borra la regla de una serie que se estaba descargando bien, a mitad de temporada. Leído como prueba de permanencia, el interruptor de automatización es todavía peor: desmarcar *"vigilar automáticamente los títulos que coincidan"* devolvería a revisión cada título vigilado y desmantelaría todo lo que la plantilla creó.
+
+Todo lo demás de una plantilla **sí** se vuelve a aplicar. Un género que quitaste, una cadena que sacaste o un idioma que ya no califica son respuestas reales sobre el título, y la vigilancia termina.
+:::
+
+### Una serie que empieza a descargarse sale del catálogo
+
+**Cuando una serie vigilada obtiene su primer lanzamiento, sale del Descubrimiento de Medios.** El registro de descubrimiento desaparece; su regla de adquisición y su entrada de lista de seguimiento quedan intactas, y sigue descargándose igual que antes. Desde ese momento es una adquisición común y se administra desde **Fuentes RSS**.
+
+Esto es el catálogo respondiendo su propia pregunta. El Descubrimiento existe para decidir *qué empezar a seguir*; una vez que una serie se está descargando eso ya quedó resuelto, y conservar la fila haría que la lista de vigilados mezclara dos cosas distintas — series esperando a empezar y series ya andando. Solo la primera clase sigue siendo una decisión pendiente.
+
+| Qué se va | Qué se queda |
+|---|---|
+| El registro de descubrimiento, sus evaluaciones y fechas de lanzamiento | La regla RSS generada, activada y sin cambios |
+| Su lugar en el catálogo | La entrada de lista de seguimiento |
+| | Todo archivo y torrent descargado |
+
+"Obtuvo su primer lanzamiento" significa que la regla realmente bajó algo — evidencia, no una inferencia a partir de una fecha.
+
+El título además queda **suprimido**, con la razón `graduated`. Sin eso, la próxima actualización del proveedor vuelve a listar la serie y una que ya estás descargando reaparece como hallazgo nuevo. No es un rechazo, y esa razón distinta es lo que permite que la lista de supresiones diga *ya tienes esto* en vez de *dijiste que no a esto*.
+
+Las graduaciones se anuncian, porque una serie que desaparece calladamente de Descubrir se lee como una falla.
 
 ## Las preferencias de coincidencia son obligatorias para auto-vigilar
 
@@ -220,18 +253,41 @@ Cada tarjeta lleva **la razón por la que está ahí**. Un motor de descubrimien
 
 | Estado | Significado |
 |--------|-------------|
-| **Vigilado** | Existen una entrada de lista y una regla de adquisición. La adquisición ya es trabajo del motor existente. |
+| **Vigilado** | Existen una entrada de lista y una regla de adquisición, y todavía no se ha bajado nada. La adquisición ya es trabajo del motor existente. |
 | **Notificar** | Se te muestra. No se creó nada. |
-| **Necesita revisión** | El motor *habría* actuado y no pudo hacerlo con seguridad — identidad sin resolver, o el límite de altas automáticas ya gastado. |
+| **Necesita revisión** | El motor *habría* actuado y no pudo hacerlo con seguridad — identidad sin resolver o ambigua, proveedores que no coinciden en la fecha de estreno, el límite de altas automáticas ya gastado, o la vigilancia automática apagada para esa plantilla. |
 | **Ignorado** | No es lo que la plantilla busca. Archivado para que deje de reaparecer. |
+
+Un título vigilado sale de esta lista para siempre cuando obtiene su primer lanzamiento — ver [Una serie que empieza a descargarse sale del catálogo](#una-serie-que-empieza-a-descargarse-sale-del-catálogo).
 
 **Necesita revisión no es notificar.** Uno dice "quizá quieras esto"; el otro dice "casi hacemos algo y nos detuvimos". Se atienden distinto, y por eso están separados.
 
 ![Bandeja de descubrimiento](/img/screenshots/media-discovery-inbox.png)
 
+## Qué te comunica
+
+**Una notificación por corrida, no una por título.** Una evaluación que vigila quince series manda un solo mensaje que las lista todas — todas se atienden con la misma visita a la bandeja, así que quince correos aparte serían ruido y no información.
+
+Cada título de ese mensaje lleva lo suficiente para juzgarlo sin abrir la aplicación: **póster, sinopsis, cadena, fecha de estreno, calificación y géneros**. Un resumen que no nombrara ningún título te mandaría a la aplicación a averiguar de qué se trataba, que es justo lo contrario de para qué se manda.
+
+| Notificación | Cuándo |
+|---|---|
+| **Ahora vigilando** | Se vigilaron títulos automáticamente en esta corrida. |
+| **Necesita tu revisión** | Se retuvieron títulos. Cada uno lleva *su propia* razón — una identidad sin resolver y un cupo agotado son problemas distintos con respuestas distintas. |
+| **Se dejó de vigilar** | Títulos que dejaron de coincidir y se retiraron. Los nombra todos, porque una serie que calladamente ya no se adquiere es una pregunta esperando a hacerse. |
+| **Ya se descarga por su cuenta** | Títulos que obtuvieron un primer lanzamiento y salieron del catálogo. |
+
+En un mensaje se listan a lo sumo 20 títulos; el conteo siempre es el total real de la corrida, y el mensaje dice cuántos no alcanzó a listar. Mostrar los primeros veinte de doscientos como si fueran todos sería una mentira por omisión.
+
+Dónde llegan — en la aplicación, correo, Telegram, Discord — se configura por destinatario en **Notificaciones**. Los pósters se muestran en el correo; las demás superficies llevan los mismos títulos y el mismo texto.
+
 ## Límites
 
 `autoAddLimitPerDay` (por defecto 10) y `autoAddLimitPerWeek` (por defecto 30) marcan el paso de la adquisición. Usan **ventanas móviles**, no días de calendario: "10 por día" significa no más de diez en ninguna ventana de 24 horas, porque un límite de calendario deja aterrizar veinte alrededor de la medianoche — exactamente la ráfaga que el límite existe para evitar.
+
+**El límite marca el paso de la adquisición nueva, y solo de esa.** Un título que esta plantilla ya vigila no vuelve a competir por el cupo, y el presupuesto se gasta únicamente cuando de verdad se *crea* una entrada de lista — no cuando se encuentra una existente y se deja como está.
+
+Ambas mitades importan porque editar la política borra todas las decisiones, así que una reevaluación vuelve a juzgar el catálogo entero. Sin ellas, una instalación con 17 series vigiladas y un límite de 10 empujaba a **Necesita revisión** a las siete que llegaron de último, diciendo *"Se alcanzó el umbral de altas automáticas"* mientras seguían siendo vigiladas.
 
 - **Un título fuera de presupuesto se retiene para revisión, nunca se descarta.** El límite marca el paso; perder el título sería otra funcionalidad y peor.
 - **Solo cuentan las altas que de verdad ocurrieron.** Una decisión cuya generación de regla luego falló no produjo vigilancia, así que no gasta presupuesto — si no, una racha de fallos agotaría la cuota en silencio.
@@ -287,6 +343,10 @@ Ruta base `/api/media-discovery`. **Ningún endpoint llama a un proveedor** — 
 | Una plantilla no vigila nada | La política de categorías no coincide con los géneros que emiten tus proveedores — y un título **sin** categorías nunca coincide | Compara contra las etiquetas reales de la bandeja |
 | Se ignoró un título que yo quería | Una plantilla solo vigila lo que nombra | Añade la categoría, o añade el título a mano |
 | Encontró una película que ya tengo | El Descubrimiento no revisa tu biblioteca — reporta lo que se está *lanzando* | Nada; la lista de seguimiento y Descarga Inteligente manejan la pertenencia |
+| Una serie que estaba vigilando desapareció del catálogo | Obtuvo su primer lanzamiento y se **graduó** — esto es normal | Adminístrala desde **Fuentes RSS**; su regla y su entrada de lista quedaron intactas |
+| Series que ayer estaban vigiladas hoy aparecen en **Necesita revisión** | Una versión anterior volvía a cobrarle el límite diario a títulos que ya vigilaba, así que al editar la política volvían a competir | Actualiza; los títulos ya vigilados no consumen el cupo |
+| Desmarcar una casilla de la plantilla parece no hacer nada | Una versión anterior descartaba cinco campos al guardar — vigilancia automática, elegibilidad de estreno, período de gracia, comportamiento ante estrenos pasados y ante series que regresan | Actualiza; el arreglo también evita que el interruptor retire lo que ya se vigila |
+| Series vigiladas aparecen en **Episodios Faltantes** | Una versión anterior escaneaba series sin estrenar, y el respaldo por año registraba sus episodios como `missing` | Actualiza; las series sin estrenar ya no se escanean, y sus episodios llegan por la regla RSS generada |
 
 ## Buenas prácticas
 
@@ -319,6 +379,18 @@ Porque la confianza mide *identidad*, no metadata. Sin id externo, sigue sin ide
 
 **¿Activar un proveedor le envía mi biblioteca?**
 No. Los proveedores son fuentes de catálogo de solo lectura; el Descubrimiento trae datos de próximos lanzamientos y no envía nada sobre tu instalación.
+
+**Una serie desapareció de Descubrir. ¿Se rompió algo?**
+Casi seguro que no — se graduó. Cuando una serie vigilada obtiene su primer lanzamiento se elimina el registro de descubrimiento y la serie sigue descargándose por su regla, que queda intacta. Habrás recibido una notificación *Ya se descarga por su cuenta* diciéndolo.
+
+**¿La vigilancia se detiene cuando la serie por fin se estrena?**
+No. El filtro de estreno decide si *empezar* a seguir algo y nunca se vuelve a aplicar a un título ya vigilado — si no, toda serie terminaría fallándolo, por lo único que les va a pasar a todas.
+
+**¿Por qué mis series vigiladas no tienen episodios faltantes listados?**
+Porque no se han transmitido. Un escaneo de episodios faltantes pregunta *"¿qué se transmitió que yo no tengo?"*, y para una serie sin estrenar la respuesta es nada; los episodios llegan por la regla RSS generada según se van lanzando. Una serie ya empezada que importes a mano desde revisión **sí** se escanea, porque ahí la pregunta tiene respuesta real.
+
+**¿Por qué un solo correo en vez de uno por serie?**
+Porque una corrida que vigila quince series plantea una sola cosa que atender, no quince. El resumen lista cada título con su póster y su sinopsis, así que consolidar no te cuesta nada.
 
 ## Lista de verificación
 

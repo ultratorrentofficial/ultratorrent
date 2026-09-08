@@ -143,6 +143,12 @@ Two rules the form enforces: **Monitor and Hide may not overlap** (opposite verd
 
 **Thresholds demote, they do not drop.** A title below your popularity or rating floor becomes `notify` rather than vanishing — it is the right kind of title, just not one to add automatically. **An unknown value fails a threshold**; treating unknown as satisfied would let every title with thin metadata through the one gate set to hold things back.
 
+**Filter by where a show airs.** Networks, streaming services and studios are **alternatives, not requirements** — a title carries at most one or two of the three, so requiring all of them would match nothing. A title qualifies if *any* named source carries it, and leaving all three empty accepts any source.
+
+The form suggests the values your catalogue actually holds, and that matters: these are matched against what a **provider wrote**, so typing `AppleTV` when TMDB says `Apple TV` produces a filter that silently matches nothing. Matching is case-insensitive, and a title with no network at all cannot satisfy a list that names specific ones.
+
+**Automation is optional.** Switch off *"monitor matching titles automatically"* and every qualifying title is held in **Needs review** instead, where you decide. Importing one from there runs the **same** creation path an automatic monitor takes — watchlist entry, generated rule with its full ladder and target path, intake directory — so an approved title is configured identically to one the engine acted on itself.
+
 ### Preview before enabling
 
 Preview runs the **real evaluator** — not a copy of the rules, which would drift from them invisibly — over the catalogue you already have, and writes nothing.
@@ -192,11 +198,38 @@ An edit that changes **policy** — categories, thresholds, scope, or the destin
 
 When a re-evaluation finds an auto-monitored title no longer qualifies, its monitoring is **withdrawn**: the generated rule deleted, the watchlist entry archived, and — if the title is now out of scope or explicitly ignored — it leaves the catalogue. Every retraction notifies you, because it undoes something done on your behalf.
 
-Three things retraction never does:
+Four things retraction never does:
 
 - **It never deletes media or torrents.** It runs from a background sweep that fired because somebody edited a genre list; deleting 40 GB of episodes as a side effect of that would be unrecoverable and invisible.
 - **It never touches a rule you edited.**
 - **It never overrules a watchlist entry you paused, archived or completed.**
+- **It never tears down a show that is already downloading.** Such a title has outgrown the catalogue anyway, so it *graduates* instead — see below.
+
+:::note Time passing is never a reason to stop monitoring
+The release window, the premiere gate and the automatic-monitoring switch are **admission** controls. They decide whether to *start* following a show, and are not re-applied to one already monitored.
+
+A monitored show's premiere moves into the past on its own. Re-asking then answers "no" for the one thing guaranteed to happen to every show — and that answer reaches the retraction path, deleting the rule of a series that was downloading correctly, mid-season. Read as a retention test the automation switch is worse still: unchecking *"monitor matching titles automatically"* would return every monitored title to review and dismantle everything the template ever created.
+
+Everything else about a template **is** re-applied. A category you removed, a network you dropped or a language that no longer qualifies are real answers about the title, and monitoring ends.
+:::
+
+### A show that starts downloading leaves the catalogue
+
+**Once a monitored show grabs its first release, it leaves Media Discovery.** The discovery record goes; its acquisition rule and watchlist entry are untouched, and it keeps downloading exactly as before. From that point it is an ordinary acquisition, managed from **RSS Feeds**.
+
+This is the catalogue answering its own question. Discovery exists to decide *what to start following*; once a show is downloading that is settled, and keeping the row would make the monitored list a mix of two different things — shows waiting to begin, and shows already running. Only the first kind is still a decision anybody has to make.
+
+| What goes | What stays |
+|---|---|
+| The discovery record, its evaluations and release dates | The generated RSS rule, enabled and unchanged |
+| Its place in the catalogue | The watchlist entry |
+| | Every downloaded file and torrent |
+
+"Grabbed its first release" means the rule actually pulled something — evidence, not an inference from a date.
+
+The title is also **suppressed**, with the reason `graduated`. Without that, the next provider refresh re-lists the show and a series you are already downloading reappears as a fresh find. It is not a rejection, and the distinct reason is what lets the suppressions list say *you already have this* rather than *you said no to this*.
+
+Graduations are announced, because a show quietly vanishing from Discover otherwise reads as a fault.
 
 ## Match preferences are required for auto-monitoring
 
@@ -220,18 +253,41 @@ Every card carries **the reason it is there**. A discovery engine that silently 
 
 | State | Meaning |
 |-------|---------|
-| **Monitored** | A watchlist entry and an acquisition rule exist. Acquisition is now the existing engine's job. |
+| **Monitored** | A watchlist entry and an acquisition rule exist, and nothing has been grabbed yet. Acquisition is now the existing engine's job. |
 | **Notify** | Surfaced for you. Nothing was created. |
-| **Needs review** | The engine *would* have acted and could not safely — an unresolved identity, or the automatic-add limit already spent. |
+| **Needs review** | The engine *would* have acted and could not safely — an unresolved identity, an ambiguous one, providers disagreeing about a premiere date, the automatic-add limit already spent, or automatic monitoring switched off for the template. |
 | **Ignored** | Not what the template is looking for. Filed so it stops reappearing. |
+
+A monitored title leaves this list for good once it grabs its first release — see [A show that starts downloading leaves the catalogue](#a-show-that-starts-downloading-leaves-the-catalogue).
 
 **Needs review is not notify.** One says "you might want this"; the other says "we nearly did something and stopped." They are triaged differently, which is why they are separate.
 
 ![Discovery inbox](/img/screenshots/media-discovery-inbox.png)
 
+## What it tells you
+
+**One notification per run, not one per title.** An evaluation that monitors fifteen shows sends a single message listing all fifteen — every one of them answered by the same visit to the inbox, so fifteen separate mails would be noise rather than information.
+
+Each title in that message carries enough to be judged without opening the app: **poster, synopsis, network, premiere date, rating and genres**. A digest that named no titles would send you to the app to find out what it was about, which defeats the point of sending it.
+
+| Notification | When |
+|---|---|
+| **Now monitoring** | Titles were monitored automatically this run. |
+| **Needs your review** | Titles were held. Each carries *its own* reason — an unresolved identity and an exhausted allowance are different problems with different answers. |
+| **Stopped monitoring** | Titles stopped matching and were withdrawn. It names every one, because a show quietly no longer being acquired is a question waiting to be asked. |
+| **Now downloading on its own** | Titles grabbed a first release and left the catalogue. |
+
+At most 20 titles are listed in one message; the count is always the run's real total, and the message says how many it did not list. Showing the first twenty of two hundred as though that were everything would be a lie of omission.
+
+Where these arrive — in-app, email, Telegram, Discord — is per-recipient and set in **Notifications**. Posters render in email; other surfaces show the same titles and text.
+
 ## Limits
 
 `autoAddLimitPerDay` (default 10) and `autoAddLimitPerWeek` (default 30) pace acquisition. They use **rolling windows**, not calendar days: "10 per day" means no more than ten in any 24 hours, because a calendar boundary lets twenty land across midnight — the exact burst the limit exists to prevent.
+
+**The limit paces new acquisition, and only new acquisition.** A title this template already monitors does not compete for the allowance again, and the budget is spent only when a watchlist entry is actually *created* — not when an existing one is found and left alone.
+
+Both halves matter because a policy edit clears every decision, so a re-evaluation re-judges the whole catalogue. Without them, an install with 17 monitored shows and a limit of 10 pushed the seven that came last into **Needs review** reading *"Automatic-add threshold reached"* while they were still being monitored.
 
 - **An over-budget title is held for review, never dropped.** The limit paces acquisition; losing the title would be a different and worse feature.
 - **Only additions that actually happened count.** A decision whose rule generation then failed produced no monitoring, so it does not spend budget — otherwise a run of failures would silently exhaust the allowance.
@@ -287,6 +343,10 @@ Base path `/api/media-discovery`. **No endpoint calls a provider** — a sync is
 | A template monitors nothing | The category policy does not match the genres your providers emit — and a title with **no** categories never matches | Compare against the inbox's actual genre tags |
 | A title I wanted was ignored | A template only monitors what it names | Add the category, or add the title by hand |
 | It found a film I already have | Discovery does not check your library — it reports what is being *released* | Nothing; the watchlist and Smart Download handle ownership |
+| A show I was monitoring vanished from the catalogue | It grabbed its first release and **graduated** — this is normal | Manage it from **RSS Feeds** now; its rule and watchlist entry are untouched |
+| Shows that were monitored yesterday are in **Needs review** today | An older build re-charged the daily add limit for titles it already monitored, so a policy edit made them compete again | Update; already-monitored titles no longer consume the allowance |
+| Unchecking a template box appears to do nothing | An older build discarded five fields on save — automatic monitoring, premiere eligibility, grace period, past-release and returning-series behaviour | Update; the fix also stops the switch from retracting what is already monitored |
+| Monitored shows appear under **Missing Episodes** | An older build scanned unreleased series, and the year-granularity fallback recorded their episodes as `missing` | Update; unreleased shows are no longer scanned, and their episodes arrive through the generated RSS rule |
 
 ## Best practices
 
@@ -319,6 +379,18 @@ Because confidence measures *identity*, not metadata. No external id means unide
 
 **Does enabling a provider send it my library?**
 No. Providers are read-only catalogue sources; Discovery pulls upcoming-release data and sends nothing about your installation.
+
+**A show disappeared from Discover. Did something break?**
+Almost certainly not — it graduated. Once a monitored show grabs its first release the discovery record is removed and the show carries on downloading through its rule, which is untouched. You will have had a *Now downloading on its own* notification saying so.
+
+**Will monitoring stop when a show finally premieres?**
+No. The premiere gate decides whether to *start* following something and is never re-applied to a title already monitored — otherwise every show would eventually fail it, for the one reason guaranteed to happen to all of them.
+
+**Why do my monitored shows have no missing episodes listed?**
+Because they have not aired. A missing-episode scan asks *"what aired that I do not have?"*, and for an unreleased series the answer is nothing; the episodes arrive through the generated RSS rule as they are released. A part-aired series you import by hand from review **is** scanned, because there the question has a real answer.
+
+**Why one email instead of one per show?**
+Because a run that monitors fifteen shows raises one thing to act on, not fifteen. The digest lists every title with its poster and synopsis, so consolidating costs you nothing.
 
 ## Checklist
 

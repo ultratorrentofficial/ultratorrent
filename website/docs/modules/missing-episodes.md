@@ -61,13 +61,31 @@ You also need `media_acquisition.view` to look, and `media_acquisition.manage_wa
 | Status | Meaning |
 |--------|---------|
 | `owned` | The library has this season/episode. |
-| `missing` | It aired (it has a past air year) and you do not have it. |
-| `unaired` | Its air year is in the future, or unknown. It cannot be acquired yet. |
+| `missing` | It aired and you do not have it. |
+| `unaired` | It has not aired. It cannot be acquired yet. |
 | `ignored` | You opted this episode out. It **survives rescans**. |
 
 Season 0 (specials) is excluded from the missing math.
 
+:::caution "Aired" is exact only when a provider gives an aired boundary
+With a boundary — the latest season/episode actually broadcast — the split is precise. Without one the fallback compares **years**: an episode counts as `unaired` only if its air year is unknown or **greater** than the current year. So an episode airing in December, judged in September of the same year, classifies as `missing`.
+
+For a series already airing that is harmless: the episode is coming, and a search finds nothing until it does. For a series that has **not premiered**, there is no boundary to be had, so the coarse path is the only path and every episode is recorded as `missing` — which is why unreleased shows are not scanned at all. See below.
+:::
+
 **`searchStatus`** — set by the [indexer](/modules/indexers) bridge: `idle → searching → grabbed | pending_approval | no_results | failed`. Like `ignored`, it is preserved across rescans, so a grabbed episode is never re-searched. It clears automatically once the episode is owned.
+
+## Media Discovery does not add unreleased shows here
+
+A missing-episode scan answers *"what aired that I do not have?"*. For a series that has not premiered the answer is **nothing**, and its episodes arrive through its generated RSS rule as they are released.
+
+So [Media Discovery](/modules/media-discovery) scans a newly monitored series **only if it has already premiered**, and an unknown premiere date counts as not premiered. Since discovery's remit is new and upcoming series, in practice its automatic path never scans — that is the correct outcome, not a gap.
+
+The exception is the only route to a genuine back catalogue: a **part-aired series you import by hand from Needs review**. Discovery never auto-monitors one, because the eligibility gate refuses a past premiere, so choosing to import it is what makes the question meaningful.
+
+:::warning What this prevents
+Without the gate, the year-granularity fallback above recorded every episode of an unreleased show as `missing`, and the 15-minute sweep searched for them. On a live install after one afternoon: 40 wanted rows across five unreleased titles, 40 searches already spent — 13 failed, 27 returning no results — for episodes that had not been made. Nothing was grabbed, but the indexer traffic was real and repeated every 15 minutes.
+:::
 
 ## How it works
 
