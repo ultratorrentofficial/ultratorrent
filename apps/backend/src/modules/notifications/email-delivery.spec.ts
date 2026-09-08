@@ -541,3 +541,96 @@ describe('NotificationDeliveryWorker', () => {
     expect(sent[0].subject).toBe('Done');
   });
 });
+
+/*
+ * Discovery digests in email.
+ *
+ * The reason the digest exists is that a person should be able to decide from
+ * the inbox — so the poster, the synopsis and the metadata have to survive the
+ * trip into HTML, and the same information has to be in the text part for a
+ * client that prefers it.
+ */
+describe('a discovery digest email', () => {
+  const digest = (items: any[]): any => ({
+    version: 2,
+    eventKey: 'media_discovery.auto_monitored',
+    accent: 'success',
+    icon: 'film',
+    headline: { lead: 'Discovery', trail: 'is monitoring new titles' },
+    summary: { text: '3 titles are now monitored', emphasis: '3' },
+    facts: [],
+    items,
+    timestamp: '2026-09-08T12:00:00.000Z',
+  });
+
+  const ITEM = {
+    title: 'Youth',
+    subtitle: '2026 · Series',
+    synopsis: 'A synopsis worth reading.',
+    imageUrl: 'https://image.tmdb.org/t/p/w500/x.jpg',
+    facts: [{ icon: 'tv', label: 'Network', value: 'Apple TV+' }],
+    note: null,
+  };
+
+  it('renders the poster as an image', () => {
+    const html = renderEmailHtml(digest([ITEM]));
+    expect(html).toContain('src="https://image.tmdb.org/t/p/w500/x.jpg"');
+    // Fixed dimensions, so the layout does not jump while the image loads.
+    expect(html).toMatch(/width="92"\s+height="138"/);
+  });
+
+  it('carries the title, synopsis and metadata', () => {
+    const html = renderEmailHtml(digest([ITEM]));
+    expect(html).toContain('Youth');
+    expect(html).toContain('A synopsis worth reading.');
+    expect(html).toContain('Apple TV+');
+  });
+
+  /*
+   * The value came from a provider. A `javascript:` URL in an `src` is a
+   * scripting vector that escaping does not cover, so the scheme is checked
+   * again here — the title survives, the image does not.
+   */
+  it.each([
+    'javascript:alert(1)',
+    'JaVaScRiPt:alert(1)',
+    'data:text/html;base64,PHNjcmlwdD4=',
+    'vbscript:msgbox(1)',
+    'file:///etc/passwd',
+    '/t/p/w500/relative.jpg',
+    'not a url',
+  ])('refuses %s as an image source but keeps the title', (imageUrl) => {
+    const html = renderEmailHtml(digest([{ ...ITEM, imageUrl }]));
+    expect(html).not.toContain(imageUrl);
+    expect(html).toContain('Youth');
+  });
+
+  it('escapes a title that contains markup', () => {
+    const html = renderEmailHtml(digest([{ ...ITEM, title: '<script>alert(1)</script>' }]));
+    expect(html).not.toContain('<script>alert(1)</script>');
+    expect(html).toContain('&lt;script&gt;');
+  });
+
+  it('renders an item with no poster at all', () => {
+    const html = renderEmailHtml(digest([{ ...ITEM, imageUrl: null }]));
+    expect(html).toContain('Youth');
+    expect(html).not.toContain('<img');
+  });
+
+  /* Some clients prefer the text part; it must carry the same titles. */
+  it('puts every title and synopsis in the plain-text part', () => {
+    const text = renderEmailText(digest([ITEM, { ...ITEM, title: 'War', synopsis: 'Another synopsis.' }]));
+    expect(text).toContain('Youth');
+    expect(text).toContain('A synopsis worth reading.');
+    expect(text).toContain('War');
+    expect(text).toContain('Another synopsis.');
+  });
+
+  /* A presentation with no items is every other notification in the system. */
+  it('renders unchanged when there are no items', () => {
+    const plain = digest([]);
+    delete plain.items;
+    expect(() => renderEmailHtml(plain)).not.toThrow();
+    expect(renderEmailHtml(plain)).not.toContain('<img');
+  });
+});

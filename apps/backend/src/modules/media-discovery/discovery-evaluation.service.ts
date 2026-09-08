@@ -70,6 +70,43 @@ const EXISTING_STATE_DECISION: Record<Exclude<ExistingState, 'none'>, DiscoveryD
   exists_not_monitored: 'exists_not_monitored',
 };
 
+/** A synopsis long enough to judge by, short enough not to be the whole email. */
+const MAX_SYNOPSIS = 320;
+/**
+ * Titles listed in one digest. The count is always truthful; past this the
+ * notification says how many it did not list rather than quietly showing a
+ * prefix as though it were everything.
+ */
+const MAX_DIGEST_ITEMS = 20;
+
+/** The row fields a digest entry is built from. */
+interface DigestSource {
+  title: string;
+  year: number | null;
+  mediaType?: string | null;
+  network?: string | null;
+  streamingService?: string | null;
+  genres?: string[];
+  rating?: number | null;
+  overview?: string | null;
+  posterUrl?: string | null;
+  releaseDates?: Array<{ date: Date | null }>;
+}
+
+/** One title in a notification digest, already trimmed for delivery. */
+export interface DigestItem {
+  title: string;
+  year: number | null;
+  mediaType: string | null;
+  network: string | null;
+  genres: string[];
+  rating: number | null;
+  premiere: string | null;
+  synopsis: string | null;
+  posterUrl: string | null;
+  note: string | null;
+}
+
 export interface EvaluationOutcome {
   templateId: string;
   templateName: string;
@@ -197,6 +234,15 @@ export class DiscoveryEvaluationService {
     const budget = await this.budget.state(template.id, template, now);
     let remaining = Math.min(budget.remainingToday, budget.remainingThisWeek);
     let heldForReview = 0;
+    /*
+     * Digest buffers. Each holds enough of a title to be judged without opening
+     * anything — poster, synopsis, network, rating, premiere — because a list of
+     * bare names asks the reader to go and look up all of them.
+     */
+    const monitoredItems: DigestItem[] = [];
+    const reviewItems: DigestItem[] = [];
+    const retractedItems: DigestItem[] = [];
+    const graduatedItems: DigestItem[] = [];
 
     const profile = template.storageProfileId
       ? await this.prisma.storageProfile.findUnique({
@@ -259,11 +305,16 @@ export class DiscoveryEvaluationService {
          * where a template edit and a first grab land in the same tick.
          */
         if (await this.stillDelivering(row)) {
+          const item = this.digestItem(row, 'It no longer matches this template, but it is already downloading');
           await this.graduate(row, 'it no longer matches this template');
+          graduatedItems.push(item);
           outcome.graduated += 1;
           continue;
         }
         const gone = !verdict.applies || verdict.decision === 'ignore';
+        // Built BEFORE the retraction: `removeFromCatalog` deletes the row, and
+        // a digest entry cannot be read off a row that no longer exists.
+        retractedItems.push(this.digestItem(row, verdict.reason));
         await this.retract(row, template, gone);
         outcome.retracted += 1;
         if (gone) {
@@ -387,23 +438,12 @@ export class DiscoveryEvaluationService {
            */
           if (acted.watchlistOutcome === 'created') remaining -= 1;
           /*
-           * Per title, and on by default in the catalogue: the system acquiring
-           * something without being asked is exactly what a person should be
-           * told about. The volume is already bounded by the template's
-           * automatic-add limit, so the pacing lives there rather than here.
+           * Collected, not published. The digest goes out once at the end of the
+           * run — a pass that monitors fifteen titles used to send fifteen
+           * notifications, all saying the same thing and all answered by one
+           * visit to the inbox.
            */
-          this.bus.publish({
-            eventKey: DOMAIN_EVENTS.MEDIA_DISCOVERY_AUTO_MONITORED,
-            resourceType: 'discovered_media',
-            resourceId: row.id,
-            payload: {
-              title: row.year ? `${row.title} (${row.year})` : row.title,
-              templateName: template.name,
-              mediaType: row.mediaType,
-              watchlistItemId: acted.watchlistItemId,
-              rssRuleId: acted.rssRuleId,
-            },
-          });
+          monitoredItems.push(this.digestItem(row));
           // A title that IS monitored but has no rule of its own is a real fault
           // with its own cause, so it is reported per title rather than summarised.
           if (!acted.rssRuleId && acted.failureReason) {
@@ -423,7 +463,13 @@ export class DiscoveryEvaluationService {
         }
       }
 
-      if (effective.decision === 'needs_review') heldForReview += 1;
+      if (effective.decision === 'needs_review') {
+        heldForReview += 1;
+        // The reason differs per title here — an unresolved identity, an
+        // exhausted allowance — so it travels with the title rather than being
+        // flattened into one sentence about all of them.
+        reviewItems.push(this.digestItem(row, effective.reason));
+      }
 
       await this.record(row.id, template.id, effective, acted);
       await this.prisma.discoveredMedia
@@ -458,14 +504,10 @@ export class DiscoveryEvaluationService {
      * an exhausted allowance there — and twenty notifications all say the same
      * thing and are all answered by one visit to the inbox.
      */
-    if (heldForReview > 0) {
-      this.bus.publish({
-        eventKey: DOMAIN_EVENTS.MEDIA_DISCOVERY_REVIEW_REQUIRED,
-        resourceType: 'discovery_template',
-        resourceId: template.id,
-        payload: { count: heldForReview, templateName: template.name },
-      });
-    }
+    this.publishDigest(DOMAIN_EVENTS.MEDIA_DISCOVERY_REVIEW_REQUIRED, template, reviewItems);
+    this.publishDigest(DOMAIN_EVENTS.MEDIA_DISCOVERY_AUTO_MONITORED, template, monitoredItems);
+    this.publishDigest(DOMAIN_EVENTS.MEDIA_DISCOVERY_RETRACTED, template, retractedItems);
+    this.publishDigest(DOMAIN_EVENTS.MEDIA_DISCOVERY_GRADUATED, template, graduatedItems);
 
     return outcome;
   }
@@ -823,17 +865,6 @@ export class DiscoveryEvaluationService {
         }
       }
 
-      this.bus.publish({
-        eventKey: DOMAIN_EVENTS.MEDIA_DISCOVERY_RETRACTED,
-        resourceType: 'discovered_media',
-        resourceId: row.id,
-        payload: {
-          title: row.year ? `${row.title} (${row.year})` : row.title,
-          templateName: template.name,
-          removedFromCatalog: removeFromCatalog,
-        },
-      });
-
       if (removeFromCatalog) {
         await this.removal.suppress(row.id, 'retracted');
       } else {
@@ -845,6 +876,89 @@ export class DiscoveryEvaluationService {
     } catch (err) {
       this.logger.warn(`Could not retract "${row.title}": ${(err as Error).message}`);
     }
+  }
+
+  /**
+   * One title, reduced to what a person needs to judge it in an inbox.
+   *
+   * A notification that says only "3 titles need review" makes the reader open
+   * the app to find out what they are; one that carries the poster, the
+   * synopsis, the network and the premiere lets them decide from the email.
+   * That is the whole point of the digest, so this is deliberately generous
+   * about what it includes and strict about size — `MAX_SYNOPSIS` keeps one
+   * runaway provider overview from dominating a mail.
+   */
+  private digestItem(row: DigestSource, note?: string | null): DigestItem {
+    const premiere = (row.releaseDates ?? [])
+      .filter((d) => d.date)
+      .map((d) => d.date as Date)
+      .sort((a, b) => a.getTime() - b.getTime())[0];
+
+    return {
+      title: row.title,
+      year: row.year ?? null,
+      mediaType: row.mediaType ?? null,
+      // Where it airs: at most one of the two is ever set, so the first wins.
+      network: row.network ?? row.streamingService ?? null,
+      genres: (row.genres ?? []).slice(0, 4),
+      rating: typeof row.rating === 'number' ? row.rating : null,
+      premiere: premiere ? premiere.toISOString().slice(0, 10) : null,
+      synopsis: this.trimSynopsis(row.overview ?? null),
+      /*
+       * Passed through as the provider gave it. The store already rejects every
+       * scheme but http/https (see discovery-security.spec.ts); the renderer
+       * checks again, because this becomes an `<img src>` in somebody's mail
+       * client and one validation between a provider and that is not enough.
+       */
+      posterUrl: row.posterUrl ?? null,
+      note: note ?? null,
+    };
+  }
+
+  /** A synopsis long enough to judge by, short enough not to be the whole email. */
+  private trimSynopsis(text: string | null): string | null {
+    if (!text) return null;
+    const clean = text.replace(/\s+/g, ' ').trim();
+    if (!clean) return null;
+    if (clean.length <= MAX_SYNOPSIS) return clean;
+    // Cut on a word boundary; a synopsis severed mid-word reads as corrupted.
+    const cut = clean.slice(0, MAX_SYNOPSIS);
+    const lastSpace = cut.lastIndexOf(' ');
+    return `${(lastSpace > MAX_SYNOPSIS * 0.6 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
+  }
+
+  /**
+   * One notification for a run, or none at all.
+   *
+   * Publishing per title meant a pass that monitored fifteen shows sent fifteen
+   * emails — every one of them answered by a single visit to the inbox. The
+   * digest carries the count AND the titles, so consolidating costs the reader
+   * nothing: a retraction can still name every show it withdrew, which was the
+   * objection to summarising it before.
+   *
+   * `MAX_DIGEST_ITEMS` bounds the mail rather than the run. Past that the count
+   * still tells the truth and the notification says how many it did not list —
+   * silently showing the first twenty of two hundred would read as "twenty".
+   */
+  private publishDigest(
+    eventKey: string,
+    template: { id: string; name: string } | null,
+    items: DigestItem[],
+  ): void {
+    if (!items.length) return;
+    this.bus.publish({
+      eventKey,
+      resourceType: template ? 'discovery_template' : 'discovered_media',
+      resourceId: template?.id ?? items[0].title,
+      payload: {
+        count: items.length,
+        // The single-title shape older renderers and the audit trail still read.
+        title: items[0].year ? `${items[0].title} (${items[0].year})` : items[0].title,
+        ...(template ? { templateName: template.name } : {}),
+        items: items.slice(0, MAX_DIGEST_ITEMS),
+        omitted: Math.max(0, items.length - MAX_DIGEST_ITEMS),
+      },
+    });
   }
 
   /**
@@ -862,21 +976,31 @@ export class DiscoveryEvaluationService {
   private async graduateDelivered(): Promise<number> {
     const monitored = await this.prisma.discoveredMedia.findMany({
       where: { discoveryStatus: 'monitored', rssRuleId: { not: null } },
-      select: { id: true, title: true, year: true, rssRuleId: true, watchlistItemId: true, dedupeKey: true },
+      select: {
+        id: true, title: true, year: true, rssRuleId: true, watchlistItemId: true, dedupeKey: true,
+        // The digest is built from the row before it is deleted, so everything
+        // the notification shows has to be selected here.
+        mediaType: true, overview: true, posterUrl: true, network: true, streamingService: true,
+        genres: true, rating: true, releaseDates: true,
+      },
     });
-    let count = 0;
+    const items: DigestItem[] = [];
     for (const row of monitored) {
       if (!(await this.stillDelivering(row))) continue;
       try {
+        // Read off the row first: graduating deletes it.
+        const item = this.digestItem(row, 'It grabbed its first release');
         await this.graduate(row, 'it grabbed its first release');
-        count += 1;
+        items.push(item);
       } catch (err) {
         // One title that cannot be retired must not stop the rest, and must not
         // stop the evaluation run this is the preamble to.
         this.logger.warn(`Could not graduate "${row.title}": ${(err as Error).message}`);
       }
     }
-    return count;
+    // No template context here — this pass is template-agnostic by design.
+    this.publishDigest(DOMAIN_EVENTS.MEDIA_DISCOVERY_GRADUATED, null, items);
+    return items.length;
   }
 
   /**
@@ -892,17 +1016,6 @@ export class DiscoveryEvaluationService {
     row: { id: string; title: string; year: number | null; rssRuleId: string | null; watchlistItemId: string | null },
     why: string,
   ): Promise<void> {
-    this.bus.publish({
-      eventKey: DOMAIN_EVENTS.MEDIA_DISCOVERY_GRADUATED,
-      resourceType: 'discovered_media',
-      resourceId: row.id,
-      payload: {
-        title: row.year ? `${row.title} (${row.year})` : row.title,
-        rssRuleId: row.rssRuleId,
-        watchlistItemId: row.watchlistItemId,
-        reason: why,
-      },
-    });
     await this.removal.suppress(row.id, 'graduated');
     this.logger.log(
       `"${row.title}" left the discovery catalogue — ${why}; its rule and watchlist entry are untouched`,

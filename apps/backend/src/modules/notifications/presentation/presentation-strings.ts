@@ -122,24 +122,54 @@ export const STRINGS = {
 
   // --- Media Discovery ------------------------------------------------------
   discoveryLead: { 'en-US': 'Discovery', 'es-PR': 'Descubrimiento' } satisfies Copy,
+  fieldNetwork: { 'en-US': 'Network', 'es-PR': 'Cadena' } satisfies Copy,
+  fieldPremiere: { 'en-US': 'Premieres', 'es-PR': 'Estreno' } satisfies Copy,
+  fieldRating: { 'en-US': 'Rating', 'es-PR': 'Calificación' } satisfies Copy,
+  fieldGenres: { 'en-US': 'Genres', 'es-PR': 'Géneros' } satisfies Copy,
+  fieldSeries: { 'en-US': 'Series', 'es-PR': 'Serie' } satisfies Copy,
+  fieldMovie: { 'en-US': 'Film', 'es-PR': 'Película' } satisfies Copy,
+  andMoreTitles: {
+    'en-US': 'and {count} more',
+    'es-PR': 'y {count} más',
+  } satisfies Copy,
   autoMonitoredTrail: { 'en-US': 'is now monitored', 'es-PR': 'ahora se monitorea' } satisfies Copy,
+  /* The plural headline. "is now monitored" reads as one show, not fifteen. */
+  autoMonitoredManyTrail: {
+    'en-US': 'is monitoring new titles',
+    'es-PR': 'está monitoreando títulos nuevos',
+  } satisfies Copy,
   reviewRequiredTrail: { 'en-US': 'needs your review', 'es-PR': 'requiere tu revisión' } satisfies Copy,
   ruleFailedTrail: { 'en-US': 'could not build a rule', 'es-PR': 'no pudo crear una regla' } satisfies Copy,
   autoMonitoredSummary: {
-    'en-US': '{{title}} was added to the watchlist automatically.',
-    'es-PR': '{{title}} se añadió automáticamente a la lista de seguimiento.',
+    'en-US': '{title} was added to the watchlist automatically.',
+    'es-PR': '{title} se añadió automáticamente a la lista de seguimiento.',
+  } satisfies Copy,
+  /* The digest form. One title reads better named than counted, so both exist. */
+  autoMonitoredManySummary: {
+    'en-US': '{count} discovered titles were added to the watchlist automatically.',
+    'es-PR': 'Se añadieron automáticamente {count} títulos descubiertos a la lista de seguimiento.',
+  } satisfies Copy,
+  retractedTrail: { 'en-US': 'stopped monitoring', 'es-PR': 'dejó de monitorear' } satisfies Copy,
+  retractedSummary: {
+    'en-US': '{count} monitored title(s) no longer match their template and are no longer monitored.',
+    'es-PR': '{count} título(s) vigilado(s) ya no coinciden con su plantilla y dejaron de monitorearse.',
+  } satisfies Copy,
+  graduatedTrail: { 'en-US': 'is downloading on its own', 'es-PR': 'ya se descarga por su cuenta' } satisfies Copy,
+  graduatedSummary: {
+    'en-US': '{count} title(s) grabbed a first release and left the discovery catalogue.',
+    'es-PR': '{count} título(s) obtuvieron su primera versión y salieron del catálogo de descubrimiento.',
   } satisfies Copy,
   reviewRequiredSummary: {
-    'en-US': '{{count}} discovered title(s) were held for review.',
-    'es-PR': '{{count}} título(s) descubierto(s) quedaron en revisión.',
+    'en-US': '{count} discovered title(s) were held for review.',
+    'es-PR': '{count} título(s) descubierto(s) quedaron en revisión.',
   } satisfies Copy,
   ruleFailedSummary: {
-    'en-US': '{{title}} is monitored, but its acquisition rule could not be generated.',
-    'es-PR': '{{title}} se monitorea, pero no se pudo generar su regla de adquisición.',
+    'en-US': '{title} is monitored, but its acquisition rule could not be generated.',
+    'es-PR': '{title} se monitorea, pero no se pudo generar su regla de adquisición.',
   } satisfies Copy,
   discoverySyncFailedSummary: {
-    'en-US': '{{name}} could not refresh its catalogue. The previous catalogue was kept.',
-    'es-PR': '{{name}} no pudo actualizar su catálogo. Se conservó el catálogo anterior.',
+    'en-US': '{name} could not refresh its catalogue. The previous catalogue was kept.',
+    'es-PR': '{name} no pudo actualizar su catálogo. Se conservó el catálogo anterior.',
   } satisfies Copy,
   fieldTemplate: { 'en-US': 'Template', 'es-PR': 'Plantilla' } satisfies Copy,
   viewDiscover: { 'en-US': 'Open Discover', 'es-PR': 'Abrir Descubrir' } satisfies Copy,

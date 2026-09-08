@@ -10,6 +10,7 @@ import {
   type NotificationEventDefinition,
   type NotificationPresentation,
   type PresentationFact,
+  type PresentationItem,
 } from '@ultratorrent/shared';
 import { formatWhen, s, type PresentationLocale } from './presentation-strings';
 import { DEFAULT_COMPLETION_THRESHOLD_PERCENT } from '../../media/cleanup/domain/playback-aggregate';
@@ -559,6 +560,8 @@ const buildDiscovery: PresentationBuilder = (ctx) => {
 
   const monitored = key === DOMAIN_EVENTS.MEDIA_DISCOVERY_AUTO_MONITORED;
   const review = key === DOMAIN_EVENTS.MEDIA_DISCOVERY_REVIEW_REQUIRED;
+  const retracted = key === DOMAIN_EVENTS.MEDIA_DISCOVERY_RETRACTED;
+  const graduated = key === DOMAIN_EVENTS.MEDIA_DISCOVERY_GRADUATED;
 
   const title = str(payload, 'title') ?? '';
   const templateName = str(payload, 'templateName') ?? '';
@@ -567,6 +570,15 @@ const buildDiscovery: PresentationBuilder = (ctx) => {
 
   // A title event with no title says nothing worth delivering.
   if (!review && !title) return null;
+
+  const items = buildDiscoveryItems(payload, locale);
+  /*
+   * One title reads better named than counted — "Youth was added" beats "1 title
+   * was added" — so the digest wording only takes over once there is more than
+   * one. `count` comes from the run, not from `items`, so a digest capped at
+   * twenty still says how many there really were.
+   */
+  const many = (count || items?.length || 0) > 1;
 
   const facts = [
     ...(templateName
@@ -580,34 +592,116 @@ const buildDiscovery: PresentationBuilder = (ctx) => {
     version: PRESENTATION_VERSION,
     eventKey: key,
     // Monitored is something that WORKED; the other two want attention.
-    accent: monitored ? 'success' : review ? 'warning' : 'error',
+    accent: monitored || graduated ? 'success' : review ? 'warning' : retracted ? 'warning' : 'error',
     /*
      * From the existing icon vocabulary rather than three new names. That set is
      * a shared contract every client renders, and growing it for one feature
      * would make older clients show nothing where an icon should be.
      */
-    icon: monitored ? 'film' : 'alert',
+    icon: monitored || graduated ? 'film' : 'alert',
     headline: {
       lead: s('discoveryLead', locale),
-      trail: s(monitored ? 'autoMonitoredTrail' : review ? 'reviewRequiredTrail' : 'ruleFailedTrail', locale),
+      trail: s(
+        monitored ? (many ? 'autoMonitoredManyTrail' : 'autoMonitoredTrail')
+        : review ? 'reviewRequiredTrail'
+        : retracted ? 'retractedTrail'
+        : graduated ? 'graduatedTrail'
+        : 'ruleFailedTrail',
+        locale,
+      ),
     },
     summary: {
       text: s(
-        monitored ? 'autoMonitoredSummary' : review ? 'reviewRequiredSummary' : 'ruleFailedSummary',
+        monitored ? (many ? 'autoMonitoredManySummary' : 'autoMonitoredSummary')
+        : review ? 'reviewRequiredSummary'
+        : retracted ? 'retractedSummary'
+        : graduated ? 'graduatedSummary'
+        : 'ruleFailedSummary',
         locale,
-        { title, count: String(count) },
+        { title, count: String(count || items?.length || 1) },
       ),
-      emphasis: review ? String(count) : title,
+      emphasis: review || retracted || graduated || (monitored && many) ? String(count || items?.length || 1) : title,
     },
     avatar: null,
     artwork: null,
     facts,
     progress: null,
     status: null,
+    items,
     action: { label: s('viewDiscover', locale), href: '/media-acquisition/discover', icon: 'film' },
     timestamp: envelope.occurredAt,
   };
 };
+
+/**
+ * Only `http` and `https` become an `<img src>`.
+ *
+ * The value came from a provider response. Discovery already drops every other
+ * scheme when it stores a title, and this is the second check, at the boundary
+ * where the string turns into markup in somebody's mail client — a
+ * `javascript:` or `data:text/html` URL there is a scripting vector that
+ * escaping does not cover, and one validation between a third party and that is
+ * not enough. A rejected URL drops the image and keeps the title; the entry is
+ * still worth reading without a poster.
+ */
+function safeImageUrl(value: unknown): string | null {
+  if (typeof value !== 'string' || !value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? value : null;
+  } catch {
+    // Not a URL at all — a relative path, or provider junk. Guessing at a host
+    // is how a broken image becomes a request to somewhere unintended.
+    return null;
+  }
+}
+
+/**
+ * The titles a discovery digest is about.
+ *
+ * One notification now covers a whole run, so it carries each title with enough
+ * about it — poster, synopsis, where it airs, when it premieres — to be judged
+ * without opening the app. That is the difference between a digest and a count.
+ */
+function buildDiscoveryItems(payload: Record<string, unknown>, locale: PresentationLocale): PresentationItem[] | null {
+  const raw = Array.isArray(payload.items) ? payload.items : null;
+  if (!raw?.length) return null;
+
+  const items = raw.map((entry) => {
+    const it = (entry ?? {}) as Record<string, unknown>;
+    const year = typeof it.year === 'number' ? it.year : null;
+    const network = str(it, 'network');
+    const rating = typeof it.rating === 'number' ? it.rating : null;
+    const premiere = str(it, 'premiere');
+    const genres = Array.isArray(it.genres) ? it.genres.filter((g): g is string => typeof g === 'string') : [];
+
+    const facts: PresentationFact[] = [
+      ...(network ? [{ icon: 'tv' as const, label: s('fieldNetwork', locale), value: network }] : []),
+      ...(premiere ? [{ icon: 'clock' as const, label: s('fieldPremiere', locale), value: premiere }] : []),
+      ...(rating != null ? [{ icon: 'gauge' as const, label: s('fieldRating', locale), value: rating.toFixed(1) }] : []),
+      ...(genres.length ? [{ icon: 'library' as const, label: s('fieldGenres', locale), value: genres.join(', ') }] : []),
+    ];
+
+    // Year and media type identify the work; the network is a fact, not identity,
+    // because two shows can share a network and none is defined by it.
+    const subtitle = [year ? String(year) : null, str(it, 'mediaType') === 'movie' ? s('fieldMovie', locale) : s('fieldSeries', locale)]
+      .filter(Boolean)
+      .join(' · ');
+
+    return {
+      title: str(it, 'title') ?? '',
+      subtitle: subtitle || null,
+      synopsis: str(it, 'synopsis'),
+      imageUrl: safeImageUrl(it.posterUrl),
+      facts,
+      note: str(it, 'note'),
+    } satisfies PresentationItem;
+  });
+
+  // A title with no name cannot be rendered or acted on.
+  const usable = items.filter((i) => i.title);
+  return usable.length ? usable : null;
+}
 
 /* ---------------------------------------------------------- security/users */
 

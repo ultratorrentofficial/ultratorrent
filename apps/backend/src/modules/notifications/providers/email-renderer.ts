@@ -33,6 +33,17 @@ export function renderEmailText(p: NotificationPresentation): string {
     lines.push('');
     for (const fact of p.facts) lines.push(`${fact.label}: ${fact.value}`);
   }
+  /*
+   * The digest, in the same order as the HTML. A text-only reader gets the same
+   * titles with the same synopses — everything the poster adds is decoration on
+   * top of this, not information only the HTML has.
+   */
+  for (const item of p.items ?? []) {
+    lines.push('', `• ${item.title}${item.subtitle ? ` (${item.subtitle})` : ''}`);
+    if (item.note) lines.push(`  ${item.note}`);
+    for (const f of item.facts ?? []) lines.push(`  ${f.label}: ${f.value}`);
+    if (item.synopsis) lines.push(`  ${item.synopsis}`);
+  }
   if (p.progress) lines.push('', p.progress.label);
   lines.push('', '—', 'UltraTorrent');
   return lines.join('\n');
@@ -46,16 +57,83 @@ export function renderEmailText(p: NotificationPresentation): string {
  * cannot be reproduced; a design that assumed it would be unreadable in most
  * inboxes.
  *
- * Artwork is deliberately absent. The presentation carries an artwork
- * *reference*, not an image, and resolving it here would mean either minting a
- * public URL — permanent unauthenticated access to library artwork — or reaching
- * into the media-server integration to attach bytes. Neither belongs in a
- * renderer, so email carries the full text instead. A real limitation, stated
- * rather than hidden.
+ * `p.artwork` is still deliberately absent. It is a *reference* to library
+ * artwork, and resolving it here would mean minting a public URL — permanent
+ * unauthenticated access to a library — or reaching into the media-server
+ * integration to attach bytes. Neither belongs in a renderer.
+ *
+ * A digest item's `imageUrl` is a different thing and IS rendered: it is a third
+ * party's already public poster (TMDB, TVmaze) for a title nobody owns yet, so
+ * there is no authentication to leak and nothing private to expose — and it is
+ * the only way a poster reaches an inbox, since a mail client cannot
+ * authenticate. It is re-validated here rather than trusted: only `http` and
+ * `https` become a `src`, because the value originates from a provider.
  */
+/**
+ * Only `http`/`https` may become a `src`.
+ *
+ * The builder checks this too. It is repeated here because this function turns
+ * a string into markup that runs in somebody's mail client, and a renderer that
+ * trusts its input to have been cleaned elsewhere is one refactor away from not
+ * being cleaned at all.
+ */
+function safeSrc(value: string | null | undefined): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * One title in a digest: poster beside a synopsis and its metadata.
+ *
+ * Two table cells rather than flexbox — Outlook ignores flex, and a digest that
+ * collapsed into a column of orphaned posters there would be worse than no
+ * poster at all. The image carries fixed width/height so the layout holds while
+ * it loads, and `alt` so a client with images off still reads the title.
+ */
+function renderItem(item: NonNullable<NotificationPresentation['items']>[number]): string {
+  const src = safeSrc(item.imageUrl);
+  const poster = src
+    ? `<td width="92" valign="top" style="padding:0 14px 0 0;">
+         <img src="${esc(src)}" width="92" height="138" alt="${esc(item.title)}"
+              style="display:block;width:92px;height:138px;object-fit:cover;border-radius:6px;background:#e2e8f0;border:0;" />
+       </td>`
+    : '';
+
+  const facts = (item.facts ?? [])
+    .map((f) => `<span style="white-space:nowrap;"><span style="color:#94a3b8;">${esc(f.label)}:</span> ${esc(f.value)}</span>`)
+    .join('<span style="color:#cbd5e1;"> &middot; </span>');
+
+  return `<tr>
+    <td style="padding:16px 0;border-top:1px solid #e2e8f0;">
+      <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+        <tr>
+          ${poster}
+          <td valign="top">
+            <p style="margin:0 0 2px;font-size:15px;font-weight:600;color:#0f172a;">${esc(item.title)}</p>
+            ${item.subtitle ? `<p style="margin:0 0 6px;font-size:12px;color:#64748b;">${esc(item.subtitle)}</p>` : ''}
+            ${facts ? `<p style="margin:0 0 8px;font-size:12px;color:#475569;line-height:1.6;">${facts}</p>` : ''}
+            ${item.synopsis ? `<p style="margin:0;font-size:13px;color:#475569;line-height:1.5;">${esc(item.synopsis)}</p>` : ''}
+            ${item.note ? `<p style="margin:8px 0 0;font-size:12px;color:#94a3b8;font-style:italic;">${esc(item.note)}</p>` : ''}
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>`;
+}
+
 export function renderEmailHtml(p: NotificationPresentation): string {
   const accent = ACCENT_HEX[p.accent] ?? ACCENT_HEX.neutral;
   const [before, emphasis, after] = splitSummary(p.summary);
+  const items = (p.items ?? []).length
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin-top:8px;">
+         ${(p.items ?? []).map(renderItem).join('')}
+       </table>`
+    : '';
 
   const facts = p.facts
     .map(
@@ -72,7 +150,8 @@ export function renderEmailHtml(p: NotificationPresentation): string {
        </div>`
     : '';
 
-  return `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:520px;border-collapse:collapse;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;">
+  const width = items ? 640 : 520;
+  return `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:${width}px;border-collapse:collapse;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;">
   <tr>
     <td style="border-left:4px solid ${accent};border-top:1px solid #e2e8f0;border-right:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;border-radius:8px;padding:20px;background:#ffffff;">
       <p style="margin:0 0 12px;font-size:11px;letter-spacing:1.5px;color:#94a3b8;">ULTRATORRENT</p>
@@ -83,6 +162,7 @@ export function renderEmailHtml(p: NotificationPresentation): string {
         ${esc(before)}<strong style="color:#0f172a;">${esc(emphasis)}</strong>${esc(after)}
       </p>
       ${facts ? `<table role="presentation" cellpadding="0" cellspacing="0">${facts}</table>` : ''}
+      ${items}
       ${progress}
       ${p.status ? `<p style="margin:16px 0 0;font-size:12px;color:#94a3b8;">${esc(p.status)}</p>` : ''}
     </td>

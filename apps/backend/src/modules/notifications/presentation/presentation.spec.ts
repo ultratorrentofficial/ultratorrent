@@ -598,3 +598,206 @@ describe('presentation registry', () => {
     expect(isNotificationPresentation({ mediaTitle: 'Dune' })).toBe(false);
   });
 });
+
+/*
+ * The discovery digest presentation.
+ *
+ * The builder is where a payload from the evaluation run becomes something a
+ * renderer can draw, so it is where an untrusted provider URL has to be caught
+ * first — the email renderer checks again, but nothing should reach it dirty.
+ */
+describe('a discovery digest', () => {
+  const digestCtx = (items: unknown[], payloadOver: Record<string, unknown> = {}) =>
+    ctx({
+      envelope: {
+        id: 'e1',
+        eventKey: DOMAIN_EVENTS.MEDIA_DISCOVERY_AUTO_MONITORED,
+        occurredAt: '2026-09-08T12:00:00.000Z',
+        payload: { count: items.length, title: 'Youth (2026)', templateName: 'TV', items, ...payloadOver },
+      },
+    } as never);
+
+  const ITEM = {
+    title: 'Youth',
+    year: 2026,
+    mediaType: 'tv',
+    network: 'Apple TV+',
+    genres: ['Sci-Fi', 'Drama'],
+    rating: 8.42,
+    premiere: '2026-09-20',
+    synopsis: 'A synopsis.',
+    posterUrl: 'https://image.tmdb.org/t/p/w500/x.jpg',
+    note: null,
+  };
+
+  const build = (items: unknown[]) => buildPresentation(digestCtx(items));
+
+  it('turns each title into an item with its metadata', () => {
+    const p = build([ITEM]);
+    expect(p?.items).toHaveLength(1);
+    const [item] = p!.items!;
+    expect(item.title).toBe('Youth');
+    expect(item.subtitle).toBe('2026 · Series');
+    expect(item.synopsis).toBe('A synopsis.');
+    expect(item.imageUrl).toBe('https://image.tmdb.org/t/p/w500/x.jpg');
+    expect((item.facts ?? []).map((f) => `${f.label}:${f.value}`)).toEqual([
+      'Network:Apple TV+',
+      'Premieres:2026-09-20',
+      'Rating:8.4',
+      'Genres:Sci-Fi, Drama',
+    ]);
+  });
+
+  it.each([
+    'javascript:alert(1)',
+    'data:text/html;base64,PHNjcmlwdD4=',
+    'vbscript:msgbox(1)',
+    'file:///etc/passwd',
+    '/relative/path.jpg',
+    'not a url',
+  ])('drops a poster URL of %s and keeps the title', (posterUrl) => {
+    const [item] = build([{ ...ITEM, posterUrl }])!.items!;
+    expect(item.imageUrl).toBeNull();
+    expect(item.title).toBe('Youth');
+  });
+
+  it('keeps an item that has no poster, synopsis or metadata at all', () => {
+    const [item] = build([{ title: 'Bare' }])!.items!;
+    expect(item.title).toBe('Bare');
+    expect(item.imageUrl).toBeNull();
+    expect(item.facts ?? []).toEqual([]);
+  });
+
+  it('drops an entry with no title, which cannot be rendered or acted on', () => {
+    expect(build([{ synopsis: 'orphan' }])?.items).toBeNull();
+  });
+
+  /*
+   * Every other event in the system has no items, and the summary is always
+   * written to stand on its own — a surface that ignores items still says
+   * something true.
+   */
+  it('leaves items null for a payload that carries none', () => {
+    const p = buildPresentation(
+      ctx({
+        envelope: {
+          id: 'e1',
+          eventKey: DOMAIN_EVENTS.MEDIA_DISCOVERY_AUTO_MONITORED,
+          occurredAt: '2026-09-08T12:00:00.000Z',
+          payload: { title: 'Youth (2026)', templateName: 'TV' },
+        },
+      } as never),
+    );
+    expect(p?.items ?? null).toBeNull();
+    expect(p?.summary.text).toBeTruthy();
+  });
+});
+
+/*
+ * Digest wording. One title reads better named than counted, so the summary
+ * switches only when there is more than one — and the count comes from the RUN,
+ * not from the (capped) item list, so a run of two hundred does not say twenty.
+ */
+describe('how a discovery digest describes itself', () => {
+  const withPayload = (payload: Record<string, unknown>) =>
+    buildPresentation(
+      ctx({
+        envelope: {
+          id: 'e1',
+          eventKey: DOMAIN_EVENTS.MEDIA_DISCOVERY_AUTO_MONITORED,
+          occurredAt: '2026-09-08T12:00:00.000Z',
+          payload,
+        },
+      } as never),
+    );
+
+  it('names the title when there is exactly one', () => {
+    const p = withPayload({ count: 1, title: 'Youth (2026)', templateName: 'TV', items: [{ title: 'Youth' }] });
+    expect(p?.summary.text).toContain('Youth (2026)');
+    expect(p?.summary.emphasis).toBe('Youth (2026)');
+  });
+
+  it('counts them when there are several', () => {
+    const p = withPayload({
+      count: 15, title: 'Youth (2026)', templateName: 'TV',
+      items: [{ title: 'Youth' }, { title: 'War' }],
+    });
+    expect(p?.summary.text).toContain('15');
+    expect(p?.summary.emphasis).toBe('15');
+  });
+
+  /* The cap bounds the email, never the truth about how many there were. */
+  it('reports the run count, not the number of items it listed', () => {
+    const p = withPayload({
+      count: 200, title: 'Youth (2026)', templateName: 'TV', omitted: 180,
+      items: Array.from({ length: 20 }, (_, i) => ({ title: `Show ${i}` })),
+    });
+    expect(p?.summary.text).toContain('200');
+    expect(p?.items).toHaveLength(20);
+  });
+});
+
+/*
+ * Placeholder interpolation. `s()` substitutes {name}; a string written with
+ * {{name}} leaves the braces behind, so "{3} titles were added" is what the
+ * inbox showed. Every discovery string was written that way — the summaries and
+ * the provider-failure line alike — and nothing caught it, because no test
+ * asserted the rendered text of one.
+ */
+describe('every localized string uses the interpolation syntax s() implements', () => {
+  it('leaves no braces in a rendered discovery summary', () => {
+    const p = buildPresentation(
+      ctx({
+        envelope: {
+          id: 'e1',
+          eventKey: DOMAIN_EVENTS.MEDIA_DISCOVERY_AUTO_MONITORED,
+          occurredAt: '2026-09-08T12:00:00.000Z',
+          payload: { count: 3, title: 'Youth (2026)', templateName: 'TV', items: [{ title: 'Youth' }, { title: 'War' }] },
+        },
+      } as never),
+    );
+    expect(p?.summary.text).toContain('3');
+    expect(p?.summary.text).not.toMatch(/[{}]/);
+  });
+
+  it('leaves no braces when a single title is named', () => {
+    const p = buildPresentation(
+      ctx({
+        envelope: {
+          id: 'e1',
+          eventKey: DOMAIN_EVENTS.MEDIA_DISCOVERY_AUTO_MONITORED,
+          occurredAt: '2026-09-08T12:00:00.000Z',
+          payload: { count: 1, title: 'Youth (2026)', templateName: 'TV' },
+        },
+      } as never),
+    );
+    expect(p?.summary.text).toContain('Youth (2026)');
+    expect(p?.summary.text).not.toMatch(/[{}]/);
+  });
+
+  /*
+   * The guard that generalises the two above: any string still carrying a
+   * placeholder after rendering is one nobody supplied a value for, and a
+   * literal `{count}` in an inbox is indistinguishable from a broken template.
+   */
+  it('renders every catalogued event without leaving a placeholder behind', () => {
+    for (const definition of allNotificationEvents()) {
+      const p = buildPresentation(
+        ctx({
+          definition,
+          envelope: {
+            id: 'e1',
+            eventKey: definition.key,
+            occurredAt: '2026-09-08T12:00:00.000Z',
+            payload: {
+              title: 'A Title', templateName: 'T', name: 'A Name', count: 2, mediaTitle: 'Dune',
+              userDisplayName: 'Dennis', serverName: 'Plex', year: 2021, hash: 'abc', reason: 'because',
+            },
+          },
+        } as never),
+      );
+      if (!p) continue;
+      expect(`${p.summary.text} ${p.headline.lead} ${p.headline.trail}`).not.toMatch(/\{\w+\}/);
+    }
+  });
+});

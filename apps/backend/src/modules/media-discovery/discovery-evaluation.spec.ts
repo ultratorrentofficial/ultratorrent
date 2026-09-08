@@ -337,14 +337,54 @@ describe('what it tells a person about', () => {
 
   /*
    * The system acquiring something without being asked is exactly what a person
-   * should be told about, so this one is per title — and its volume is already
-   * bounded by the automatic-add limit rather than by suppressing the event.
+   * should be told about — but ONCE for the run, not once per title. A pass that
+   * monitors fifteen shows used to send fifteen notifications, every one of them
+   * answered by a single visit to the inbox.
    */
-  it('announces each auto-monitored title', async () => {
+  it('announces a run of auto-monitored titles as one notification', async () => {
     const h = harness({ rows: [row('a'), row('b')] });
     await h.svc.runAll(NOW);
-    expect(keys(h.published).filter((k) => k === 'media_discovery.auto_monitored')).toHaveLength(2);
-    expect(h.published[0].payload).toMatchObject({ title: 'Show a (2026)', templateName: 'Premium TV' });
+    const sent = h.published.filter((e: any) => e.eventKey === 'media_discovery.auto_monitored');
+    expect(sent).toHaveLength(1);
+    expect(sent[0].payload).toMatchObject({ count: 2, templateName: 'Premium TV' });
+    expect(sent[0].payload.items.map((i: any) => i.title)).toEqual(['Show a', 'Show b']);
+  });
+
+  /*
+   * The reason to consolidate rather than merely count. A digest that named no
+   * titles would send the reader to the app to find out what it was about.
+   */
+  it('carries each title with the media information needed to judge it', async () => {
+    const h = harness({
+      rows: [row('a', {
+        overview: 'A synopsis worth reading.',
+        posterUrl: 'https://image.tmdb.org/t/p/w500/x.jpg',
+        network: 'Apple TV+',
+        rating: 8.4,
+        genres: ['Sci-Fi', 'Drama'],
+      })],
+    });
+    await h.svc.runAll(NOW);
+    const [item] = h.published.find((e: any) => e.eventKey === 'media_discovery.auto_monitored').payload.items;
+    expect(item).toMatchObject({
+      title: 'Show a',
+      year: 2026,
+      network: 'Apple TV+',
+      rating: 8.4,
+      genres: ['Sci-Fi', 'Drama'],
+      synopsis: 'A synopsis worth reading.',
+      posterUrl: 'https://image.tmdb.org/t/p/w500/x.jpg',
+    });
+  });
+
+  /* A runaway provider overview must not become the whole email. */
+  it('trims a very long synopsis on a word boundary', async () => {
+    const h = harness({ rows: [row('a', { overview: `${'word '.repeat(400)}end` })] });
+    await h.svc.runAll(NOW);
+    const [item] = h.published.find((e: any) => e.eventKey === 'media_discovery.auto_monitored').payload.items;
+    expect(item.synopsis.length).toBeLessThanOrEqual(321);
+    expect(item.synopsis.endsWith('…')).toBe(true);
+    expect(item.synopsis).not.toMatch(/\s…$/);
   });
 
   it('says nothing about a notified or ignored title', async () => {
@@ -362,7 +402,11 @@ describe('what it tells a person about', () => {
     await h.svc.runAll(NOW);
     const review = h.published.filter((e) => e.eventKey === 'media_discovery.review_required');
     expect(review).toHaveLength(1);
-    expect(review[0].payload).toEqual({ count: 3, templateName: 'Premium TV' });
+    expect(review[0].payload).toMatchObject({ count: 3, templateName: 'Premium TV' });
+    // Each held title carries its OWN reason: an unresolved identity and an
+    // exhausted allowance are different problems with different answers.
+    expect(review[0].payload.items).toHaveLength(3);
+    expect(review[0].payload.items[0].note).toMatch(/threshold|allowance|identity|reached/i);
   });
 
   it('does not announce a review summary when nothing was held', async () => {

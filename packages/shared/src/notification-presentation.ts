@@ -136,6 +136,41 @@ export interface PresentationMedia {
   secondary: string | null;
 }
 
+/**
+ * One title inside a digest.
+ *
+ * A discovery run decides about many titles at once, and one notification per
+ * title means fifteen emails that are all answered by one visit to the inbox.
+ * The digest carries them together — and carries enough of each to be decided
+ * on without opening anything, which a bare list of names is not.
+ *
+ * `imageUrl` is the one place a presentation holds an image address rather than
+ * a reference, and it does not weaken rule 3. That rule protects LIBRARY
+ * artwork, which sits behind authentication and whose public URL would outlive
+ * the notification carrying it. A discovery poster is a third party's already
+ * public CDN URL (TMDB, TVmaze) for a title nobody owns yet: there is no
+ * authentication to leak and nothing private to expose. It is also the only way
+ * a poster can reach an inbox at all — a mail client cannot authenticate.
+ *
+ * Renderers must still treat it as untrusted and accept only `http:` / `https:`.
+ * It originates from a provider response, and a `javascript:` URL in an `src` is
+ * a scripting vector that escaping does not cover.
+ */
+export interface PresentationItem {
+  /** The work's name, already localized where that means anything. */
+  title: string;
+  /** Year, network, media type — the one-line identity under the title. */
+  subtitle?: string | null;
+  /** Synopsis, already truncated by the builder. Plain text, never markup. */
+  synopsis?: string | null;
+  /** Externally-hosted poster. `http`/`https` only; see the note above. */
+  imageUrl?: string | null;
+  /** Per-title metadata: rating, premiere, genres. */
+  facts?: PresentationFact[];
+  /** Why this title is in this digest, when the titles differ in reason. */
+  note?: string | null;
+}
+
 export interface NotificationPresentation {
   version: typeof PRESENTATION_VERSION;
   eventKey: string;
@@ -162,6 +197,16 @@ export interface NotificationPresentation {
    * picks one or the other; both come from the same builder.
    */
   context?: string | null;
+  /**
+   * The titles this notification is about, when it is about several.
+   *
+   * Optional and the version stays at 2, for the same reason `media` is:
+   * presentations are STORED, so historical rows predate the field. A renderer
+   * must fall back to `summary` when it is absent rather than assume it is
+   * there — and `summary` is always written to stand on its own, so a surface
+   * that ignores `items` entirely still says something true.
+   */
+  items?: PresentationItem[] | null;
   facts: PresentationFact[];
   progress?: PresentationProgress | null;
   /** Short state chip — "Now playing", "Paused". */

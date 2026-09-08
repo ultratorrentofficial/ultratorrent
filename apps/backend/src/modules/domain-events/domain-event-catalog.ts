@@ -114,13 +114,17 @@ const DEFINITIONS: readonly DomainEventDefinition[] = [
   {
     key: DOMAIN_EVENTS.MEDIA_DISCOVERY_AUTO_MONITORED,
     description:
-      'A discovered title is now being monitored automatically: a watchlist entry and an acquisition rule were created without being asked.',
+      'Titles are now being monitored automatically: a watchlist entry and an acquisition rule were created for each, without being asked. One notification per evaluation run, carrying every title it monitored.',
     requiredFields: ['title', 'templateName'],
     /*
-     * No deduplication window. Each event is a DIFFERENT title, so collapsing
-     * them would hide acquisitions rather than reduce noise — and the volume is
-     * already bounded by the template's automatic-add limit, which is the right
-     * place to pace this.
+     * No deduplication window, and none needed now that the event is a DIGEST.
+     *
+     * It was one event per title, which is how a run that monitored fifteen
+     * shows sent fifteen notifications — all saying the same thing, all answered
+     * by one visit to the inbox. Deduplicating that would have hidden
+     * acquisitions rather than reduced noise, because each event named a
+     * different show. Consolidating loses nothing instead: the digest carries
+     * every title, with its poster and synopsis.
      */
     deduplicationWindowSeconds: 0,
   },
@@ -147,25 +151,28 @@ const DEFINITIONS: readonly DomainEventDefinition[] = [
   {
     key: DOMAIN_EVENTS.MEDIA_DISCOVERY_RETRACTED,
     description:
-      'A monitored title stopped qualifying for its template, so its generated rule was deleted and its watchlist entry archived. Downloaded media and torrents are never touched.',
+      'Monitored titles stopped qualifying for their template, so their generated rules were deleted and their watchlist entries archived. Downloaded media and torrents are never touched.',
     requiredFields: ['title', 'templateName'],
     /*
-     * Per title and never summarised. This UNDOES something the system did on
-     * the operator's behalf, and a person who finds a show no longer being
-     * acquired needs to be able to find out why — a count would not tell them
-     * which show.
+     * One per run, and it names every title it withdrew.
+     *
+     * This was per title on the reasoning that a count would not tell somebody
+     * WHICH show stopped being acquired — which was right about counts and wrong
+     * about summaries. A digest carries the titles, so the objection is answered
+     * without sending one mail per show. It still UNDOES something done on the
+     * operator's behalf, which is why it is never deduplicated away.
      */
     deduplicationWindowSeconds: 0,
   },
   {
     key: DOMAIN_EVENTS.MEDIA_DISCOVERY_GRADUATED,
     description:
-      'A monitored title grabbed its first release and left the discovery catalogue. Its generated rule and watchlist entry are untouched — it is an ordinary acquisition from here, managed from RSS Feeds.',
+      'Monitored titles grabbed their first release and left the discovery catalogue. Their generated rules and watchlist entries are untouched — they are ordinary acquisitions from here, managed from RSS Feeds.',
     requiredFields: ['title'],
     /*
-     * Per title, like a retraction, and for the same reason: a show vanishing
-     * from Discover is a question waiting to be asked, and a count would not say
-     * which show. Unlike a retraction it takes nothing away, so it is filed as
+     * One per run, naming every title that left. A show vanishing from Discover
+     * is a question waiting to be asked, and the digest answers it for all of
+     * them at once. Unlike a retraction it takes nothing away, so it is filed as
      * information rather than as a warning.
      */
     deduplicationWindowSeconds: 0,
