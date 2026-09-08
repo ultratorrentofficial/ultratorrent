@@ -1,0 +1,217 @@
+name: 📦 Installation / Deployment Problem
+description: Report problems installing, deploying, upgrading, or starting UltraTorrent.
+title: "[Install] "
+labels: ["installation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Check the guide for your platform first** — Docker Compose, Linux, QNAP,
+        Synology, TrueNAS, Unraid, Proxmox and Portainer each have one at
+        [docs.ultratorrent.co/install](https://docs.ultratorrent.co/install). A large
+        share of install reports turn out to be a documented path-mapping or
+        permissions step.
+
+        ⚠️ **Compose files and `.env` are full of secrets.** If you paste
+        configuration, remove every password, API key, token and connection string
+        first, and do not attach a whole `.env`.
+
+        🔒 If what you found is a security weakness rather than a failure to install,
+        report it through the
+        [security policy](https://github.com/ultratorrentofficial/ultratorrent/security/policy)
+        instead.
+
+  - type: input
+    id: version
+    attributes:
+      label: UltraTorrent version
+      description: The version you are installing or upgrading to. "latest" is fine if that is what you pulled.
+      placeholder: "v0.90.9"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Docker Compose
+        - Linux (Docker)
+        - Linux (from source / development)
+        - QNAP NAS (Container Station)
+        - Synology NAS (Container Manager)
+        - TrueNAS
+        - Unraid
+        - Proxmox
+        - Portainer
+        - Cloud / VPS
+        - Other / custom
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system / NAS firmware version
+      placeholder: "Ubuntu 24.04 · QTS 5.2.x · DSM 7.2 · TrueNAS SCALE 24.04 · Unraid 7.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: arch
+    attributes:
+      label: CPU architecture
+      description: >-
+        `uname -m` will tell you. Worth checking — a NAS that looks x86 is sometimes
+        ARM, and it is a common cause of an image that will not start.
+      options:
+        - amd64 / x86_64
+        - arm64 / aarch64
+        - Other / unsure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: Installation method
+      description: >-
+        Note there is no Windows installer: the installer can *plan* a Windows target
+        but does not generate one, so Windows is not a supported install path yet.
+      options:
+        - Official Docker Compose stack
+        - UltraTorrent installer (Linux)
+        - Manual Docker deployment
+        - NAS container app (QNAP Container Station / Synology Container Manager)
+        - Unraid / TrueNAS app or template
+        - Development environment (npm / source build)
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: fresh-or-upgrade
+    attributes:
+      label: Is this a fresh install or an upgrade?
+      options:
+        - Fresh install
+        - Upgrade
+        - Reinstall
+        - Migration to another host
+    validations:
+      required: true
+
+  - type: input
+    id: previous-version
+    attributes:
+      label: Previous version
+      description: If this is an upgrade or migration.
+      placeholder: "v0.90.6"
+    validations:
+      required: false
+
+  - type: input
+    id: docker-version
+    attributes:
+      label: Docker version
+      description: "`docker --version`"
+      placeholder: "28.1.1"
+    validations:
+      required: false
+
+  - type: input
+    id: compose-version
+    attributes:
+      label: Docker Compose version
+      description: "`docker compose version`"
+      placeholder: "v2.35.1"
+    validations:
+      required: false
+
+  - type: textarea
+    id: failing-step
+    attributes:
+      label: Which step fails?
+      description: >-
+        Name the step from the guide you were following, and link the guide if you can.
+      placeholder: "Following the QNAP guide — the stack builds, but the backend container never becomes healthy."
+    validations:
+      required: true
+
+  - type: textarea
+    id: error
+    attributes:
+      label: Exact error
+      description: >-
+        Copy the text rather than describing it. Migration and DI failures are
+        identified by their exact wording.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: |
+        Usually `docker compose logs backend` around the failure.
+
+        ⚠️ **Remove first:** passwords, API keys, tokens, cookies, database connection
+        strings (`DATABASE_URL` contains a password), private URLs and internal
+        hostnames.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: storage
+    attributes:
+      label: Storage configuration
+      description: |
+        The layout, not the credentials. Helpful:
+
+        - where config and the database live
+        - your media library path(s)
+        - the staging / intake path
+        - bind mounts, and the path mapping between host and container
+
+        Replace anything identifying with a placeholder — `/mnt/<share>/media` is
+        just as useful to us as the real name.
+    validations:
+      required: false
+
+  - type: textarea
+    id: permissions
+    attributes:
+      label: Permissions and ownership
+      description: >-
+        `PUID`/`PGID`, and the owner of the media and config paths. This is the single
+        most common cause of an install that starts but cannot write.
+      placeholder: "PUID=1000 PGID=100; media dirs owned by 1000:100; config dir owned by root"
+    validations:
+      required: false
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: What have you already tried?
+      description: >-
+        Saves us suggesting it back to you, and often contains the clue.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Before submitting
+      options:
+        - label: I followed the installation guide for my platform.
+          required: true
+        - label: I checked that the required environment variables are set.
+          required: true
+        - label: >-
+            I removed every password, API key, token, connection string and private
+            URL from the logs and configuration above.
+          required: true
+        - label: This is an installation, upgrade or deployment problem.
+          required: true

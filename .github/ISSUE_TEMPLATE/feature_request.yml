@@ -1,0 +1,131 @@
+name: ✨ Feature Request
+description: Suggest a new UltraTorrent capability or improvement.
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Before you start**
+
+        - **Search existing issues.** If a request already exists, add your use case
+          to it — that is far more useful than a second thread, because use cases are
+          what decide priority.
+        - **A request needs a shape.** If the idea is still forming, describe the
+          problem rather than a half-specified solution; the problem is the part that
+          does not change.
+        - **Read the [docs](https://docs.ultratorrent.co/) first.** Some of what gets
+          requested already exists under a different name.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: >-
+        The situation, not the feature. What are you doing today, and where does it
+        break down? A request grounded in a real problem survives contact with design;
+        one that starts at the solution usually has to be re-derived from scratch.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: What you would like UltraTorrent to do. Rough is fine.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which area would this affect?
+      options:
+        - Dashboard
+        - Torrents
+        - Torrent engine integration
+        - RSS Feeds
+        - Media Acquisition Intelligence (Smart Download)
+        - Missing Episodes
+        - Media Discovery
+        - Media Intake
+        - Media Manager
+        - Media Renamer
+        - Library Cleanup
+        - Release Scoring
+        - Subtitle Intelligence
+        - Media Server Analytics
+        - Indexers / Prowlarr
+        - Storage profiles / path mapping
+        - Files / file manager
+        - Automation
+        - Notifications
+        - Authentication / users / RBAC
+        - Scheduler / background jobs
+        - Operations
+        - System / settings / module registry
+        - API
+        - Installer / upgrade
+        - Something new / cross-cutting
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Concrete use case
+      description: >-
+        Walk through it with real numbers and real names. "I follow about 40 shows
+        across three indexers, and every Sunday I have to …" tells us more than
+        "it would be more flexible".
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you have considered
+      description: >-
+        Including workarounds you are using now. If a workaround is adequate, say so —
+        that is genuinely useful signal, not an argument against the request.
+    validations:
+      required: false
+
+  - type: textarea
+    id: implementation
+    attributes:
+      label: Implementation considerations
+      description: |
+        Only if you have thoughts. Things that often matter here:
+
+        - a provider or API this would depend on, and its rate limits or terms
+        - storage, path-mapping or permissions implications
+        - migration or backward-compatibility concerns for existing installs
+        - RBAC and permissions — who should be able to do this
+        - UI impact, and where it would live in the navigation
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context, screenshots or mockups
+      description: >-
+        Sketches and annotated screenshots are welcome. Check them for anything
+        private first.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched the existing issues for this request.
+          required: true
+        - label: This describes a concrete use case rather than a general wish.
+          required: true
+        - label: >-
+            This does not require bypassing third-party access controls, DRM, rate
+            limits, paywalls, or any provider's terms of service.
+          required: true

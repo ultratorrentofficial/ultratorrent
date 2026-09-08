@@ -17,7 +17,17 @@ see [DEVELOPMENT.md](DEVELOPMENT.md).
 
 ## Before you start
 
-- For anything non-trivial, **open an issue first** to discuss the approach.
+- For anything non-trivial, **open an issue first** to discuss the approach. Pick the
+  form that matches — bug, feature, installation, integration, UI/UX, performance or
+  documentation — since each asks for the details that make that kind of report
+  actionable. Blank issues are disabled for the same reason.
+- **Report security vulnerabilities privately**, through the
+  [security policy](https://github.com/ultratorrentofficial/ultratorrent/security/policy)
+  and never as a public issue. A disclosure cannot be taken back once it is filed.
+- **Sanitize anything you paste.** Logs, Compose files and screenshots routinely carry
+  API keys, tracker passkeys, session cookies and database connection strings.
+- General "how do I…" questions belong in the
+  [documentation](https://docs.ultratorrent.co/) rather than the issue tracker.
 - Make sure your change fits the architecture: read
   [ARCHITECTURE.md](ARCHITECTURE.md) and the coding standards in
   [DEVELOPMENT.md](DEVELOPMENT.md#coding-standards).

@@ -1,0 +1,271 @@
+name: 🐛 Bug Report
+description: Report a reproducible UltraTorrent defect or unexpected behavior.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file this properly.
+
+        **Before you start**
+
+        - **Search the existing issues first.** A duplicate splits the discussion and
+          slows the fix down for everyone.
+        - **Do not paste secrets.** Logs and screenshots routinely contain API keys,
+          tracker passkeys and session cookies. There is a checklist at the bottom
+          about this, and it is not a formality.
+        - **This form is for defects.** "How do I configure X" is a documentation
+          question — see [the docs](https://docs.ultratorrent.co/) instead.
+        - 🔒 **Never report a security vulnerability here.** Authentication bypass,
+          credential exposure, RCE, injection, path traversal, SSRF or secret
+          leakage go through the
+          [security policy](https://github.com/ultratorrentofficial/ultratorrent/security/policy),
+          privately. A public issue cannot be un-published.
+
+  - type: input
+    id: version
+    attributes:
+      label: UltraTorrent version
+      description: >-
+        Shown in the sidebar footer and under System → About. The commit SHA beside
+        it is even better, and is what tells us exactly which build you are on.
+      placeholder: "v0.90.9 (3f09076), or a commit SHA, or 'development build'"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Deployment platform
+      description: Where UltraTorrent itself is running.
+      options:
+        - Docker Compose
+        - Linux (Docker)
+        - Linux (from source / development)
+        - QNAP NAS (Container Station)
+        - Synology NAS (Container Manager)
+        - TrueNAS
+        - Unraid
+        - Proxmox
+        - Portainer
+        - Cloud / VPS
+        - Other / custom
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system / NAS firmware version
+      description: The host version, not the container's.
+      placeholder: "Ubuntu 24.04 · QTS 5.2.x · DSM 7.2 · TrueNAS SCALE 24.04 · Unraid 7.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: Installation method
+      description: >-
+        How this instance was put in place. If you upgraded, pick the upgrade entry
+        rather than how it was originally installed — upgrades have their own failure
+        modes.
+      options:
+        - Official Docker Compose stack
+        - UltraTorrent installer (Linux)
+        - Manual Docker deployment
+        - NAS container app (QNAP Container Station / Synology Container Manager)
+        - Unraid / TrueNAS app or template
+        - Upgrade from a previous version
+        - Development environment (npm / source build)
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser
+      description: Only if the problem is in the web interface. Leave blank for backend issues.
+      placeholder: "Chrome 152 · Firefox 133 · Safari 18"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected component
+      description: >-
+        The area the problem is in. Pick the closest — a wrong guess is fine and is
+        easily re-labelled, whereas "Other" on everything is not triageable.
+      options:
+        - Dashboard
+        - Torrents
+        - Torrent engine integration
+        - RSS Feeds
+        - Media Acquisition Intelligence (Smart Download)
+        - Missing Episodes
+        - Media Discovery
+        - Media Intake
+        - Media Manager
+        - Media Renamer
+        - Library Cleanup
+        - Release Scoring
+        - Subtitle Intelligence
+        - Media Server Analytics
+        - Indexers / Prowlarr
+        - Storage profiles / path mapping
+        - Files / file manager
+        - Automation
+        - Notifications
+        - Authentication / users / RBAC
+        - Scheduler / background jobs
+        - Operations
+        - System / settings / module registry
+        - API
+        - Installer / upgrade
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: engine
+    attributes:
+      label: Torrent engine
+      description: >-
+        Only qBittorrent and rTorrent ship today. Transmission and Deluge are
+        planned against the same interface but are not implemented, so please do not
+        file against them yet.
+      options:
+        - qBittorrent
+        - rTorrent
+        - Both
+        - None / not relevant to this bug
+    validations:
+      required: false
+
+  - type: input
+    id: provider
+    attributes:
+      label: Relevant provider or integration
+      description: The third party involved, if any, and its version if you know it.
+      placeholder: "TMDB · TVmaze · IMDb dataset · Prowlarr 1.x · Plex · Jellyfin · Emby · Kodi · a specific indexer"
+    validations:
+      required: false
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: >-
+        Describe the actual behaviour. Include the exact error text if there was one —
+        a paraphrase is usually the part that makes a bug unreproducible.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+      description: >-
+        Worth writing even when it feels obvious. A surprising number of reports turn
+        out to be a disagreement about intended behaviour, and that is useful to know.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: >-
+        From a known starting point. Include the configuration that matters — the
+        template, rule, profile or path involved — because most defects here depend
+        on it.
+      placeholder: |
+        1. Go to …
+        2. Configure …
+        3. Click …
+        4. Observe …
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: |
+        Backend, frontend console, or provider logs — the portion around the failure,
+        not the whole file.
+
+        ⚠️ **Remove before pasting:** passwords, API keys, access and refresh tokens,
+        cookies and session IDs, private tracker credentials and passkeys, database
+        connection strings, private URLs and internal hostnames, and any personally
+        identifying information. Redact media titles too if your library is private.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots or recordings
+      description: >-
+        Drag files in. Check them for API keys, tracker URLs and library contents
+        before uploading — a screenshot of a settings page usually has more in it than
+        you meant to share.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: regression
+    attributes:
+      label: Did this start after an upgrade?
+      description: Knowing this narrows the search enormously.
+      options:
+        - "No — it has always behaved this way"
+        - "Yes — it worked before the upgrade"
+        - "Unsure"
+        - "Fresh installation"
+    validations:
+      required: true
+
+  - type: input
+    id: last-working-version
+    attributes:
+      label: Last version where this worked
+      description: Only if you picked "Yes" above.
+      placeholder: "v0.90.6"
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else?
+      description: >-
+        Reverse proxy, unusual storage layout, remote engine, VPN, or anything about
+        this install that is not typical.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched the existing issues and this is not a duplicate.
+          required: true
+        - label: I am running a supported or documented configuration.
+          required: true
+        - label: >-
+            I removed every password, API key, token, cookie, credential and private
+            URL from the logs and screenshots above.
+          required: true
+        - label: >-
+            This is a reproducible defect, not a general support or how-to question.
+          required: true
+        - label: >-
+            I understand that security vulnerabilities must be reported privately
+            through the security policy, never as a public issue.
+          required: true

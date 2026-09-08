@@ -1,0 +1,196 @@
+name: 🔌 Provider / Integration Problem
+description: Report problems with torrent engines, indexers, metadata providers, or media servers.
+title: "[Integration] "
+labels: ["integration"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For problems where UltraTorrent talks to something else and it does not go
+        well — an engine, an indexer, a metadata provider, or a media server.
+
+        ⚠️ **Provider logs are dense with secrets.** API keys, tracker passkeys and
+        session cookies appear in URLs and headers routinely. Sanitize before pasting.
+
+        🔒 If the provider integration is leaking credentials or can be made to reach
+        somewhere it should not, that is a security report — use the
+        [security policy](https://github.com/ultratorrentofficial/ultratorrent/security/policy),
+        privately.
+
+  - type: input
+    id: version
+    attributes:
+      label: UltraTorrent version
+      placeholder: "v0.90.9 (3f09076)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Integration category
+      options:
+        - Torrent engine
+        - Indexer / Prowlarr
+        - Metadata provider
+        - Discovery provider
+        - Media server
+        - RSS / Torznab / Newznab feed
+        - Subtitle provider
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Which provider?
+      description: >-
+        Only what actually ships today. Transmission and Deluge are planned against
+        the same engine interface but are not implemented, so they are deliberately
+        absent — please do not file against them yet.
+      options:
+        - qBittorrent
+        - rTorrent
+        - Prowlarr
+        - Torznab indexer
+        - Newznab indexer
+        - FlareSolverr
+        - TMDB
+        - TVmaze
+        - IMDb dataset
+        - Trakt
+        - Plex
+        - Jellyfin
+        - Emby
+        - Kodi
+        - OpenSubtitles
+        - Podnapisi
+        - Other / not listed
+    validations:
+      required: true
+
+  - type: input
+    id: provider-version
+    attributes:
+      label: Provider version
+      description: The other side's version, if you can see it.
+      placeholder: "qBittorrent 5.0.4 · Prowlarr 1.30 · Plex 1.41"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: How is the provider deployed relative to UltraTorrent?
+      description: >-
+        This decides whether the two can reach each other at all, and it is the cause
+        of a large share of integration reports.
+      options:
+        - Same Docker network / same Compose stack
+        - Same host, different Docker network
+        - Same host, running natively (not in Docker)
+        - Different host on the local network
+        - Remote host / over the internet
+        - Behind a reverse proxy
+        - Other / unsure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: connection-state
+    attributes:
+      label: Connection state
+      options:
+        - Never connected
+        - Previously worked, now broken
+        - Intermittent
+        - Connected, but behaves incorrectly
+    validations:
+      required: true
+
+  - type: textarea
+    id: failing
+    attributes:
+      label: What is failing?
+      description: Include exact error text and where it appears in the UI.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: provider-error
+    attributes:
+      label: Provider-side error
+      description: >-
+        What the other side says, if anything — an HTTP status, a rejected auth, a
+        rate limit.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: ut-logs
+    attributes:
+      label: UltraTorrent logs
+      description: |
+        ⚠️ **Remove first:** API keys, tracker passkeys, tokens, cookies, session IDs
+        and any credential embedded in a URL. Indexer URLs in particular usually carry
+        a passkey in the query string.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: provider-logs
+    attributes:
+      label: Provider logs
+      description: |
+        ⚠️ Same warning — sanitize before pasting.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: network
+    attributes:
+      label: Network context
+      description: |
+        Only what is needed to understand reachability:
+
+        - the hostname or service name UltraTorrent is configured with (a container
+          name like `prowlarr:9696` is fine and is often the answer)
+        - whether a reverse proxy sits in between
+        - whether the two containers share a Docker network
+
+        **Do not post public IP addresses, credentials, private endpoints or
+        tracker URLs.** Placeholders are fine — we care about the shape, not the
+        address.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Before submitting
+      options:
+        - label: I confirmed the credentials or API key are valid on the provider itself.
+          required: true
+        - label: >-
+            I confirmed UltraTorrent can reach the provider's address from where it
+            runs (container name and port, not just the browser URL).
+          required: true
+        - label: >-
+            I removed every API key, passkey, token, cookie and credential from the
+            logs and URLs above.
+          required: true
+        - label: The provider is one UltraTorrent documents as supported.
+          required: true
+        - label: I searched the existing issues and this is not a duplicate.
+          required: true

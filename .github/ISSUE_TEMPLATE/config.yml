@@ -1,0 +1,40 @@
+# Issue chooser configuration.
+#
+# Blank issues are disabled: every one that arrived without a form was missing the
+# version, the platform, or the reproduction, and the first reply was always the
+# same request for them.
+blank_issues_enabled: false
+
+contact_links:
+  # SECURITY FIRST, deliberately. It is the entry a reporter must see before they
+  # reach a form, because a vulnerability filed as a public issue cannot be
+  # unpublished — the disclosure has already happened by the time anyone reads it.
+  - name: 🔒 Report a security vulnerability (never use a public issue)
+    url: https://github.com/ultratorrentofficial/ultratorrent/security/policy
+    about: >-
+      Authentication bypass, authorization flaws, credential exposure, remote code
+      execution, injection, path traversal, SSRF, secret leakage, or any
+      privacy-sensitive defect. Read the security policy and report privately —
+      do NOT open a public issue, and do not include a working exploit in one.
+
+  - name: 📚 Documentation, setup and configuration help
+    url: https://docs.ultratorrent.co/
+    about: >-
+      Installation guides for every supported platform, module references, and
+      operations runbooks. Most "how do I…" questions are answered here, and this
+      is the right place to look before opening an issue.
+
+  - name: ❓ How-to questions and configuration advice
+    url: https://docs.ultratorrent.co/help/faq
+    about: >-
+      General usage questions, "is this the right setup", and provider
+      configuration advice are not issues. Start with the FAQ and the glossary.
+      Open an issue only when you can point at behaviour that is actually wrong.
+
+  - name: 🩺 Troubleshooting an install before filing
+    url: https://docs.ultratorrent.co/install
+    about: >-
+      Platform-specific install and upgrade guides — Docker Compose, Linux, QNAP,
+      Synology, TrueNAS, Unraid, Proxmox and Portainer. Worth a look first: a
+      large share of install reports are a documented path mapping or permissions
+      step that was skipped.

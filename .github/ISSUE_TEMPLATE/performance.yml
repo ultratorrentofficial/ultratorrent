@@ -1,0 +1,201 @@
+name: ⚡ Performance Problem
+description: Report excessive CPU or memory use, slow operations, or problems that only appear on a large library.
+title: "[Performance] "
+labels: ["performance"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Performance reports are only actionable with scale attached. "The scan is
+        slow" cannot be investigated; "a 9,100-file library scan takes 40 minutes on
+        4 GB of RAM" can.
+
+        **Please fill in the host and library sections even if they feel tedious** —
+        they are usually where the answer is.
+
+        ⚠️ Sanitize any logs you paste.
+
+  - type: input
+    id: version
+    attributes:
+      label: UltraTorrent version
+      placeholder: "v0.90.9 (3f09076)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Deployment platform
+      options:
+        - Docker Compose
+        - Linux (Docker)
+        - Linux (from source / development)
+        - QNAP NAS (Container Station)
+        - Synology NAS (Container Manager)
+        - TrueNAS
+        - Unraid
+        - Proxmox
+        - Portainer
+        - Cloud / VPS
+        - Other / custom
+    validations:
+      required: true
+
+  - type: textarea
+    id: host
+    attributes:
+      label: Host resources
+      description: |
+        - CPU model and core count
+        - Total RAM, and how much is free under load
+        - Storage type for the **database** and for the **media** (NVMe, SSD, spinning
+          disk, network share) — these are often different, and it matters
+        - Approximate free disk space
+        - Any container memory or CPU limits
+      placeholder: |
+        CPU: Intel N100, 4 cores
+        RAM: 8 GB, ~1.5 GB free during a scan
+        Database on NVMe; media on a network share (NFS)
+        Free disk: 130 GB
+        No container limits set
+    validations:
+      required: true
+
+  - type: input
+    id: database
+    attributes:
+      label: PostgreSQL version
+      description: >-
+        UltraTorrent runs on PostgreSQL. Say so if you are using the bundled Compose
+        database rather than your own.
+      placeholder: "bundled Compose Postgres 16 · external Postgres 15"
+    validations:
+      required: false
+
+  - type: textarea
+    id: library-size
+    attributes:
+      label: Library and workload size
+      description: |
+        Approximate is fine — orders of magnitude are what matter.
+
+        - movies / series / episodes
+        - active torrents, and total torrents known
+        - RSS feeds and rules
+        - watchlist entries and wanted episodes
+        - discovered titles, if Media Discovery is on
+      placeholder: |
+        ~1,200 movies, ~180 series, ~14,000 episodes
+        ~40 active torrents, ~1,800 total
+        6 feeds, 60 rules
+        ~90 watchlist entries
+    validations:
+      required: false
+
+  - type: dropdown
+    id: operation
+    attributes:
+      label: Which operation is slow?
+      options:
+        - Startup / boot
+        - Dashboard
+        - Library scan
+        - Media Discovery sync or evaluation
+        - RSS polling
+        - Media Acquisition Intelligence (Smart Download)
+        - Missing Episodes scan or search
+        - Media Intake / import
+        - Media Manager / duplicate detection
+        - Library Cleanup
+        - Subtitle Intelligence
+        - Search
+        - Database queries
+        - Scheduler / background jobs
+        - API responses
+        - Web interface generally
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: symptom
+    attributes:
+      label: What is slow or resource-heavy?
+      description: >-
+        What you observe, and where. If a specific container is the one consuming the
+        resources, name it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: measurements
+    attributes:
+      label: Measurements
+      description: |
+        Numbers, however rough:
+
+        - how long the operation takes, and how long you would expect
+        - CPU and memory during it (`docker stats` is ideal)
+        - whether it is sustained or spikes
+    validations:
+      required: true
+
+  - type: dropdown
+    id: reproducibility
+    attributes:
+      label: Does it reproduce?
+      options:
+        - Always
+        - Frequently
+        - Intermittently
+        - Happened once
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: |
+        Slow-query warnings, job durations, timeouts, or out-of-memory kills.
+
+        ⚠️ Remove credentials, tokens, connection strings and private paths first.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: metrics
+    attributes:
+      label: Metrics or screenshots
+      description: "`docker stats`, a monitoring graph, or the browser performance panel."
+    validations:
+      required: false
+
+  - type: textarea
+    id: changed
+    attributes:
+      label: What changed recently?
+      description: >-
+        An upgrade, a bigger library, a new provider, a move to network storage, or a
+        newly enabled module. If nothing changed and it degraded anyway, say that —
+        it is a different kind of clue.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Before submitting
+      options:
+        - label: This reproduces rather than being a one-off during another heavy task.
+          required: true
+        - label: >-
+            The host is not simply out of disk or RAM — I checked free space and
+            available memory.
+          required: true
+        - label: I removed credentials, tokens and private paths from anything pasted above.
+          required: true
+        - label: I searched the existing issues and this is not a duplicate.
+          required: true

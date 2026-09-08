@@ -1,0 +1,164 @@
+name: 🎨 UI / UX Problem
+description: Report visual, usability, responsive-layout, accessibility, or workflow problems.
+title: "[UI] "
+labels: ["ui"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For the interface itself — something that looks wrong, reads wrong, is hard to
+        operate, or cannot be used with a keyboard or a screen reader.
+
+        **Accessibility reports are welcome and are treated as defects, not
+        preferences.** If something is unreachable by keyboard or unreadable at your
+        contrast settings, that is a bug.
+
+        ⚠️ **Screenshots leak.** A capture of almost any UltraTorrent screen contains
+        your library, and a settings page may contain an API key. Crop or blur before
+        uploading.
+
+  - type: input
+    id: version
+    attributes:
+      label: UltraTorrent version
+      placeholder: "v0.90.9 (3f09076)"
+    validations:
+      required: true
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and version
+      placeholder: "Chrome 152 · Firefox 133 · Safari 18"
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "macOS 15 · Windows 11 · Ubuntu 24.04 · iOS 18 · Android 15"
+    validations:
+      required: true
+
+  - type: input
+    id: viewport
+    attributes:
+      label: Screen size, resolution or zoom level
+      description: >-
+        Important for layout and scaling reports — most of these only appear at a
+        particular width or browser zoom.
+      placeholder: "1280×800 · 2560×1440 at 150% · iPhone 15 portrait · browser zoom 200%"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which page or workspace?
+      options:
+        - Dashboard
+        - Torrents
+        - RSS Feeds
+        - Media Acquisition Intelligence (Smart Download)
+        - Missing Episodes
+        - Media Discovery
+        - Media Intake
+        - Media Manager
+        - Media Renamer
+        - Library Cleanup
+        - Release Scoring
+        - Subtitle Intelligence
+        - Media Server Analytics
+        - Indexers / Prowlarr
+        - Files / file manager
+        - Automation
+        - Notifications
+        - Users / roles / permissions
+        - Operations
+        - System / settings
+        - Login / onboarding
+        - Navigation / sidebar / global search
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is the problem?
+      description: What you see, or what you cannot do.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: >-
+        Include the window width or zoom if the problem depends on it, and say whether
+        it happens with an empty screen or only with a lot of data on it.
+      placeholder: |
+        1. Open …
+        2. Narrow the window to …
+        3. Observe …
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot or recording
+      description: >-
+        Usually decisive for a layout problem. Crop or blur anything private first —
+        library titles, tracker names, API keys.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: a11y
+    attributes:
+      label: Accessibility impact
+      description: Pick the closest if this affects assistive technology or accessible use.
+      options:
+        - "None / not applicable"
+        - Keyboard navigation
+        - Screen reader
+        - Colour contrast or readability
+        - Focus handling or focus visibility
+        - Text scaling or browser zoom
+        - Motion or animation
+        - Other
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else?
+      description: >-
+        Browser extensions, custom CSS, a reverse proxy that rewrites paths, or a
+        non-default theme or language.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Before submitting
+      options:
+        - label: I reproduced this on the current version.
+          required: true
+        - label: I searched the existing issues and this is not a duplicate.
+          required: true
+        - label: >-
+            My screenshots contain no API keys, tokens, tracker URLs or anything else
+            I would not want public.
+          required: true

@@ -1,0 +1,92 @@
+name: 📚 Documentation Problem
+description: Report missing, incorrect, outdated, or confusing UltraTorrent documentation.
+title: "[Docs] "
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Documentation that is wrong is worse than documentation that is absent, so
+        these are genuinely worth filing — particularly "I followed this and it did
+        not work".
+
+        UltraTorrent's docs live in two places: the published site at
+        [docs.ultratorrent.co](https://docs.ultratorrent.co/), and the deeper
+        reference material under `docs/` in the repository.
+
+  - type: input
+    id: location
+    attributes:
+      label: Where is the documentation?
+      description: A URL if it is on the site, or a path if it is in the repository.
+      placeholder: "https://docs.ultratorrent.co/modules/media-discovery · docs/ARCHITECTURE.md · README.md"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: problem-type
+    attributes:
+      label: What kind of problem is it?
+      options:
+        - Incorrect — it says something untrue
+        - Outdated — it describes older behaviour
+        - Missing — it is not documented at all
+        - Unclear or ambiguous
+        - Broken link
+        - Example or command does not work
+        - Typo or formatting
+        - Translation problem
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is wrong or missing?
+      description: >-
+        Quote the passage if you can, and say what you expected it to tell you. If you
+        followed a set of steps and hit something different, describe what actually
+        happened.
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested correction
+      description: >-
+        Optional, and very welcome. Even a rough sentence saves a round trip — you
+        already know what you needed it to say.
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: Version or platform this applies to
+      description: >-
+        Helpful when documentation is right for one platform and wrong for another.
+      placeholder: "v0.90.9 · the QNAP install guide · es-PR translation"
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Screenshots of the page, or what you were trying to accomplish.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Before submitting
+      options:
+        - label: >-
+            I checked the current documentation on the `main` branch or the published
+            site, not a cached or older copy.
+          required: true
+        - label: I searched the existing issues for this documentation problem.
+          required: true
