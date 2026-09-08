@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.90.9] - 2026-09-08
+
+### Fixed
+- Discovery sends one consolidated notification per run instead of one per title, and each title carries its poster, synopsis, network, premiere, rating and genres
+
 ## [0.90.8] - 2026-09-08
 
 ### Fixed
