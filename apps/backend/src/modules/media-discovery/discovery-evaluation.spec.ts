@@ -52,7 +52,7 @@ const row = (id: string, over: any = {}) => ({
 
 function harness(opts: {
   rows?: any[]; remaining?: number; watchlistFails?: boolean; ruleFails?: boolean; ruleReason?: string;
-  ruleIsUserModified?: boolean; watchlistStatus?: string; existing?: any; readiness?: any; profile?: any; template?: any;
+  ruleIsUserModified?: boolean; watchlistStatus?: string; existing?: any; readiness?: any; profile?: any; template?: any; watchlistOutcome?: string;
 } = {}) {
   const evaluations: any[] = [];
   const stamps: any[] = [];
@@ -105,7 +105,7 @@ function harness(opts: {
   const watchlist = {
     linkOrCreate: jest.fn(async () => {
       if (opts.watchlistFails) throw new Error('watchlist exploded');
-      return { watchlistItemId: 'w1', outcome: 'created' };
+      return { watchlistItemId: 'w1', outcome: opts.watchlistOutcome ?? 'created' };
     }),
   };
   const rules = {
@@ -842,5 +842,57 @@ describe('re-evaluating a title we already monitor', () => {
     });
     const [outcome] = await h.svc.runAll();
     expect(outcome.decisions.already_monitored).toBe(1);
+  });
+});
+
+/**
+ * The auto-add limit paces NEW acquisition, not re-evaluation.
+ *
+ * Applying it to a title already monitored made a monitored show compete for a
+ * fresh daily allowance every time a policy edit cleared the decisions — and the
+ * titles that lost that race dropped into review saying "Automatic-add threshold
+ * reached" while still being monitored. Observed live: 17 monitored shows, a
+ * limit of 10, and the 7 that came last moved to Needs review overnight.
+ */
+describe('the auto-add budget and re-evaluation', () => {
+  const monitored = () =>
+    row('m1', {
+      discoveryStatus: 'monitored',
+      matchedTemplateId: TEMPLATE.id,
+      watchlistItemId: 'wl1',
+      rssRuleId: 'r1',
+    });
+
+  it('does not push an already-monitored title into review when the budget is spent', async () => {
+    const h = harness({ rows: [monitored()], remaining: 0 });
+    const [outcome] = await h.svc.runAll();
+    expect(outcome.decisions.needs_review).toBe(0);
+    expect(outcome.decisions.auto_monitor).toBe(1);
+  });
+
+  it('still holds a NEW title when the budget is spent', async () => {
+    const h = harness({ rows: [row('new1')], remaining: 0 });
+    const [outcome] = await h.svc.runAll();
+    expect(outcome.decisions.needs_review).toBe(1);
+    expect(outcome.decisions.auto_monitor).toBe(0);
+  });
+
+  /*
+   * Charging for work that did not happen is what let a single re-evaluation of
+   * an existing catalogue exhaust a day's allowance without acquiring anything.
+   */
+  it('spends the budget only when a watchlist entry was actually created', async () => {
+    const h = harness({ rows: [row('a'), row('b')], remaining: 1, watchlistOutcome: 'unchanged' });
+    const [outcome] = await h.svc.runAll();
+    // Neither created anything, so neither spent — both still auto_monitor.
+    expect(outcome.decisions.auto_monitor).toBe(2);
+    expect(outcome.decisions.needs_review).toBe(0);
+  });
+
+  it('does spend it for a genuinely new entry', async () => {
+    const h = harness({ rows: [row('a'), row('b')], remaining: 1, watchlistOutcome: 'created' });
+    const [outcome] = await h.svc.runAll();
+    expect(outcome.decisions.auto_monitor).toBe(1);
+    expect(outcome.decisions.needs_review).toBe(1);
   });
 });

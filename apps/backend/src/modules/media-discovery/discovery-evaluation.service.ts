@@ -187,10 +187,23 @@ export class DiscoveryEvaluationService {
       : null;
 
     for (const row of rows) {
+      /*
+       * A title this template ALREADY monitors does not compete for the budget.
+       *
+       * The limit paces NEW acquisition. Applying it to a re-evaluation makes a
+       * monitored show fight for a fresh daily allowance every time a policy edit
+       * clears the decisions — and whichever titles lose that race drop into
+       * review with "Automatic-add threshold reached" despite being monitored
+       * already. Observed exactly that: 17 monitored shows, a limit of 10, and
+       * the 7 that came last silently moved to Needs review overnight.
+       */
+      const alreadyOurs =
+        row.discoveryStatus === 'monitored' && row.matchedTemplateId === template.id;
+
       const verdict = evaluateDiscovery(
         this.toPolicyMedia(row),
         template as unknown as PolicyTemplate,
-        { now, autoAddBudgetExhausted: remaining <= 0 },
+        { now, autoAddBudgetExhausted: !alreadyOurs && remaining <= 0 },
       );
 
       const key = verdict.applies ? verdict.decision : 'not_applicable';
@@ -325,7 +338,16 @@ export class DiscoveryEvaluationService {
       if (effective.decision === 'auto_monitor') {
         if (acted.watchlistItemId) {
           outcome.monitored += 1;
-          remaining -= 1; // spent only when monitoring really happened
+          /*
+           * Spent only when monitoring was actually CREATED.
+           *
+           * `linkOrCreate` returns `created` for a new entry and `unchanged` /
+           * `updated` for one that already existed. Decrementing on all three
+           * charged the allowance for work that did not happen, so a single
+           * re-evaluation of an existing catalogue could exhaust a day's budget
+           * without acquiring anything new.
+           */
+          if (acted.watchlistOutcome === 'created') remaining -= 1;
           /*
            * Per title, and on by default in the catalogue: the system acquiring
            * something without being asked is exactly what a person should be
@@ -544,7 +566,13 @@ export class DiscoveryEvaluationService {
       tvLibrary: { path: string } | null;
     } | null,
     _verdict: PolicyVerdict,
-  ): Promise<{ watchlistItemId: string | null; rssRuleId: string | null; failureReason: string | null }> {
+  ): Promise<{
+    watchlistItemId: string | null;
+    rssRuleId: string | null;
+    failureReason: string | null;
+    /** created | unchanged | updated — only `created` spends the auto-add budget. */
+    watchlistOutcome: string | null;
+  }> {
     const media = {
       id: row.id,
       title: row.title,
@@ -555,6 +583,7 @@ export class DiscoveryEvaluationService {
     const failures: string[] = [];
 
     let watchlistItemId: string | null = null;
+    let watchlistOutcome: string | null = null;
     try {
       const link = await this.watchlist.linkOrCreate(media, {
         // The library the profile files THIS media type into, by id.
@@ -562,10 +591,11 @@ export class DiscoveryEvaluationService {
           row.mediaType === 'movie' ? profile?.movieLibraryId : profile?.tvLibraryId,
       });
       watchlistItemId = link.watchlistItemId;
+      watchlistOutcome = link.outcome;
       if (link.note) failures.push(link.note);
     } catch (err) {
       failures.push(`Watchlist entry failed: ${(err as Error).message}`);
-      return { watchlistItemId: null, rssRuleId: null, failureReason: failures.join('; ') };
+      return { watchlistItemId: null, rssRuleId: null, failureReason: failures.join('; '), watchlistOutcome: null };
     }
 
     /*
@@ -666,6 +696,7 @@ export class DiscoveryEvaluationService {
       watchlistItemId,
       rssRuleId,
       failureReason: failures.length ? failures.join('; ') : null,
+      watchlistOutcome,
     };
   }
 
