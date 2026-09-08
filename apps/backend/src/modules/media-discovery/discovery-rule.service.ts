@@ -114,9 +114,36 @@ export class DiscoveryRuleService {
       };
     }
 
+    /*
+     * The canonical title, WITHOUT the year, is what the matcher compares
+     * against a release name. `ruleName()` adds the year for the rules list,
+     * where two works sharing a title must be distinguishable; a release is
+     * named "Show.S01E01...", not "Show (2026).S01E01...".
+     */
+    const subject = {
+      title: canonicalizeTitle(media.title, media.year).title,
+      mediaType: media.mediaType,
+    };
     const candidates = input.acquisition
-      ? this.acquisitionTemplates.toRuleCandidates(input.acquisition, 'placeholder')
+      ? this.acquisitionTemplates.toRuleCandidates(input.acquisition, 'placeholder', subject)
       : [];
+
+    /*
+     * A candidate with no pattern matches EVERY item in the feed that passes its
+     * quality rules — `showTitleMatch` returns true for an empty pattern, which
+     * is correct for a hand-made whole-feed rule and catastrophic for one
+     * generated for a single show. This is the last gate before the insert, and
+     * it exists because the consequence is not a rule that fails to work but a
+     * rule that downloads everything.
+     */
+    const unbounded = candidates.filter((c) => !String(c.pattern ?? '').trim());
+    if (unbounded.length) {
+      return {
+        ruleId: null,
+        outcome: 'skipped',
+        reason: `Refusing to create a rule whose match preferences carry no show title — it would match every item in the feed (${unbounded.length} of ${candidates.length} candidates)`,
+      };
+    }
 
     /*
      * Never create a rule that cannot match anything.

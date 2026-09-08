@@ -181,9 +181,21 @@ export class AcquisitionTemplateService {
    * template-wide constraints ("never a CAM") rather than a preference of one
    * rung — a rung that dropped them would be a hole in the constraint.
    */
+  /**
+   * Clone a ladder onto one rule — for ONE title.
+   *
+   * `subject` is what makes the result a rule about a show rather than a rule
+   * about everything. `smart_episode_match` identifies the show through its
+   * `pattern`, and `showTitleMatch` treats an EMPTY pattern as "matches
+   * anything" — deliberately, so a hand-made rule can grab a whole feed. A
+   * ladder is generic and cannot know which show it is being applied to, so it
+   * carries no pattern, and cloning it verbatim produced per-show rules that
+   * matched every item in the feed passing their quality rules.
+   */
   toRuleCandidates(
     template: { requiredTerms: unknown; excludedTerms: unknown; candidates: AcquisitionRuleTemplateCandidate[] },
     rssRuleId: string,
+    subject?: { title: string; mediaType: string },
   ): Prisma.RssRuleMatchCandidateUncheckedCreateInput[] {
     const globalRequired = asStrings(template.requiredTerms);
     const globalExcluded = asStrings(template.excludedTerms);
@@ -199,8 +211,16 @@ export class AcquisitionTemplateService {
         name: c.name,
         description: c.description,
         enabled: c.enabled,
-        matchType: c.matchType,
-        pattern: c.pattern,
+        matchType: subject ? matchTypeFor(c.matchType, subject.mediaType) : c.matchType,
+        /*
+         * The show's own title, never the ladder's.
+         *
+         * For the smart types the pattern IS the title, and a ladder cannot know
+         * it. For the text and pattern types a ladder value is an explicit
+         * choice and is kept — but an empty one falls back to the title, because
+         * the one thing a per-show rule must never be is unbounded.
+         */
+        pattern: subject ? patternFor(c, subject.title) : c.pattern,
         requiredTerms: unique([...asStrings(c.requiredTerms), ...globalRequired]) as Prisma.InputJsonValue,
         excludedTerms: unique([...asStrings(c.excludedTerms), ...globalExcluded]) as Prisma.InputJsonValue,
         qualityRules: (c.qualityRules ?? {}) as Prisma.InputJsonValue,
@@ -299,4 +319,25 @@ function asStrings(v: unknown): string[] {
 
 function unique(v: string[]): string[] {
   return [...new Set(v)];
+}
+
+/** The smart types are per-media-kind; a ladder is written once for both. */
+function matchTypeFor(matchType: string, mediaType: string): string {
+  if (mediaType === 'movie' && matchType === 'smart_episode_match') return 'smart_movie_match';
+  if (mediaType !== 'movie' && matchType === 'smart_movie_match') return 'smart_episode_match';
+  return matchType;
+}
+
+/**
+ * The pattern a generated candidate must carry.
+ *
+ * Never empty. `showTitleMatch` reads an empty pattern as "matches anything",
+ * which is right for a rule somebody wrote by hand to take a whole feed and
+ * catastrophic for a rule generated for one show.
+ */
+function patternFor(candidate: { matchType: string; pattern: string | null }, title: string): string {
+  if (candidate.matchType === 'smart_episode_match' || candidate.matchType === 'smart_movie_match') {
+    return title;
+  }
+  return candidate.pattern?.trim() ? candidate.pattern : title;
 }

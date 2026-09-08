@@ -239,7 +239,11 @@ describe('two passes racing for the same title', () => {
     // Must yield an enabled rung, or the generator refuses before the insert
     // this race is about ever happens.
     const acquisitionTemplates = {
-      toRuleCandidates: () => [{ priorityOrder: 0, name: '1080p', enabled: true }],
+      // A pattern is required: the generator refuses a candidate that would
+      // match every item in the feed, which would trip before the race logic.
+      toRuleCandidates: () => [
+        { priorityOrder: 0, name: '1080p', enabled: true, pattern: 'The Example Show' },
+      ],
     } as any;
     const audit = { record: jest.fn(async () => undefined) } as any;
     return new DiscoveryRuleService(prisma, audit, acquisitionTemplates);
