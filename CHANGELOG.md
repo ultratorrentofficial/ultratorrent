@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.90.7] - 2026-09-08
+
+### Fixed
+- re-evaluating an already-monitored title no longer competes for or spends the automatic-add budget
+
 ## [0.90.6] - 2026-09-08
 
 ### Fixed
