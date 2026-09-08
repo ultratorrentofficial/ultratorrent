@@ -340,14 +340,53 @@ export class MediaDiscoveryController {
   @Post('sync')
   @RequirePermissions(P.MEDIA_DISCOVERY_PROVIDERS_MANAGE)
   async runSync(@Body() body: { providers?: string[] }, @Req() req: Request) {
-    const names = body?.providers?.length ? body.providers : this.registry.all().map((p) => p.name);
+    /*
+     * ONLY enabled providers, whether the caller named them or not.
+     *
+     * This used to default to `registry.all()` — every REGISTERED provider,
+     * ignoring `enabled` entirely. The hourly tick has always filtered on
+     * `enabled: true`, so the two paths disagreed and the manual "Refresh
+     * catalogues" button synced providers an operator had switched off: measured
+     * live, TVmaze at `enabled=false` with a successful sync minutes earlier and
+     * 540 items discovered.
+     *
+     * That is not a cosmetic inconsistency. "Providers are silent until you
+     * enable one" is the second of the three doors between a fresh install and
+     * an automatic download, and it is a promise about third-party network
+     * calls — a disabled provider was still being contacted.
+     *
+     * A caller naming a disabled provider is told, rather than silently obeyed
+     * or silently ignored.
+     */
+    const enabled = new Set(
+      (
+        await this.prisma.discoveryProviderState.findMany({
+          where: { enabled: true },
+          select: { provider: true },
+        })
+      ).map((r) => r.provider),
+    );
+    const asked = body?.providers?.length ? body.providers : this.registry.all().map((p) => p.name);
+    const names = asked.filter((n) => enabled.has(n));
+    const skipped = asked.filter((n) => !enabled.has(n));
+
+    if (!names.length) {
+      return {
+        providers: [],
+        skipped,
+        evaluation: null,
+        message: skipped.length
+          ? `No enabled providers to sync. Skipped (disabled): ${skipped.join(', ')}.`
+          : 'No providers are enabled, so there is nothing to refresh.',
+      };
+    }
     await this.audit.record({
       userId: userId(req),
       ...reqAuditContext(req),
       action: 'media_discovery.sync.requested',
       objectType: 'discovery_provider',
       objectId: names.join(','),
-      metadata: { providers: names },
+      metadata: { providers: names, skippedDisabled: skipped },
     });
     const outcomes = await this.sync.syncProviders(names);
 
@@ -365,6 +404,9 @@ export class MediaDiscoveryController {
     const evaluations = await this.evaluation.runAll();
     return {
       providers: outcomes,
+      // Named so a caller can see a disabled provider was deliberately not run,
+      // rather than wondering why its catalogue did not move.
+      skipped,
       evaluation: {
         templates: evaluations.length,
         examined: evaluations.reduce((n, e) => n + e.examined, 0),

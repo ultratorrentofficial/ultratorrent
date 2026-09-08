@@ -390,6 +390,15 @@ Health comes from what the last sync recorded, not from probing when you open th
 page — a page load must never wait on a third party, and a transient blip is not
 a provider's condition.
 
+**Refresh catalogues only contacts enabled providers.** Naming a disabled one
+explicitly is refused rather than obeyed — the endpoint is not a way around the
+switch — and the response says which were skipped.
+
+Disabling a provider does **not** remove titles it already contributed. That is
+deliberate: a provider going quiet is not a provider retracting what it found. If
+you want those titles gone, remove them from the catalogue — selecting several at
+once is one action.
+
 **A failed refresh keeps the previous catalogue.** "We could not ask" and
 "nothing is coming out" are very different claims, and emptying a catalogue
 because a network call failed would say the second when the first is true.
