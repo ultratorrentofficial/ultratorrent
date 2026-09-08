@@ -51,14 +51,28 @@ export class DiscoveryRuleService {
   ) {}
 
   /**
-   * The rule name for a title.
+   * The rule's name: the show's title, and nothing else.
    *
-   * The year is part of it because two works genuinely share titles — the whole
-   * reason the identity gate exists — and two rules called "The Odyssey" would be
-   * indistinguishable in the rules list.
+   * The title is CANONICAL, so a provider that wrote "Tulsa King (2022)" still
+   * yields "Tulsa King" — the year is lifted out rather than carried through in
+   * a different shape.
+   *
+   * This used to append the year, so that two works genuinely sharing a title
+   * stayed distinguishable in the rules list. That trade is now the other way
+   * round: a rule is read far more often than two same-titled works collide, and
+   * the year made every rule name noisier for a case that is rare.
+   *
+   * The collision is still handled, just differently. Two works with one title
+   * produce one rule name, the second is refused by the uniqueness guard, and
+   * `generate()` reports it and links the watchlist entry to the existing rule
+   * rather than silently taking it over. Nothing is lost quietly — it is
+   * surfaced, which is what the clash path was built for.
+   *
+   * The name has never affected MATCHING: the show is identified by each
+   * candidate's `pattern`, which carries the canonical title independently.
    */
   ruleName(media: { title: string; year: number | null }): string {
-    return media.year ? `${media.title} (${media.year})` : media.title;
+    return canonicalizeTitle(media.title, media.year).title;
   }
 
   async generate(input: RuleGenerationInput, userId?: string): Promise<RuleGenerationResult> {

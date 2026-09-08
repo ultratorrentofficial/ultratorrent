@@ -62,8 +62,13 @@ const input = (over: Partial<RuleGenerationInput> = {}): RuleGenerationInput => 
 describe('generating a rule', () => {
   it('names it with the year, so two works sharing a title stay distinguishable', () => {
     const { svc } = harness();
-    expect(svc.ruleName({ title: 'The Odyssey', year: 2026 })).toBe('The Odyssey (2026)');
+    // The year is deliberately NOT in the name: a rule is read far more often
+    // than two same-titled works collide, and the collision is surfaced by the
+    // clash path rather than avoided by making every name noisier.
+    expect(svc.ruleName({ title: 'The Odyssey', year: 2026 })).toBe('The Odyssey');
     expect(svc.ruleName({ title: 'Undated', year: null })).toBe('Undated');
+    // Canonical, so a provider that already wrote the year does not smuggle it in.
+    expect(svc.ruleName({ title: 'Tulsa King (2022)', year: 2022 })).toBe('Tulsa King');
   });
 
   it('creates a managed-intake rule bound to the template’s feed and profile', async () => {
@@ -73,7 +78,7 @@ describe('generating a rule', () => {
     expect(r).toEqual({ ruleId: 'rule-1', outcome: 'created' });
     expect(created[0]).toMatchObject({
       feedId: 'feed-1',
-      name: 'The Example Show (2026)',
+      name: 'The Example Show',
       importMode: 'managed_intake',
       storageProfileId: 'sp-1',
       generatedByDiscovery: true,
@@ -166,7 +171,7 @@ describe('refusing to generate', () => {
    */
   it('never takes over a rule a person made, and says so', async () => {
     const { svc, prisma } = harness({
-      clash: { id: 'rule-manual', generatedByDiscovery: false, name: 'The Example Show (2026)' },
+      clash: { id: 'rule-manual', generatedByDiscovery: false, name: 'The Example Show' },
     });
     const r = await svc.generate(input());
 
@@ -178,7 +183,7 @@ describe('refusing to generate', () => {
 
   it('does not create a duplicate when another generated rule holds the name', async () => {
     const { svc, prisma } = harness({
-      clash: { id: 'rule-gen', generatedByDiscovery: true, name: 'The Example Show (2026)' },
+      clash: { id: 'rule-gen', generatedByDiscovery: true, name: 'The Example Show' },
     });
     const r = await svc.generate(input());
     expect(r.outcome).toBe('skipped');
