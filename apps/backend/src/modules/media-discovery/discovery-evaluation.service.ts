@@ -5,6 +5,7 @@ import { DomainEventBus } from '../domain-events/domain-event-bus.service';
 import type { DiscoveryTemplate } from '@prisma/client';
 import type { DiscoveryDecision } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
+import { renderTargetPath } from './discovery-path';
 import { evaluateDiscovery, type PolicyTemplate, type PolicyVerdict } from './discovery-policy';
 import { DiscoveryRemovalService } from './discovery-removal.service';
 import { DiscoveryTemplateService } from './discovery-template.service';
@@ -435,6 +436,48 @@ export class DiscoveryEvaluationService {
       return { watchlistItemId: null, rssRuleId: null, failureReason: failures.join('; ') };
     }
 
+    /*
+     * The rule's save path, rendered from the storage profile's staging root and
+     * the template's path fragment.
+     *
+     * This was computed nowhere and passed nowhere: `generate()` accepted a
+     * `savePath` and nothing ever supplied one, so every generated rule stored
+     * `null` and a template's `pathTemplate` only ever affected directory
+     * PROVISIONING — which is off by default. A template configured with
+     * `{tvshow} ({year})` therefore did nothing at all, which is the worst kind
+     * of setting: it looks configured.
+     *
+     * Rendered once and used for both the rule and the directory, so the path a
+     * rule records and the folder that gets created cannot drift apart. The
+     * renderer sanitises every token and asserts the result sits inside the
+     * staging root and outside every destination library.
+     */
+    const pathTokens = {
+      title: row.title,
+      tvshow: row.mediaType === 'movie' ? null : row.title,
+      movie: row.mediaType === 'movie' ? row.title : null,
+      year: row.year,
+    };
+    const libraryPaths = [profile?.movieLibrary?.path, profile?.tvLibrary?.path].filter(
+      (p): p is string => Boolean(p),
+    );
+    let savePath: string | null = null;
+    if (profile && template.pathTemplate) {
+      try {
+        savePath = renderTargetPath({
+          stagingRoot: profile.stagingRoot,
+          pathTemplate: template.pathTemplate,
+          tokens: pathTokens,
+          libraryPaths,
+        });
+      } catch (err) {
+        // A path that cannot be built must not stop the monitoring: the entry is
+        // what causes acquisition, and intake can still resolve a destination
+        // from the profile alone.
+        failures.push(`Target path could not be built: ${(err as Error).message}`);
+      }
+    }
+
     let rssRuleId: string | null = null;
     try {
       const acquisition = template.acquisitionTemplateId
@@ -443,7 +486,7 @@ export class DiscoveryEvaluationService {
             include: { candidates: true },
           })
         : null;
-      const generated = await this.rules.generate({ media, template, acquisition });
+      const generated = await this.rules.generate({ media, template, acquisition, savePath });
       rssRuleId = generated.ruleId;
       if (generated.reason) failures.push(generated.reason);
       // Attach the rule to the entry that was just created or reused.
@@ -459,15 +502,8 @@ export class DiscoveryEvaluationService {
         const provisioned = await this.intake.provision({
           stagingRoot: profile.stagingRoot,
           pathTemplate: template.pathTemplate,
-          tokens: {
-            title: row.title,
-            tvshow: row.mediaType === 'movie' ? null : row.title,
-            movie: row.mediaType === 'movie' ? row.title : null,
-            year: row.year,
-          },
-          libraryPaths: [profile.movieLibrary?.path, profile.tvLibrary?.path].filter(
-            (p): p is string => Boolean(p),
-          ),
+          tokens: pathTokens,
+          libraryPaths,
         });
         if (!provisioned.ok) failures.push(`Intake directory: ${provisioned.detail}`);
       } catch (err) {

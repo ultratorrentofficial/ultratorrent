@@ -52,7 +52,7 @@ const row = (id: string, over: any = {}) => ({
 
 function harness(opts: {
   rows?: any[]; remaining?: number; watchlistFails?: boolean; ruleFails?: boolean; ruleReason?: string;
-  ruleIsUserModified?: boolean; watchlistStatus?: string; existing?: any; readiness?: any;
+  ruleIsUserModified?: boolean; watchlistStatus?: string; existing?: any; readiness?: any; profile?: any;
 } = {}) {
   const evaluations: any[] = [];
   const stamps: any[] = [];
@@ -71,7 +71,17 @@ function harness(opts: {
         return {};
       }),
     },
-    storageProfile: { findUnique: jest.fn(async () => null) },
+    storageProfile: {
+      findUnique: jest.fn(async () =>
+        opts.profile === undefined
+          ? {
+              id: 'sp-1', stagingRoot: '/downloads/Intake',
+              movieLibraryId: 'lib-m', tvLibraryId: 'lib-tv',
+              movieLibrary: { path: '/media/Movies' }, tvLibrary: { path: '/media/TV' },
+            }
+          : opts.profile,
+      ),
+    },
     acquisitionRuleTemplate: { findUnique: jest.fn(async () => null) },
     rssRule: { deleteMany: jest.fn(async () => ({ count: opts.ruleIsUserModified ? 0 : 1 })) },
     mediaAcquisitionWatchlistItem: {
@@ -586,5 +596,74 @@ describe('template readiness', () => {
     const [outcome] = await h.svc.runAll();
     expect(outcome.decisions.auto_monitor).toBe(1);
     expect(h.watchlist.linkOrCreate).toHaveBeenCalled();
+  });
+});
+
+/**
+ * The generated rule records where its media should be staged.
+ *
+ * `generate()` accepted a `savePath` and nothing ever supplied one, so every
+ * generated rule stored `null` and the template's `pathTemplate` only ever
+ * affected directory PROVISIONING — which is off by default. A template
+ * configured with `{tvshow} ({year})` therefore did nothing at all: the worst
+ * kind of setting, because it looks configured.
+ */
+describe('the generated rule carries its target path', () => {
+  /** The first argument `generate()` was called with. */
+  const genArg = (h: any) => (h.rules.generate as jest.Mock).mock.calls[0][0];
+
+  const withPath = (over: any = {}) => ({
+    ...TEMPLATE,
+    pathTemplate: 'TV Shows/{tvshow} ({year})',
+    storageProfileId: 'sp-1',
+    createIntakeDirectory: false,
+    ...over,
+  });
+
+  it('renders the storage profile staging root plus the template fragment', async () => {
+    const h = harness();
+    h.prisma.discoveryTemplate.findMany = jest.fn(async () => [withPath()]);
+    await h.svc.runAll();
+    expect(genArg(h).savePath).toBe(
+      '/downloads/Intake/TV Shows/Show a (2026)',
+    );
+  });
+
+  /*
+   * `createIntakeDirectory` decides whether the folder is CREATED, not whether
+   * the path is recorded — conflating the two is what made the setting inert.
+   */
+  it('records the path even when directory creation is off', async () => {
+    const h = harness();
+    h.prisma.discoveryTemplate.findMany = jest.fn(async () => [withPath({ createIntakeDirectory: false })]);
+    await h.svc.runAll();
+    expect(genArg(h).savePath).toContain('/downloads/Intake/');
+    expect(h.intake.provision).not.toHaveBeenCalled();
+  });
+
+  it('uses one rendered path for both the rule and the directory', async () => {
+    const h = harness();
+    h.prisma.discoveryTemplate.findMany = jest.fn(async () => [withPath({ createIntakeDirectory: true })]);
+    await h.svc.runAll();
+    expect(h.intake.provision).toHaveBeenCalled();
+    const provisioned = (h.intake.provision as jest.Mock).mock.calls[0][0];
+    expect(provisioned.stagingRoot).toBe('/downloads/Intake');
+    expect(provisioned.pathTemplate).toBe('TV Shows/{tvshow} ({year})');
+  });
+
+  it('sends no path when the template does not define one', async () => {
+    const h = harness();
+    h.prisma.discoveryTemplate.findMany = jest.fn(async () => [withPath({ pathTemplate: null })]);
+    await h.svc.runAll();
+    expect(genArg(h).savePath).toBeNull();
+  });
+
+  /* A path that cannot be built must not cost the monitoring. */
+  it('still creates the watchlist entry when the path cannot be rendered', async () => {
+    const h = harness({ profile: { id: 'sp-1', stagingRoot: 'not-absolute', movieLibraryId: null, tvLibraryId: null, movieLibrary: null, tvLibrary: null } });
+    h.prisma.discoveryTemplate.findMany = jest.fn(async () => [withPath()]);
+    await h.svc.runAll();
+    expect(h.watchlist.linkOrCreate).toHaveBeenCalled();
+    expect(genArg(h).savePath).toBeNull();
   });
 });

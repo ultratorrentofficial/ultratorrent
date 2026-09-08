@@ -127,12 +127,17 @@ notify-only template they are not optional but irrelevant.
 | **RSS feed** | A generated rule must belong to a feed — `RssRule.feedId` is required. A template cannot be *enabled* without one. |
 | **Storage profile** | Decides where media is staged and filed. Generated rules are `managed_intake`, so the intake pipeline resolves the destination from this. |
 | **Match preferences** | **Required.** A template cannot be enabled for auto-monitoring without one, and it must have at least one enabled rung. |
-| **Folder below the staging root** | The *leaf* only. Tokens: `{tvshow}` `{movie}` `{year}` `{season_number}` `{title}` `{season}`. |
+| **Folder below the staging root** | The *leaf* only. Tokens: `{tvshow}` `{movie}` `{year}` `{season_number}` `{title}` `{season}`. Rendered onto the storage profile's staging root and recorded as the generated rule's save path. |
 
 There is deliberately **no `{library_path}` or `{intake_path}` token.** The root
 is the storage profile's to choose, not the template's — intake stages first and
 organises into the library afterwards, so a template that spelled either root
 would be inverting the pipeline it feeds.
+
+**Creating the folder and recording the path are separate.** *Create intake
+directory* decides whether the folder is made up front; the rule records its
+target path either way. (These were once conflated, which made the path template
+do nothing at all unless directory creation happened to be on.)
 
 Path rendering sanitises every value: a `/` inside a title becomes a space rather
 than a directory level, traversal and control characters are stripped, and the
