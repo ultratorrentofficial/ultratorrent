@@ -106,6 +106,12 @@ const R = [
   ['workflow-smart-match-builder', '/rss'],
   ['smart-download-dashboard', '/media-acquisition/dashboard'],
   ['rss-smart-download-dashboard', '/media-acquisition/dashboard'],
+  // --- media discovery ---
+  // The inbox is the screen the module doc leads with, and it had no recipe at
+  // all — which is why it was still a placeholder while every other module page
+  // carried a real capture.
+  ['media-discovery-inbox', '/media-acquisition/discover'],
+
   ['smart-download-approval-queue', '/media-acquisition'],
   ['smart-download-profile', '/media-acquisition'],
   ['smart-download-simulator', '/media-acquisition/simulator'],
@@ -309,6 +315,28 @@ async function redact(page) {
       // Pills / badges / chips: Ended, On hiatus, 3 missing, Direct Play, Matched.
       if (el.closest('[class*="rounded-full"], [class*="badge"], [class*="chip"]')) return true;
       if (el.closest('label, th, [role="tab"]')) return true;
+      // Segmented filter controls — "All / Monitored / Needs review / Ignored".
+      //
+      // These are interface, never operator data, but they are plain <button>s in a
+      // `rounded-lg` wrapper, so CARD matched them and default-deny blurred the primary
+      // control of whole screens (Discover's two filter rows were unreadable).
+      //
+      // Identified structurally rather than by label, so it holds for filter rows this
+      // list has never seen. A show title can also be a <button> — the series rows wrap
+      // the chevron and the title together — so the test is deliberately narrow: a
+      // GROUP of short, image-free buttons that are siblings. A title button sits beside
+      // a poster and a synopsis, and fails every part of that.
+      if (el.closest('button')) {
+        const btn = el.closest('button');
+        const group = btn.parentElement;
+        if (group && !btn.querySelector('img')) {
+          const peers = [...group.children].filter((c) => c.tagName === 'BUTTON');
+          const short = peers.every(
+            (c) => (c.textContent || '').trim().length <= 24 && !c.querySelector('img'),
+          );
+          if (peers.length >= 3 && short) return true;
+        }
+      }
       return false;
     };
 
