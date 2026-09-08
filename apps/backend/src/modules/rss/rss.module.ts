@@ -292,6 +292,7 @@ export class RssService {
     await this.assertManagedSavePathIsStaging(
       dto.importMode ?? DEFAULT_RSS_IMPORT_MODE, dto.savePath, dto.storageProfileId ?? null,
     );
+    await this.ensureSavePathExists(dto.savePath);
     const snapshot = await this.resolveShowStatusSnapshot(dto, dto.name, ctx);
     return this.prisma.rssRule.create({
       data: {
@@ -334,6 +335,27 @@ export class RssService {
    * to do as a side effect of a checkbox, and the message names the staging root
    * so the fix is one paste away.
    */
+  /**
+   * Make the rule's download directory exist.
+   *
+   * A rule names a path; the engine writes there. rTorrent will not create a
+   * missing directory, so a rule pointing at one that does not exist fails at
+   * GRAB time — the worst moment to find out, because the release has already
+   * been matched and the failure surfaces as a broken download rather than a
+   * configuration problem.
+   *
+   * Failing here is deliberate rather than a warning. A path that cannot be
+   * created will not become creatable by download time, and the error from
+   * `ensureDirectory` is actionable (it translates EACCES and friends). Telling
+   * somebody now, while they are looking at the rule, is strictly better than
+   * telling them later through a failed acquisition.
+   */
+  private async ensureSavePathExists(savePath: string | null | undefined): Promise<void> {
+    const path = savePath?.trim();
+    if (!path) return; // no path is not a broken path — the engine's default applies
+    await this.filePath.ensureDirectory(path);
+  }
+
   private async assertManagedSavePathIsStaging(
     importMode: string | null | undefined,
     savePath: string | null | undefined,
@@ -380,6 +402,18 @@ export class RssService {
       savePath: dto.savePath,
       excludeId: id,
     });
+    /*
+     * Only when the path is actually being CHANGED.
+     *
+     * Judging the resulting rule (as the staging check above does) would make an
+     * unrelated edit — renaming a rule, toggling it — fail because of a
+     * filesystem condition the editor did not introduce and may not be able to
+     * fix. A path someone is setting now is theirs to get right; one that was
+     * already there is not this edit's problem.
+     */
+    if (dto.savePath !== undefined && dto.savePath !== rule.savePath) {
+      await this.ensureSavePathExists(dto.savePath);
+    }
     // Only re-resolve the show-status snapshot when show fields are being edited.
     const snapshot =
       dto.mediaType !== undefined || dto.showStatusProviderId !== undefined

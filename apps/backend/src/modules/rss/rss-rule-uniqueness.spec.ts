@@ -28,7 +28,9 @@ function makeRss(findFirst: jest.Mock, existingRule: any = null) {
     // this file is about name/path uniqueness, not intake.
     { get: async () => null, defaultProfile: async () => null } as never,
     {} as never,
-    {} as never,
+    // `filePath`: a rule's save path is created when the rule is saved, so the
+    // service needs a real-shaped stub here even in specs about other things.
+    { ensureDirectory: jest.fn(async (p: string) => ({ path: p })) } as never,
   );
   return { svc, prisma, created, updated };
 }

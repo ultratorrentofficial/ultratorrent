@@ -39,7 +39,9 @@ function build(
   const svc = new RssService(
     prisma as never, {} as never, {} as never, {} as never, {} as never, {} as never,
     storageProfiles as never,
-    {} as never, {} as never,
+    {} as never,
+    // `filePath`: a rule's save path is created when the rule is saved.
+    { ensureDirectory: jest.fn(async (path: string) => ({ path })) } as never,
   );
   // The show-status lookup is not what this file is about.
   jest.spyOn(svc as never as { resolveShowStatusSnapshot: () => Promise<unknown> },

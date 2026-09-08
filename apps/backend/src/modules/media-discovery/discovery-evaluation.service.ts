@@ -629,7 +629,26 @@ export class DiscoveryEvaluationService {
       failures.push(`Rule generation failed: ${(err as Error).message}`);
     }
 
-    if (template.createIntakeDirectory && profile && template.pathTemplate) {
+    /*
+     * The directory is created whenever we have a path for it.
+     *
+     * This used to be gated on `createIntakeDirectory`, which is not exposed in
+     * the template form and defaults to false — so in practice the folder was
+     * never created. That was survivable while generated rules carried no save
+     * path; now that they do, the torrent client is pointed at a directory that
+     * does not exist and the download fails at grab time, which is the worst
+     * moment to discover it.
+     *
+     * The flag's original purpose was to avoid littering the staging root with
+     * folders for shows that never download. That tidiness is not worth a failed
+     * acquisition, so it no longer gates this.
+     *
+     * A failure here is reported and does NOT undo the monitoring: the watchlist
+     * entry and rule are what cause acquisition, and a directory that could not
+     * be created is a fixable condition rather than a reason to have done
+     * nothing.
+     */
+    if (savePath && profile && template.pathTemplate) {
       try {
         const provisioned = await this.intake.provision({
           stagingRoot: profile.stagingRoot,

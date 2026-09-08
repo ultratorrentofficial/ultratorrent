@@ -640,12 +640,37 @@ describe('the generated rule carries its target path', () => {
    * `createIntakeDirectory` decides whether the folder is CREATED, not whether
    * the path is recorded — conflating the two is what made the setting inert.
    */
-  it('records the path even when directory creation is off', async () => {
+  /*
+   * The directory is created whenever there is a path for it. This was gated on
+   * `createIntakeDirectory` — a flag not exposed in the form and defaulting to
+   * false — so in practice the folder was never made, and the engine was pointed
+   * at a directory that did not exist. rTorrent does not create one, so the
+   * download failed at grab time.
+   */
+  it('creates the directory even with the old flag off', async () => {
     const h = harness();
     h.prisma.discoveryTemplate.findMany = jest.fn(async () => [withPath({ createIntakeDirectory: false })]);
     await h.svc.runAll();
     expect(genArg(h).savePath).toContain('/downloads/Intake/');
+    expect(h.intake.provision).toHaveBeenCalled();
+  });
+
+  it('creates no directory when there is no path to create', async () => {
+    const h = harness();
+    h.prisma.discoveryTemplate.findMany = jest.fn(async () => [withPath({ pathTemplate: null })]);
+    await h.svc.runAll();
     expect(h.intake.provision).not.toHaveBeenCalled();
+  });
+
+  /* A directory that could not be made is reported, never a reason to have done nothing. */
+  it('keeps the monitoring when the directory cannot be created', async () => {
+    const h = harness();
+    h.intake.provision = jest.fn(async () => ({ ok: false, detail: 'Permission denied', path: '/x' }));
+    h.prisma.discoveryTemplate.findMany = jest.fn(async () => [withPath()]);
+    await h.svc.runAll();
+    expect(h.watchlist.linkOrCreate).toHaveBeenCalled();
+    expect(h.rules.generate).toHaveBeenCalled();
+    expect(h.stamps[0].decisionReason).toMatch(/Permission denied/);
   });
 
   it('uses one rendered path for both the rule and the directory', async () => {
