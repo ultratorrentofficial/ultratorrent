@@ -17,13 +17,17 @@ is indistinguishable from one that was suppressed.
 Taken from the GitHub code-scanning API on **2026-09-08**, against `main` at
 `9549d3e2`, before any remediation.
 
-| Severity | Count |
-| --- | --- |
-| Critical | 8 |
-| High | 103 |
-| Medium | 13 |
-| Quality-only (no security severity) | 39 |
-| **Total open** | **163** |
+| Severity | Baseline | After Phase 1 |
+| --- | --- | --- |
+| Critical | 8 | **4** (all 4 documented as by-design) |
+| High | 103 | 101 |
+| Medium | 13 | 13 |
+| Quality-only (no security severity) | 39 | 39 |
+| **Total open** | **163** | **157** |
+
+Post-Phase-1 counts are from a real CodeQL run against `210f3911`, not an
+estimate. Six alerts closed as `fixed`: three type-confusion, two
+request-forgery, and one polynomial-redos pair closed incidentally.
 
 **Configuration:** `.github/workflows/codeql.yml`, language
 `javascript-typescript`, query suite `security-and-quality`, on push to `main`,
@@ -114,11 +118,20 @@ assert the attacks fail — non-HTTP schemes, embedded credentials, and a proper
 test that no path value (`//evil.example`, absolute URLs, backslashes, `@`,
 traversal) can move a request off the configured host or port.
 
-**Verification status.** Fixed in code; tests pass. **Requires a GitHub CodeQL
-rescan to confirm alert closure.** CodeQL may well continue to report some of
-these, because the dataflow it describes is real — the destination genuinely does
-derive from stored input. Where that happens the disposition is
-"false positive, documented", not "fixed".
+**Verification status — rescanned.** CodeQL ran against `210f3911` and closed
+**#184 (media-server) and #138 (Telegram)** as `fixed`. Three remain open by
+design — #11 qBittorrent, #12 Prowlarr, #139 Discord — plus **#198**, a new alert
+number for the same media-server call site after the line moved.
+
+That was the predicted outcome and it is not a failure. CodeQL reports a dataflow
+from stored configuration to a `fetch` destination, and that dataflow is real: an
+administrator genuinely does choose where these providers live. The alert
+describes the architecture correctly; the security question is whether the
+boundary around it is right, and that is what the validation, the redirect
+refusal and the structural path join answer. Their disposition is
+**"false positive, documented"**, not "fixed", and they should be dismissed in
+the GitHub UI as *used in tests / won't fix — by design* with a link to this
+section rather than left to accumulate as unexplained noise.
 
 ### SECURITY-02 — `js/type-confusion-through-parameter-tampering` (3 alerts)
 
@@ -154,7 +167,8 @@ numbers, booleans, null, undefined) across `parse`, `describe` and `unsubscribe`
 asserting no recipient is ever removed — plus a test that a legitimately issued
 token still round-trips and still unsubscribes.
 
-**Verification status.** Fixed in code; tests pass. Requires a CodeQL rescan.
+**Verification status — rescanned and closed.** CodeQL ran against `210f3911`
+and closed **all three** (#179, #180, #181) as `fixed`.
 
 ---
 
@@ -221,11 +235,12 @@ to fix, and independent of the application code.
 
 ## Remaining risks
 
-- **No CodeQL rescan has run against these fixes.** No alert in this document is
-  claimed closed. Some `js/request-forgery` alerts are expected to persist by
-  design, with the disposition recorded above.
-- **103 High findings are unaddressed**, including 68 path-injection alerts. This
-  is the largest remaining body of security work.
+- **Four `js/request-forgery` alerts remain open by design** (#11, #12, #139,
+  #198). They need dismissing in the GitHub UI with a reason, or they will sit in
+  the backlog looking like unaddressed criticals. See SECURITY-01.
+- **101 High findings are unaddressed**, including 68 path-injection alerts. This
+  is the largest remaining body of security work. (Two `js/polynomial-redos`
+  alerts closed incidentally with the Phase 1 changes.)
 - **`npm run lint` does not run.** ESLint finds no configuration file anywhere in
   the repository, so the lint gate — including CI's `npm run lint --workspaces
   --if-present` — exits non-zero without linting anything. Pre-existing and
