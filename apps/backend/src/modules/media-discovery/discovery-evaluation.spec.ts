@@ -1070,3 +1070,75 @@ describe('a monitored show whose premiere has passed', () => {
     expect(h.removal.suppress).not.toHaveBeenCalled();
   });
 });
+
+/*
+ * Missing-episode tracking is for a show with a back catalogue.
+ *
+ * Discovery's remit is new and upcoming series, so in the normal path there is
+ * nothing to scan for: the episodes have not aired, and they arrive through the
+ * generated RSS rule as they are released. Scanning anyway was actively harmful
+ * — `classifyEpisode` falls back to comparing YEARS without an aired boundary,
+ * and a provider has no aired boundary for a show that has not aired, so every
+ * episode of a series premiering later this calendar year was written `missing`
+ * and then searched for. 81 rows across five unreleased shows on the live
+ * install, 40 already searched, before this was caught.
+ */
+describe('scanning a newly monitored series for missing episodes', () => {
+  const withPremiere = (offsetDays: number) =>
+    row('a', {
+      releaseDates: [{
+        releaseType: 'series_premiere',
+        date: new Date(NOW.getTime() + offsetDays * 86_400_000),
+        region: 'US',
+      }],
+    });
+
+  it('does not scan a series that has not premiered', async () => {
+    const h = harness({ rows: [withPremiere(14)] });
+    await h.svc.runAll(NOW);
+    expect(h.missingEpisodes.scanSeries).not.toHaveBeenCalled();
+  });
+
+  /*
+   * The one case with a real back catalogue, and the only route to it.
+   *
+   * A part-aired series is never AUTO-monitored — the admission gate refuses a
+   * past premiere, which is precisely why the automatic path never has anything
+   * to scan. It reaches monitoring only when a person imports it from review,
+   * and there "what aired that I do not have?" has a genuine answer.
+   */
+  it('scans a part-aired series a person imports from review', async () => {
+    const h = harness({ rows: [withPremiere(-30)] });
+    (h.prisma.discoveredMedia.findUnique as jest.Mock).mockResolvedValue(withPremiere(-30));
+    await h.svc.approve('a');
+    expect(h.missingEpisodes.scanSeries).toHaveBeenCalled();
+  });
+
+  it('does not scan an unreleased series a person imports from review', async () => {
+    const h = harness({ rows: [withPremiere(14)] });
+    (h.prisma.discoveredMedia.findUnique as jest.Mock).mockResolvedValue(withPremiere(14));
+    await h.svc.approve('a');
+    expect(h.missingEpisodes.scanSeries).not.toHaveBeenCalled();
+  });
+
+  /* An unknown premiere is not evidence that it aired. */
+  it('does not scan when no premiere date is known', async () => {
+    const h = harness({ rows: [row('a', { releaseDates: [] })] });
+    await h.svc.runAll(NOW);
+    expect(h.missingEpisodes.scanSeries).not.toHaveBeenCalled();
+  });
+
+  it('never scans a film', async () => {
+    const h = harness({ rows: [row('a', { mediaType: 'movie', ...withPremiere(-30) })] });
+    await h.svc.runAll(NOW);
+    expect(h.missingEpisodes.scanSeries).not.toHaveBeenCalled();
+  });
+
+  /* Skipping the scan must not disturb the monitoring itself. */
+  it('still monitors an unreleased show it declines to scan', async () => {
+    const h = harness({ rows: [withPremiere(14)] });
+    const [outcome] = await h.svc.runAll(NOW);
+    expect(outcome.monitored).toBe(1);
+    expect(outcome.failed).toBe(0);
+  });
+});

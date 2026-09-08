@@ -635,7 +635,11 @@ export class DiscoveryEvaluationService {
    * entry because a convenience failed would be losing the useful half.
    */
   private async act(
-    row: { id: string; title: string; year: number | null; mediaType: string; externalIds: unknown },
+    row: {
+      id: string; title: string; year: number | null; mediaType: string; externalIds: unknown;
+      /** Needed to tell an already-airing series from one that has not premiered. */
+      releaseDates?: Array<{ date: Date | null }>;
+    },
     template: DiscoveryTemplate,
     profile: {
       id: string;
@@ -773,25 +777,31 @@ export class DiscoveryEvaluationService {
     }
 
     /*
-     * Work out which episodes this show is missing, once, at the moment it
-     * becomes monitored.
+     * Missing-episode tracking, but ONLY for a show that has already started
+     * airing.
      *
-     * Without this a discovery-monitored show is a forward-only feed
-     * subscription: the generated rule catches episodes that appear in the feed
-     * from now on, and nothing ever asks what already aired. `WantedEpisode`
-     * rows are what the 15-minute missing-episode sweep consumes, and they are
-     * only ever written by `scanSeries` — whose sole caller was the button in
-     * the UI. So every discovery-monitored series carried zero of them and the
-     * sweep had nothing to do; measured on a live install, all 25 of them.
+     * A missing-episode scan answers "what aired that I do not have?". For a
+     * show that has not premiered the honest answer is "nothing", and asking
+     * anyway is actively harmful: `classifyEpisode` falls back to comparing
+     * YEARS when it cannot get an aired boundary — and a provider has no aired
+     * boundary for a show that has not aired — so every episode of a series
+     * premiering later this calendar year was written as `missing` rather than
+     * `unaired`. The 15-minute sweep then hunted for them. Measured on the live
+     * install after one afternoon: 81 wanted rows across five unreleased shows,
+     * 40 of which had already been searched (13 failed, 27 no results).
      *
-     * Deliberately not fatal, and deliberately not a `failure`. A series with no
-     * IMDb id (most arrive from TMDB with only a tmdb id) or one the local IMDb
-     * catalogue has not got yet cannot be scanned, and that is an ordinary
-     * outcome for a show announced weeks before it airs — not a fault in the
-     * monitoring, which is working. The scan is retried by the operator, or by
-     * the next scan of this show once the catalogue has caught up.
+     * Discovery's whole remit is new and upcoming series, so in the normal path
+     * this scan now does nothing at all — which is correct. Their episodes
+     * arrive through the generated RSS rule as they are released, which is what
+     * the rule is for. The scan stays for the one case with a real back
+     * catalogue: a part-aired series imported by hand from review, where
+     * "what aired that I do not have?" has a genuine answer.
+     *
+     * Deliberately not fatal and not a `failure`. A series with no IMDb id (most
+     * arrive from TMDB with only a tmdb id) cannot be scanned, and that is an
+     * ordinary outcome rather than a fault in the monitoring.
      */
-    if (watchlistItemId && media.mediaType !== 'movie') {
+    if (watchlistItemId && media.mediaType !== 'movie' && this.hasPremiered(row, new Date())) {
       try {
         const gap = await this.missingEpisodes.scanSeries(watchlistItemId);
         this.logger.log(
@@ -913,6 +923,19 @@ export class DiscoveryEvaluationService {
       posterUrl: row.posterUrl ?? null,
       note: note ?? null,
     };
+  }
+
+  /**
+   * Has this series already started airing?
+   *
+   * The earliest known release date decides it. An unknown date counts as NOT
+   * premiered — the missing-episode scan is the thing being gated, and running
+   * it on a guess is what produced searches for episodes that do not exist.
+   */
+  private hasPremiered(row: { releaseDates?: Array<{ date: Date | null }> }, now: Date): boolean {
+    const dates = (row.releaseDates ?? []).map((d) => d.date).filter((d): d is Date => d != null);
+    if (!dates.length) return false;
+    return dates.some((d) => d.getTime() <= now.getTime());
   }
 
   /** A synopsis long enough to judge by, short enough not to be the whole email. */

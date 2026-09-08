@@ -368,6 +368,29 @@ configuration, and a film's digital date is routinely a year after its theatrica
 one — gating on a past premiere would break it. For films, the release-type and
 window rules already define what "upcoming" means.
 
+## Missing-episode tracking is for shows with a back catalogue
+
+**A discovery-monitored show is not added to missing-episode tracking until it
+has actually started airing.** For a series that has not premiered the honest
+answer to "what aired that I do not have?" is *nothing*, and its episodes arrive
+through the generated RSS rule as they are released — which is what that rule is
+for.
+
+Asking anyway was worse than pointless. `classifyEpisode` falls back to comparing
+**years** when it cannot obtain an aired boundary, and a provider has no aired
+boundary for a show that has not aired — so every episode of a series premiering
+later in the current calendar year was recorded as `missing` rather than
+`unaired`, and the 15-minute sweep then went looking for them. On a live install
+that produced 40 wanted rows across five unreleased shows, 40 searches already
+spent (13 failed, 27 no results) on episodes that did not exist. Nothing was
+grabbed, but the indexer traffic was real.
+
+Since discovery's remit *is* new and upcoming series, this means the automatic
+path never scans — correctly. The scan remains for the one case with a genuine
+back catalogue: a part-aired series a person imports by hand from **Needs
+review**, which is the only way such a title reaches monitoring at all, because
+the admission gate refuses a past premiere.
+
 ## Leaving the catalogue: a show that starts downloading graduates
 
 **Once a monitored show grabs its first release, it leaves Media Discovery.** The
