@@ -244,7 +244,27 @@ function DiscoveryCard({
               </span>
             )}
             {item.network && <span>· {item.network}</span>}
+            {item.streamingService && item.streamingService !== item.network && (
+              <span>· {item.streamingService}</span>
+            )}
+            {typeof item.rating === 'number' && <span>· ★ {item.rating.toFixed(1)}</span>}
+            {item.seriesStatus && item.seriesStatus !== 'unknown' && (
+              <span>· {t(`seriesStatus.${item.seriesStatus}`, { defaultValue: item.seriesStatus })}</span>
+            )}
           </div>
+
+          {/*
+            * The synopsis, for a title somebody has to make a decision about.
+            *
+            * Stored since the beginning and never shown, which left the reviewer
+            * choosing on a title and three genres. Clamped rather than truncated
+            * server-side so the full text is there on hover and for search.
+            */}
+          {item.overview && (
+            <p className="line-clamp-3 text-xs text-muted-foreground/90" title={item.overview}>
+              {item.overview}
+            </p>
+          )}
 
           {heldForReview && (
             <div className="flex flex-wrap items-center gap-2 pt-0.5">

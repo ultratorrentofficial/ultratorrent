@@ -152,7 +152,11 @@
       "review": "Mostrar para revisión"
     },
     "autoMonitorEnabled": "Vigilar automáticamente los títulos que coincidan",
-    "autoMonitorEnabledHint": "Desactivado significa que un título que califique se retiene para revisión y tú decides si importarlo. No se pierde nada — el título igual coincidió."
+    "autoMonitorEnabledHint": "Desactivado significa que un título que califique se retiene para revisión y tú decides si importarlo. No se pierde nada — el título igual coincidió.",
+    "networks": "Cadenas",
+    "streamingServices": "Servicios de streaming",
+    "studios": "Estudios",
+    "sourceHint": "Las cadenas, los servicios de streaming y los estudios son alternativas, no requisitos — un título coincide si lo lleva cualquiera de ellos. Deja los tres vacíos para aceptar cualquier fuente. Las sugerencias son los valores que tu catálogo realmente tiene; un nombre que no coincida con lo que escribió el proveedor no coincidirá con nada."
   },
   "preview": {
     "heading": "Si esta plantilla se ejecutara ahora, sobre {{examined}} títulos descubiertos:",
@@ -362,5 +366,13 @@
     "importedExisting": "«{{title}}» ya estaba vigilado — se enlazó con lo existente",
     "declined": "Se rechazó «{{title}}»",
     "partial": "Se importó «{{title}}», con un problema: {{reason}}"
+  },
+  "seriesStatus": {
+    "continuing": "En emisión",
+    "returning": "Regresa",
+    "planned": "Planificada",
+    "in_production": "En producción",
+    "ended": "Finalizada",
+    "canceled": "Cancelada"
   }
 }

@@ -89,6 +89,18 @@ make a block that almost never fires.
 | **Languages** | Matched against the provider's original language. |
 | **Regions** | ISO-3166 codes. Also scopes *which* release dates count — see below. |
 | **Release types** | Which dates qualify. Empty means all of them. |
+| **Networks / streaming services / studios** | Where the show airs. Empty means any source. |
+
+**Networks, streaming services and studios are alternatives, not requirements.**
+A title carries at most one or two of the three, so requiring all of them would
+match nothing — a title qualifies if *any* named source carries it. Leaving all
+three empty accepts any source.
+
+The form suggests the values your catalogue actually holds, and that matters:
+these are matched against what a **provider wrote**, so typing `AppleTV` when
+TMDB says `Apple TV` produces a filter that silently matches nothing. Matching is
+case-insensitive, and a title with no network at all cannot satisfy a list that
+names specific ones.
 
 Release types matter more than they look. "Films once they reach streaming" is a
 different query from "films in cinemas", and the digital date is often a year

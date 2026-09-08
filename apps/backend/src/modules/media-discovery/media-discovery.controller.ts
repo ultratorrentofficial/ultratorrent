@@ -314,7 +314,47 @@ export class MediaDiscoveryController {
         orderBy: { name: 'asc' },
       }),
     ]);
-    return { feeds, profiles, acquisitionTemplates };
+    /*
+     * The networks, services and studios the catalogue ACTUALLY contains.
+     *
+     * These fields have always been filterable — `sourceFilter` reads all three —
+     * but the form offered no way to set them, so the capability was unreachable.
+     * Offering the real values rather than a free-text box matters because they
+     * must match what a provider wrote: typing "AppleTV" when TMDB says "Apple
+     * TV+" produces a filter that silently matches nothing.
+     */
+    const [networks, services, studios] = await Promise.all([
+      this.prisma.discoveredMedia.findMany({
+        where: { network: { not: null } },
+        select: { network: true },
+        distinct: ['network'],
+        orderBy: { network: 'asc' },
+        take: 500,
+      }),
+      this.prisma.discoveredMedia.findMany({
+        where: { streamingService: { not: null } },
+        select: { streamingService: true },
+        distinct: ['streamingService'],
+        orderBy: { streamingService: 'asc' },
+        take: 500,
+      }),
+      this.prisma.discoveredMedia.findMany({
+        where: { studio: { not: null } },
+        select: { studio: true },
+        distinct: ['studio'],
+        orderBy: { studio: 'asc' },
+        take: 500,
+      }),
+    ]);
+
+    return {
+      feeds,
+      profiles,
+      acquisitionTemplates,
+      networks: networks.map((n) => n.network!).filter(Boolean),
+      streamingServices: services.map((n) => n.streamingService!).filter(Boolean),
+      studios: studios.map((n) => n.studio!).filter(Boolean),
+    };
   }
 
   // --- preview and run -----------------------------------------------------

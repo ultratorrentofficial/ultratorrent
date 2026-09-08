@@ -152,7 +152,11 @@
       "review": "Show for review"
     },
     "autoMonitorEnabled": "Monitor matching titles automatically",
-    "autoMonitorEnabledHint": "Off means a qualifying title is held for review instead, and you decide whether to import it. Nothing is lost — the title still matched."
+    "autoMonitorEnabledHint": "Off means a qualifying title is held for review instead, and you decide whether to import it. Nothing is lost — the title still matched.",
+    "networks": "Networks",
+    "streamingServices": "Streaming services",
+    "studios": "Studios",
+    "sourceHint": "Networks, streaming services and studios are alternatives, not requirements — a title matches if it is carried by any one of them. Leave all three empty to accept any source. The suggestions are the values your catalogue actually holds; a name that does not match what the provider wrote will match nothing."
   },
   "preview": {
     "heading": "If this template ran now, over {{examined}} discovered titles:",
@@ -362,5 +366,13 @@
     "importedExisting": "“{{title}}” was already monitored — linked to what exists",
     "declined": "Declined “{{title}}”",
     "partial": "Imported “{{title}}”, with a problem: {{reason}}"
+  },
+  "seriesStatus": {
+    "continuing": "Continuing",
+    "returning": "Returning",
+    "planned": "Planned",
+    "in_production": "In production",
+    "ended": "Ended",
+    "canceled": "Cancelled"
   }
 }

@@ -237,6 +237,65 @@ export function TemplateForm({
             </div>
           </div>
 
+          {/*
+            * Network / streaming service / studio.
+            *
+            * `sourceFilter` has always read all three, but the form offered no
+            * way to set them, so a filter the engine supported was unreachable.
+            * The suggestions come from what the catalogue actually holds: these
+            * must match what a provider WROTE, and typing "AppleTV" when TMDB
+            * says "Apple TV" produces a filter that silently matches nothing.
+            */}
+          <div className="grid gap-3 md:grid-cols-3">
+            <div>
+              <Label>{t('form.networks')}</Label>
+              <Input
+                list="discovery-networks"
+                value={fromList(form.networks)}
+                onChange={(e) => set('networks', toList(e.target.value))}
+                placeholder="CBS, ABC, Apple TV"
+              />
+              <datalist id="discovery-networks">
+                {(options.data?.networks ?? []).map((n) => (
+                  <option key={n} value={n} />
+                ))}
+              </datalist>
+            </div>
+            <div>
+              <Label>{t('form.streamingServices')}</Label>
+              <Input
+                list="discovery-services"
+                value={fromList(form.streamingServices)}
+                onChange={(e) => set('streamingServices', toList(e.target.value))}
+                placeholder="Netflix, Apple TV+"
+              />
+              <datalist id="discovery-services">
+                {(options.data?.streamingServices ?? []).map((n) => (
+                  <option key={n} value={n} />
+                ))}
+              </datalist>
+            </div>
+            <div>
+              <Label>{t('form.studios')}</Label>
+              <Input
+                list="discovery-studios"
+                value={fromList(form.studios)}
+                onChange={(e) => set('studios', toList(e.target.value))}
+              />
+              <datalist id="discovery-studios">
+                {(options.data?.studios ?? []).map((n) => (
+                  <option key={n} value={n} />
+                ))}
+              </datalist>
+            </div>
+          </div>
+          {/*
+            * Said once, because the semantics are not obvious from three boxes:
+            * they are alternatives, not requirements. A title carries at most one
+            * or two of the three, so requiring all would match nothing.
+            */}
+          <p className="text-xs text-muted-foreground">{t('form.sourceHint')}</p>
+
           <div>
             <Label>{t('form.releaseTypes')}</Label>
             <div className="flex flex-wrap gap-1.5 pt-1">

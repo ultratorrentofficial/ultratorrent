@@ -6571,6 +6571,9 @@ export interface DiscoveredMediaItem {
   streamingService: string | null;
   popularity: number | null;
   rating: number | null;
+  /** continuing | returning | planned | in_production | ended | canceled | unknown */
+  seriesStatus?: string | null;
+  premiereDate?: string | null;
   externalIds: Record<string, string>;
   sourceProviders: string[];
   confidence: number;
@@ -6791,6 +6794,10 @@ export interface AcquisitionRuleTemplate {
 }
 
 export interface DiscoveryTemplateOptions {
+  /** The values the catalogue actually holds, so a filter cannot be mistyped. */
+  networks?: string[];
+  streamingServices?: string[];
+  studios?: string[];
   feeds: Array<{ id: string; name: string; isEnabled: boolean }>;
   profiles: Array<{ id: string; name: string; isEnabled: boolean; stagingRoot: string }>;
   acquisitionTemplates: Array<{ id: string; name: string; mediaType: string; version: number }>;

@@ -109,3 +109,63 @@ describe('the live regression: an English show stored as "en"', () => {
     expect(v.reason).toMatch(/this template accepts/);
   });
 });
+
+/**
+ * Network / streaming service / studio filtering.
+ *
+ * `sourceFilter` has read all three since the beginning; the template form
+ * offered no way to set them, so a capability the engine had was unreachable.
+ * These pin the semantics the UI now has to explain.
+ */
+describe('filtering by where a show airs', () => {
+  const NOW = new Date('2026-09-08T12:00:00Z');
+  const day = (n: number) => new Date(NOW.getTime() + n * 86_400_000).toISOString().slice(0, 10);
+
+  const base: PolicyTemplate = {
+    mediaType: 'tv', upcomingWindowDays: 90, regions: [], languages: [],
+    networks: [], streamingServices: [], studios: [], releaseTypes: [],
+    autoMonitorCategories: ['Drama'], notifyOnlyCategories: [], ignoreCategories: [],
+    blockedFromAutoCategories: [], categoryMatchMode: 'ANY', minimumConfidence: 0.5,
+  };
+  const show = (over: Partial<PolicyMedia> = {}): PolicyMedia => ({
+    mediaType: 'tv', title: 'A Show', genres: ['Drama'],
+    identityStatus: 'resolved', confidence: 1, premiereDate: day(5),
+    releaseDates: [{ releaseType: 'series_premiere', date: day(5), region: null, source: 'tmdb' }],
+    ...over,
+  });
+  const decide = (m: PolicyMedia, t: Partial<PolicyTemplate> = {}) =>
+    evaluateDiscovery(m, { ...base, ...t }, { now: NOW });
+
+  it('accepts a show on a named network', () => {
+    expect(decide(show({ network: 'CBS' }), { networks: ['CBS', 'ABC'] }).decision).toBe('auto_monitor');
+  });
+
+  it('rejects a show on a network the template did not name', () => {
+    const v = decide(show({ network: 'Bravo' }), { networks: ['CBS', 'ABC'] });
+    expect(v.applies).toBe(false);
+  });
+
+  it('matches case-insensitively, because operators type what they remember', () => {
+    expect(decide(show({ network: 'apple tv' }), { networks: ['Apple TV'] }).decision).toBe('auto_monitor');
+  });
+
+  /*
+   * Alternatives, not requirements. A title carries at most one or two of the
+   * three fields, so requiring all of them would match nothing.
+   */
+  it('treats network and streaming service as alternatives', () => {
+    const v = decide(show({ network: null, streamingService: 'Netflix' }), {
+      networks: ['CBS'], streamingServices: ['Netflix'],
+    });
+    expect(v.decision).toBe('auto_monitor');
+  });
+
+  it('accepts any source when none are named', () => {
+    expect(decide(show({ network: 'Whatever' })).decision).toBe('auto_monitor');
+  });
+
+  /* A title with no network cannot satisfy a list that names specific ones. */
+  it('does not let a missing network satisfy a named list', () => {
+    expect(decide(show({ network: null }), { networks: ['CBS'] }).applies).toBe(false);
+  });
+});
