@@ -9,7 +9,8 @@
     "saveAndEnable": "Guardar y activar",
     "cancel": "Cancelar",
     "syncDone": "Catálogo actualizado — {{examined}} título(s) reevaluados, {{monitored}} ahora vigilados",
-    "syncRetracted": "{{count}} título(s) ya no coinciden y dejaron de vigilarse; {{removed}} salieron del catálogo. No se tocaron los medios descargados."
+    "syncRetracted": "{{count}} título(s) ya no coinciden y dejaron de vigilarse; {{removed}} salieron del catálogo. No se tocaron los medios descargados.",
+    "syncGraduated": "{{count}} título(s) vigilado(s) comenzaron a descargarse y salieron del catálogo. Conservan su regla y su entrada de lista de seguimiento — adminístralos desde Fuentes RSS."
   },
   "firstRun": {
     "title": "Aún no hay ningún proveedor de descubrimiento activo",

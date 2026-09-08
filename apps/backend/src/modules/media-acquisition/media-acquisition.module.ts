@@ -101,6 +101,6 @@ export class MediaAcquisitionScheduler {
   // which creates watchlist entries for auto-monitored titles. It goes through
   // this service rather than the table so the audit row, the realtime broadcast
   // and the series-title collapsing all still happen.
-  exports: [MediaAcquisitionService, AcquisitionEvaluatorService, AcquisitionWatchlistService],
+  exports: [MediaAcquisitionService, AcquisitionEvaluatorService, AcquisitionWatchlistService, MissingEpisodesService],
 })
 export class MediaAcquisitionModule {}

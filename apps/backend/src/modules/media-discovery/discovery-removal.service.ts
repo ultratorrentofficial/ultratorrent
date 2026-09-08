@@ -269,7 +269,7 @@ export class DiscoveryRemovalService {
    * are stored apart because only a person's deletion should outlive a template
    * being edited back to something that matches again.
    */
-  async suppress(id: string, reason: 'manual' | 'retracted', userId?: string): Promise<void> {
+  async suppress(id: string, reason: 'manual' | 'retracted' | 'graduated', userId?: string): Promise<void> {
     const media = await this.prisma.discoveredMedia.findUnique({
       where: { id },
       select: { id: true, dedupeKey: true, title: true, mediaType: true },

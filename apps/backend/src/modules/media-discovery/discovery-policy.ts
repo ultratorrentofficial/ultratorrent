@@ -108,6 +108,25 @@ export interface PolicyContext {
    * limit exists to pace acquisition, not to lose titles.
    */
   autoAddBudgetExhausted?: boolean;
+  /**
+   * True when this template already monitors the title, i.e. we are asking
+   * whether to KEEP monitoring rather than whether to start.
+   *
+   * The two time-based gates — the release window and premiere eligibility —
+   * are admission tests. They ask "is this new enough to start following?",
+   * which is the right question once and the wrong question forever after: a
+   * monitored show's premiere moves into the past on its own, and re-asking
+   * then answers "no" for the one reason that is guaranteed to happen to every
+   * show. That verdict reaches `runOne` as a non-`auto_monitor` decision, which
+   * retracts — deleting the generated rule mid-season, on a show that is
+   * downloading correctly, because time passed.
+   *
+   * So in retention mode the two are skipped and traced as such. Every other
+   * gate still runs: a category that was removed, a network that was dropped or
+   * a language that no longer qualifies are real policy mismatches and must
+   * still be able to end monitoring.
+   */
+  retaining?: boolean;
 }
 
 const norm = (s: string) => s.trim().toLowerCase();
@@ -172,12 +191,16 @@ export function evaluateDiscovery(
   }
   add('media_type', 'pass', `Media type ${media.mediaType} is covered`);
 
-  const dated = qualifyingRelease(media, template, ctx.now);
-  if (!dated.ok) {
-    add('release_window', 'fail', dated.detail);
-    return notApplicable(dated.detail);
+  if (ctx.retaining) {
+    add('release_window', 'info', 'Already monitored — the release window is an admission test and is not re-applied');
+  } else {
+    const dated = qualifyingRelease(media, template, ctx.now);
+    if (!dated.ok) {
+      add('release_window', 'fail', dated.detail);
+      return notApplicable(dated.detail);
+    }
+    add('release_window', 'pass', dated.detail);
   }
-  add('release_window', 'pass', dated.detail);
 
   // --- locale --------------------------------------------------------------
   if (template.languages.length) {
@@ -300,7 +323,9 @@ export function evaluateDiscovery(
    * gating movies on a past premiere would break it. For films the release-type
    * and window rules already say what "upcoming" means.
    */
-  if (media.mediaType !== 'movie' && (template.requireUpcoming ?? true)) {
+  if (ctx.retaining) {
+    add('upcoming_eligibility', 'info', 'Already monitored — premiere eligibility is an admission test and is not re-applied');
+  } else if (media.mediaType !== 'movie' && (template.requireUpcoming ?? true)) {
     const eligibility = premiereEligibility(media, template, ctx.now);
     if (eligibility.outcome !== 'upcoming') {
       add('upcoming_eligibility', 'fail', eligibility.detail);

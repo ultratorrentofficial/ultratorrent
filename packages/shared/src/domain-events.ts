@@ -89,6 +89,15 @@ export const DOMAIN_EVENTS = {
    * media and torrents are never touched by a retraction.
    */
   MEDIA_DISCOVERY_RETRACTED: 'media_discovery.retracted',
+  /**
+   * A monitored title grabbed its first release and left the catalogue for good.
+   *
+   * Not a retraction and not a loss: its rule and watchlist entry are untouched
+   * and it goes on downloading. The discovery record is what ends, because the
+   * question the catalogue asks — "should I start following this?" — has been
+   * answered. From here the show is managed from RSS Feeds.
+   */
+  MEDIA_DISCOVERY_GRADUATED: 'media_discovery.graduated',
   /** A provider's catalogue refresh failed; its previous catalogue was kept. */
   MEDIA_DISCOVERY_PROVIDER_SYNC_FAILED: 'media_discovery.provider_sync_failed',
 

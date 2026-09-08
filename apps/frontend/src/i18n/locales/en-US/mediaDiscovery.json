@@ -9,7 +9,8 @@
     "saveAndEnable": "Save and enable",
     "cancel": "Cancel",
     "syncDone": "Catalogue refreshed — {{examined}} title(s) re-evaluated, {{monitored}} now monitored",
-    "syncRetracted": "{{count}} title(s) no longer match and are no longer monitored; {{removed}} left the catalogue. Downloaded media was not touched."
+    "syncRetracted": "{{count}} title(s) no longer match and are no longer monitored; {{removed}} left the catalogue. Downloaded media was not touched.",
+    "syncGraduated": "{{count}} monitored title(s) started downloading and left the catalogue. They keep their rule and watchlist entry — manage them from RSS Feeds."
   },
   "firstRun": {
     "title": "No discovery provider is enabled yet",

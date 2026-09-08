@@ -6651,6 +6651,8 @@ export interface DiscoverySyncResult {
     monitored: number;
     retracted: number;
     removedFromCatalog: number;
+    /** Monitored titles that started downloading and left the catalogue. */
+    graduated: number;
   };
 }
 

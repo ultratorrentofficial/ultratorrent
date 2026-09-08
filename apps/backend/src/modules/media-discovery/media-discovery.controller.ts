@@ -453,6 +453,7 @@ export class MediaDiscoveryController {
         monitored: evaluations.reduce((n, e) => n + e.monitored, 0),
         retracted: evaluations.reduce((n, e) => n + e.retracted, 0),
         removedFromCatalog: evaluations.reduce((n, e) => n + e.removedFromCatalog, 0),
+        graduated: evaluations.reduce((n, e) => n + e.graduated, 0),
       },
     };
   }

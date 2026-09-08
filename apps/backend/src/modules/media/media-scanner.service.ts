@@ -548,6 +548,29 @@ export class MediaScannerService {
       });
 
       /*
+       * Bind a watchlist entry that was monitoring this show by name.
+       *
+       * `libraryShowId` is only ever set from input at add time, and an entry
+       * created by Media Discovery cannot supply one — the show is not in the
+       * library yet, which is the whole reason it is being monitored. Nothing
+       * bound it afterwards, so those entries kept resolving their folder by
+       * IMDb id or title on every sweep, which is the fallback that exists for
+       * shows the library has never seen.
+       *
+       * The scan is the first moment the binding is knowable, so it is made
+       * here: this row IS the library's observation of the folder.
+       *
+       * Only ever fills a NULL. An entry already pointing at a show is pointing
+       * at one somebody chose, and re-pointing it on a scan would move where a
+       * series files itself without anyone asking.
+       */
+      try {
+        await this.bindWatchlistToShow(showRow.id, showRow.title, showRow.year, imdbId);
+      } catch (err) {
+        this.logger.warn(`Could not bind a watchlist entry to "${dir}": ${(err as Error).message}`);
+      }
+
+      /*
        * The show folder's own artwork belongs to the SHOW.
        *
        * `poster.jpg`, `banner.jpg`, `fanart.jpg` and `seasonNN-poster.jpg` sit
@@ -780,4 +803,50 @@ export class MediaScannerService {
     }
     return out;
   }
+
+  /**
+   * Point a watchlist entry at the library show it has been monitoring.
+   *
+   * Matched by IMDb id when both sides have one — ids are proof — and otherwise
+   * by the same canonical show key the scanner groups folders with, so "The
+   * Gilded Age" and "The Gilded Age (2022)" resolve alike.
+   *
+   * `libraryShowId: null` in the filter is the safety: this only ever fills a
+   * blank, never repoints an entry a person bound deliberately.
+   */
+  private async bindWatchlistToShow(
+    showId: string,
+    title: string,
+    year: number | null,
+    imdbId: string | null,
+  ): Promise<void> {
+    const unbound = await this.prisma.mediaAcquisitionWatchlistItem.findMany({
+      where: { libraryShowId: null, status: { in: ['active', 'paused'] }, type: { in: ['series', 'season'] } },
+      select: { id: true, title: true, titleAliases: true, year: true, externalIds: true },
+    });
+    if (!unbound.length) return;
+
+    const key = showCanonicalKey(title);
+    const match = unbound.find((w) => {
+      const ids = (w.externalIds ?? {}) as Record<string, unknown>;
+      const wImdb = typeof ids.imdb === 'string' ? ids.imdb : null;
+      // An id on both sides settles it outright, in either direction.
+      if (imdbId && wImdb) return wImdb === imdbId;
+      if (showCanonicalKey(w.title) !== key && !w.titleAliases.some((a) => showCanonicalKey(a) === key)) {
+        return false;
+      }
+      // Same title: a year on both sides must agree, so The Librarians 2007 does
+      // not adopt The Librarians 2014's folder. A missing year on either side is
+      // not a contradiction, and the title match stands.
+      return w.year == null || year == null || w.year === year;
+    });
+    if (!match) return;
+
+    await this.prisma.mediaAcquisitionWatchlistItem.update({
+      where: { id: match.id },
+      data: { libraryShowId: showId },
+    });
+    this.logger.log(`Watchlist entry "${match.title}" is now bound to the library show at ${showId}`);
+  }
+
 }

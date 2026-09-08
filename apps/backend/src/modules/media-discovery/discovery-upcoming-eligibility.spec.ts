@@ -223,3 +223,67 @@ describe('what the gate does not touch', () => {
     expect(decide(series({ premiereDate: '2022-01-01' })).decision).toBe('review_past_release');
   });
 });
+
+/*
+ * Retention mode.
+ *
+ * The window and the premiere gate are ADMISSION tests: "is this new enough to
+ * start following?". Asked again of a show already monitored, they answer "no"
+ * for the one reason guaranteed to happen to every show — time passing — and
+ * that verdict reaches the retraction branch, which deletes the generated rule
+ * of a series mid-season.
+ *
+ * So `retaining` skips exactly those two, and nothing else.
+ */
+describe('re-judging a show this template already monitors', () => {
+  const premiered = series({
+    releaseDates: [{ releaseType: 'series_premiere', date: day(-400), region: 'US' }],
+  });
+
+  it('would drop it on the way in — its premiere is long past', () => {
+    const verdict = evaluateDiscovery(premiered, TEMPLATE, { now: NOW });
+    expect(verdict.decision).not.toBe('auto_monitor');
+  });
+
+  it('keeps monitoring it when retaining', () => {
+    const verdict = evaluateDiscovery(premiered, TEMPLATE, { now: NOW, retaining: true });
+    expect(verdict.applies).toBe(true);
+    expect(verdict.decision).toBe('auto_monitor');
+  });
+
+  it('says in the trace that the gates were skipped rather than passed', () => {
+    const verdict = evaluateDiscovery(premiered, TEMPLATE, { now: NOW, retaining: true });
+    const steps = verdict.trace.filter((t) => t.step === 'release_window' || t.step === 'upcoming_eligibility');
+    expect(steps).toHaveLength(2);
+    for (const s of steps) {
+      expect(s.status).toBe('info');
+      expect(s.detail).toMatch(/admission test/);
+    }
+  });
+
+  /*
+   * The half that must NOT be skipped. Retention protects a show from the clock,
+   * never from the policy: a genre the operator removed is a real answer, and
+   * monitoring it withdraws.
+   */
+  it('still withdraws when the title itself stopped qualifying', () => {
+    const verdict = evaluateDiscovery(
+      series({
+        genres: ['Cooking'],
+        releaseDates: [{ releaseType: 'series_premiere', date: day(-400), region: 'US' }],
+      }),
+      TEMPLATE,
+      { now: NOW, retaining: true },
+    );
+    expect(verdict.decision).not.toBe('auto_monitor');
+  });
+
+  it('still respects a language the template does not accept', () => {
+    const verdict = evaluateDiscovery(
+      { ...premiered, originalLanguage: 'ja' },
+      { ...TEMPLATE, languages: ['en'] },
+      { now: NOW, retaining: true },
+    );
+    expect(verdict.applies).toBe(false);
+  });
+});

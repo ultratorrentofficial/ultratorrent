@@ -19,6 +19,7 @@ import { DiscoveryBudgetService } from './discovery-budget.service';
 import { DiscoveryWatchlistService } from './discovery-watchlist.service';
 import { DiscoveryRuleService } from './discovery-rule.service';
 import { DiscoveryIntakeService } from './discovery-intake.service';
+import { MissingEpisodesService } from '../media-acquisition/missing-episodes.service';
 
 /**
  * The piece that runs the pipeline.
@@ -78,6 +79,11 @@ export interface EvaluationOutcome {
   retracted: number;
   /** Of those, the ones dropped from the catalogue entirely. */
   removedFromCatalog: number;
+  /**
+   * Monitored titles that grabbed their first release and therefore left the
+   * catalogue. Monitoring is untouched — only the discovery record goes.
+   */
+  graduated: number;
   monitored: number;
   failed: number;
 }
@@ -98,6 +104,7 @@ export class DiscoveryEvaluationService {
     private readonly identity: DiscoveryIdentityResolverService,
     private readonly templates: DiscoveryTemplateService,
     private readonly audit: AuditService,
+    private readonly missingEpisodes: MissingEpisodesService,
   ) {}
 
   @Interval('media_discovery_evaluate', TICK_MS)
@@ -119,9 +126,20 @@ export class DiscoveryEvaluationService {
     }
     this.running = true;
     try {
+      /*
+       * Graduation runs FIRST, and runs whether or not a template is enabled.
+       *
+       * A monitored title is never re-examined by `runTemplate` — the sweep only
+       * looks at rows with no evaluation for the template, and a monitored one
+       * has one. So the in-loop check cannot be what graduates a show; this is.
+       * Running it before the templates also means a show that graduated is
+       * already out of the catalogue before anything can retract it.
+       */
+      const graduated = await this.graduateDelivered();
       const templates = await this.prisma.discoveryTemplate.findMany({ where: { enabled: true } });
       const out: EvaluationOutcome[] = [];
       for (const template of templates) out.push(await this.runTemplate(template, now));
+      if (graduated) this.logger.log(`${graduated} monitored title(s) graduated out of the catalogue`);
       return out;
     } finally {
       this.running = false;
@@ -139,6 +157,7 @@ export class DiscoveryEvaluationService {
       failed: 0,
       retracted: 0,
       removedFromCatalog: 0,
+      graduated: 0,
     };
 
     /*
@@ -203,7 +222,7 @@ export class DiscoveryEvaluationService {
       const verdict = evaluateDiscovery(
         this.toPolicyMedia(row),
         template as unknown as PolicyTemplate,
-        { now, autoAddBudgetExhausted: !alreadyOurs && remaining <= 0 },
+        { now, autoAddBudgetExhausted: !alreadyOurs && remaining <= 0, retaining: alreadyOurs },
       );
 
       const key = verdict.applies ? verdict.decision : 'not_applicable';
@@ -225,6 +244,25 @@ export class DiscoveryEvaluationService {
        */
       const wasMonitored = row.discoveryStatus === 'monitored' && row.matchedTemplateId === template.id;
       if (wasMonitored && verdict.decision !== 'auto_monitor') {
+        /*
+         * A show that has already grabbed something is never torn down here.
+         *
+         * Retraction deletes the generated rule, and deleting the rule of a show
+         * that is mid-season stops it downloading with nothing on screen saying
+         * why — the operator edited a genre list and a series they are watching
+         * quietly stopped arriving.
+         *
+         * Such a title has outgrown the catalogue anyway, so it graduates here
+         * rather than being retracted: the discovery record goes, the rule and
+         * watchlist entry stay, and it is managed from RSS Feeds from now on.
+         * Normally the graduation sweep gets there first; this covers the case
+         * where a template edit and a first grab land in the same tick.
+         */
+        if (await this.stillDelivering(row)) {
+          await this.graduate(row, 'it no longer matches this template');
+          outcome.graduated += 1;
+          continue;
+        }
         const gone = !verdict.applies || verdict.decision === 'ignore';
         await this.retract(row, template, gone);
         outcome.retracted += 1;
@@ -692,6 +730,38 @@ export class DiscoveryEvaluationService {
       }
     }
 
+    /*
+     * Work out which episodes this show is missing, once, at the moment it
+     * becomes monitored.
+     *
+     * Without this a discovery-monitored show is a forward-only feed
+     * subscription: the generated rule catches episodes that appear in the feed
+     * from now on, and nothing ever asks what already aired. `WantedEpisode`
+     * rows are what the 15-minute missing-episode sweep consumes, and they are
+     * only ever written by `scanSeries` — whose sole caller was the button in
+     * the UI. So every discovery-monitored series carried zero of them and the
+     * sweep had nothing to do; measured on a live install, all 25 of them.
+     *
+     * Deliberately not fatal, and deliberately not a `failure`. A series with no
+     * IMDb id (most arrive from TMDB with only a tmdb id) or one the local IMDb
+     * catalogue has not got yet cannot be scanned, and that is an ordinary
+     * outcome for a show announced weeks before it airs — not a fault in the
+     * monitoring, which is working. The scan is retried by the operator, or by
+     * the next scan of this show once the catalogue has caught up.
+     */
+    if (watchlistItemId && media.mediaType !== 'movie') {
+      try {
+        const gap = await this.missingEpisodes.scanSeries(watchlistItemId);
+        this.logger.log(
+          `Scanned "${media.title}" on monitoring: ${gap.missing} missing episode(s) recorded`,
+        );
+      } catch (err) {
+        this.logger.debug(
+          `No episode scan for "${media.title}" yet: ${(err as Error).message}`,
+        );
+      }
+    }
+
     return {
       watchlistItemId,
       rssRuleId,
@@ -774,6 +844,99 @@ export class DiscoveryEvaluationService {
       }
     } catch (err) {
       this.logger.warn(`Could not retract "${row.title}": ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * Retire every monitored title whose rule has grabbed its first release.
+   *
+   * The catalogue answers "what should I start following?". Once a show is
+   * actually downloading, that question is settled and keeping the row only
+   * makes the monitored list a mix of two different things: shows waiting to
+   * begin and shows already running. From the first grab onward the show is an
+   * ordinary acquisition, managed from RSS Feeds.
+   *
+   * **Nothing that causes downloading is touched** — not the rule, not the
+   * watchlist entry, not a file. Only the discovery record goes.
+   */
+  private async graduateDelivered(): Promise<number> {
+    const monitored = await this.prisma.discoveredMedia.findMany({
+      where: { discoveryStatus: 'monitored', rssRuleId: { not: null } },
+      select: { id: true, title: true, year: true, rssRuleId: true, watchlistItemId: true, dedupeKey: true },
+    });
+    let count = 0;
+    for (const row of monitored) {
+      if (!(await this.stillDelivering(row))) continue;
+      try {
+        await this.graduate(row, 'it grabbed its first release');
+        count += 1;
+      } catch (err) {
+        // One title that cannot be retired must not stop the rest, and must not
+        // stop the evaluation run this is the preamble to.
+        this.logger.warn(`Could not graduate "${row.title}": ${(err as Error).message}`);
+      }
+    }
+    return count;
+  }
+
+  /**
+   * Take one title out of the catalogue, leaving its monitoring alone.
+   *
+   * Suppressed rather than merely deleted: the provider will list the show again
+   * on the next sync, and without the suppression a series already downloading
+   * would reappear in the inbox as a fresh discovery — and could be monitored a
+   * second time. The suppression reason is `graduated` precisely so the UI can
+   * tell "you are already downloading this" apart from "you rejected this".
+   */
+  private async graduate(
+    row: { id: string; title: string; year: number | null; rssRuleId: string | null; watchlistItemId: string | null },
+    why: string,
+  ): Promise<void> {
+    this.bus.publish({
+      eventKey: DOMAIN_EVENTS.MEDIA_DISCOVERY_GRADUATED,
+      resourceType: 'discovered_media',
+      resourceId: row.id,
+      payload: {
+        title: row.year ? `${row.title} (${row.year})` : row.title,
+        rssRuleId: row.rssRuleId,
+        watchlistItemId: row.watchlistItemId,
+        reason: why,
+      },
+    });
+    await this.removal.suppress(row.id, 'graduated');
+    this.logger.log(
+      `"${row.title}" left the discovery catalogue — ${why}; its rule and watchlist entry are untouched`,
+    );
+  }
+
+  /**
+   * Has monitoring for this title actually delivered anything?
+   *
+   * Evidence, not inference: an `RssAcquisition` row against its generated rule
+   * means that rule grabbed a release. A title that has never grabbed one is
+   * still only a plan, and withdrawing a plan costs nothing; a title that has is
+   * a series somebody is part-way through.
+   *
+   * A missing rule counts as not delivering — there is nothing left to protect.
+   */
+  private async stillDelivering(row: { rssRuleId: string | null }): Promise<boolean> {
+    if (!row.rssRuleId) return false;
+    try {
+      const grabs = await this.prisma.rssAcquisition.count({
+        where: { rssRuleId: row.rssRuleId },
+        take: 1,
+      });
+      return grabs > 0;
+    } catch (err) {
+      /*
+       * Fail SAFE, which here means fail towards keeping the show. A count that
+       * threw is not evidence the show is idle, and treating it as such would
+       * delete a live rule on a transient database error.
+       */
+      this.logger.warn(
+        `Could not tell whether "${row.rssRuleId}" has delivered; leaving monitoring in place: ${(err as Error).message}`,
+      );
+      return true;
     }
   }
 

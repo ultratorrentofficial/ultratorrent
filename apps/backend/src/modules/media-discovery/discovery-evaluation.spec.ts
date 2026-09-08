@@ -29,6 +29,16 @@ const TEMPLATE: any = {
   createIntakeDirectory: false,
 };
 
+/**
+ * The `where` the template pass used. Found by shape rather than by call index:
+ * the graduation sweep queries the same table first, and an index here would
+ * silently start asserting the wrong query the next time a caller is added.
+ */
+const templateQuery = (h: any) =>
+  h.prisma.discoveredMedia.findMany.mock.calls
+    .map((c: any[]) => c[0]?.where)
+    .find((w: any) => w?.evaluations);
+
 const row = (id: string, over: any = {}) => ({
   id,
   mediaType: 'tv',
@@ -53,17 +63,27 @@ const row = (id: string, over: any = {}) => ({
 function harness(opts: {
   rows?: any[]; remaining?: number; watchlistFails?: boolean; ruleFails?: boolean; ruleReason?: string;
   ruleIsUserModified?: boolean; watchlistStatus?: string; existing?: any; readiness?: any; profile?: any; template?: any; watchlistOutcome?: string;
+  monitoredRows?: any[]; grabs?: number; episodeScan?: any;
 } = {}) {
   const evaluations: any[] = [];
   const stamps: any[] = [];
   const prisma: any = {
     discoveryTemplate: {
-      findMany: jest.fn(async () => [TEMPLATE]),
+      // `runAll` iterates what findMany returns, so an overridden template has to
+      // arrive through here too or the override never reaches the policy.
+      findMany: jest.fn(async () => [opts.template ?? TEMPLATE]),
       findUnique: jest.fn(async () => opts.template ?? TEMPLATE),
       findFirst: jest.fn(async () => opts.template ?? TEMPLATE),
     },
     discoveredMedia: {
-      findMany: jest.fn(async () => opts.rows ?? [row('a')]),
+      // Two callers, two questions: the graduation sweep asks for MONITORED rows,
+      // the template pass asks for undecided ones. Answering both with the same
+      // list would graduate every row every run.
+      findMany: jest.fn(async (args: any) =>
+        args?.where?.discoveryStatus === 'monitored'
+          ? (opts.monitoredRows ?? [])
+          : (opts.rows ?? [row('a')]),
+      ),
       findUnique: jest.fn(async () => (opts.rows ?? [row('a')])[0]),
       update: jest.fn(async ({ data }: any) => {
         stamps.push(data);
@@ -89,6 +109,7 @@ function harness(opts: {
     },
     acquisitionRuleTemplate: { findUnique: jest.fn(async () => null) },
     rssRule: { deleteMany: jest.fn(async () => ({ count: opts.ruleIsUserModified ? 0 : 1 })) },
+    rssAcquisition: { count: jest.fn(async () => opts.grabs ?? 0) },
     mediaAcquisitionWatchlistItem: {
       findUnique: jest.fn(async () => ({ status: opts.watchlistStatus ?? 'active' })),
       update: jest.fn(async () => ({})),
@@ -137,8 +158,21 @@ function harness(opts: {
     }),
   };
 
+  /*
+   * Discovery scans a newly-monitored series for missing episodes. The default
+   * REJECTS, which is the common real case — most discoveries arrive from TMDB
+   * with no IMDb id — and proves the scan is not load-bearing for monitoring.
+   */
+  const missingEpisodes = {
+    scanSeries: jest.fn(async () => {
+      if (opts.episodeScan) return opts.episodeScan;
+      throw new Error('Watchlist item has no IMDb id to scan');
+    }),
+  };
+
   return {
-    svc: new DiscoveryEvaluationService(prisma, budget as any, watchlist as any, rules as any, intake as any, bus as any, removal as any, identity as any, templates as any, audit as any),
+    svc: new DiscoveryEvaluationService(prisma, budget as any, watchlist as any, rules as any, intake as any, bus as any, removal as any, identity as any, templates as any, audit as any, missingEpisodes as any),
+    missingEpisodes,
     removal,
     identity,
     templates,
@@ -200,17 +234,13 @@ describe('running a template', () => {
     // Every examined title now has a row for this template, so the same filter
     // excludes it next time.
     expect(h.evaluations).toHaveLength(1);
-    expect(h.prisma.discoveredMedia.findMany.mock.calls[0][0].where).toEqual({
-      evaluations: { none: { templateId: 'dt1' } },
-    });
+    expect(templateQuery(h)).toEqual({ evaluations: { none: { templateId: 'dt1' } } });
   });
 
   it('only evaluates titles this template has not decided about', async () => {
     const h = harness();
     await h.svc.runAll(NOW);
-    expect(h.prisma.discoveredMedia.findMany.mock.calls[0][0].where).toEqual({
-      evaluations: { none: { templateId: 'dt1' } },
-    });
+    expect(templateQuery(h)).toEqual({ evaluations: { none: { templateId: 'dt1' } } });
   });
 
   it('does not evaluate a disabled template', async () => {
@@ -430,8 +460,13 @@ describe('retraction', () => {
    * operator is meant to see.
    */
   it('drops a title from the catalogue when it no longer applies at all', async () => {
-    // No qualifying release date at all, so the template has no opinion on it.
-    const h = harness({ rows: [monitored({ releaseDates: [] })] });
+    /*
+     * A language the template does not accept: out of scope for a reason that is
+     * about the TITLE, not about the clock. The two time-based gates are not
+     * re-applied to something already monitored — see the premiere case below —
+     * so an expired window can no longer be what removes a title.
+     */
+    const h = harness({ rows: [monitored({ originalLanguage: 'ja' })], template: { ...TEMPLATE, languages: ['en'] } });
     const [outcome] = await h.svc.runAll();
     expect(outcome.removedFromCatalog).toBe(1);
     expect(h.removal.suppress).toHaveBeenCalledWith('m1', 'retracted');
@@ -894,5 +929,100 @@ describe('the auto-add budget and re-evaluation', () => {
     const [outcome] = await h.svc.runAll();
     expect(outcome.decisions.auto_monitor).toBe(1);
     expect(outcome.decisions.needs_review).toBe(1);
+  });
+});
+
+/*
+ * Graduation: what happens to a monitored show once it actually starts grabbing.
+ *
+ * The catalogue exists to answer "should I start following this?". A show that
+ * is downloading has answered it, and staying on the monitored list only mixes
+ * two different things together — shows waiting to begin and shows already
+ * running. So it leaves, and is managed from RSS Feeds from then on.
+ */
+describe('a monitored show that grabs its first release', () => {
+  const monitored = {
+    id: 'm1', title: 'Youth', year: 2026, dedupeKey: 'tv:youth:2026',
+    discoveryStatus: 'monitored', rssRuleId: 'r1', watchlistItemId: 'w1',
+  };
+
+  it('leaves the catalogue once its rule has grabbed something', async () => {
+    const h = harness({ monitoredRows: [monitored], grabs: 1, rows: [] });
+    await h.svc.runAll();
+    expect(h.removal.suppress).toHaveBeenCalledWith('m1', 'graduated');
+  });
+
+  it('stays while its rule has grabbed nothing', async () => {
+    const h = harness({ monitoredRows: [monitored], grabs: 0, rows: [] });
+    await h.svc.runAll();
+    expect(h.removal.suppress).not.toHaveBeenCalled();
+  });
+
+  /*
+   * The whole point of graduating rather than retracting. Deleting the rule of a
+   * show that is mid-season stops it downloading with nothing saying why.
+   */
+  it('never deletes the rule or archives the watchlist entry on the way out', async () => {
+    const h = harness({ monitoredRows: [monitored], grabs: 1, rows: [] });
+    await h.svc.runAll();
+    expect(h.prisma.rssRule.deleteMany).not.toHaveBeenCalled();
+    expect(h.prisma.mediaAcquisitionWatchlistItem.update).not.toHaveBeenCalled();
+  });
+
+  /*
+   * Suppression is not a rejection here. Without it the next provider sync
+   * re-lists the show and a series already downloading reappears as a new find.
+   */
+  it('announces the graduation as its own event, not as a retraction', async () => {
+    const h = harness({ monitoredRows: [monitored], grabs: 1, rows: [] });
+    await h.svc.runAll();
+    const keys = h.published.map((e: any) => e.eventKey);
+    expect(keys).toContain('media_discovery.graduated');
+    expect(keys).not.toContain('media_discovery.retracted');
+  });
+
+  it('one title that cannot be retired does not stop the others', async () => {
+    const h = harness({
+      monitoredRows: [monitored, { ...monitored, id: 'm2', title: 'War' }],
+      grabs: 1, rows: [],
+    });
+    h.removal.suppress.mockRejectedValueOnce(new Error('db blew up'));
+    await expect(h.svc.runAll()).resolves.toBeDefined();
+    expect(h.removal.suppress).toHaveBeenCalledTimes(2);
+  });
+
+  /*
+   * Fail towards keeping the show. A count that threw is not evidence the show
+   * is idle, and a transient database error must not retire a live series.
+   */
+  it('treats an unanswerable "has it grabbed?" as yes', async () => {
+    const h = harness({ monitoredRows: [monitored], rows: [] });
+    h.prisma.rssAcquisition.count.mockRejectedValueOnce(new Error('db unreachable'));
+    await h.svc.runAll();
+    expect(h.removal.suppress).toHaveBeenCalledWith('m1', 'graduated');
+  });
+});
+
+/*
+ * The two time-based gates are admission tests, not retention tests. A monitored
+ * show's premiere moves into the past on its own; re-applying the window then
+ * answers "no" for the one reason guaranteed to happen to every show, and the
+ * verdict reaches the retraction branch.
+ */
+describe('a monitored show whose premiere has passed', () => {
+  const premiered = {
+    ...row('p1'),
+    discoveryStatus: 'monitored',
+    matchedTemplateId: TEMPLATE.id,
+    rssRuleId: 'r1',
+    watchlistItemId: 'w1',
+    releaseDates: [{ releaseType: 'series_premiere', date: new Date('2020-01-01'), region: 'US' }],
+  };
+
+  it('is not retracted for having aired', async () => {
+    const h = harness({ rows: [premiered], grabs: 0 });
+    await h.svc.runAll();
+    expect(h.prisma.rssRule.deleteMany).not.toHaveBeenCalled();
+    expect(h.removal.suppress).not.toHaveBeenCalled();
   });
 });

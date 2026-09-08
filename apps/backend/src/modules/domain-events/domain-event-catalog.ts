@@ -158,6 +158,19 @@ const DEFINITIONS: readonly DomainEventDefinition[] = [
     deduplicationWindowSeconds: 0,
   },
   {
+    key: DOMAIN_EVENTS.MEDIA_DISCOVERY_GRADUATED,
+    description:
+      'A monitored title grabbed its first release and left the discovery catalogue. Its generated rule and watchlist entry are untouched — it is an ordinary acquisition from here, managed from RSS Feeds.',
+    requiredFields: ['title'],
+    /*
+     * Per title, like a retraction, and for the same reason: a show vanishing
+     * from Discover is a question waiting to be asked, and a count would not say
+     * which show. Unlike a retraction it takes nothing away, so it is filed as
+     * information rather than as a warning.
+     */
+    deduplicationWindowSeconds: 0,
+  },
+  {
     key: DOMAIN_EVENTS.MEDIA_DISCOVERY_PROVIDER_SYNC_FAILED,
     description:
       "A discovery provider's catalogue refresh failed. The previous catalogue was kept rather than emptied.",

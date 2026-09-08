@@ -184,6 +184,10 @@
         "title": "Monitoring withdrawn",
         "description": "A monitored title stopped qualifying for its template. Its generated rule was deleted and its watchlist entry archived; downloaded media and torrents were not touched."
       },
+      "graduated": {
+        "title": "Now downloading on its own",
+        "description": "A monitored title grabbed its first release and left the discovery catalogue. Its rule and watchlist entry are untouched — manage it from RSS Feeds from now on."
+      },
       "provider_sync_failed": {
         "title": "Discovery provider refresh failed",
         "description": "A provider's catalogue could not be refreshed. The previous catalogue was kept."

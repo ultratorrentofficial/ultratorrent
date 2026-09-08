@@ -382,6 +382,14 @@ export function DiscoverPage() {
           monitored: result.evaluation.monitored,
         }),
       );
+      /*
+       * Said out loud, because otherwise a show simply disappears from Discover
+       * and the only available reading is that something went wrong. Nothing
+       * did: it is downloading, and it is managed from RSS Feeds now.
+       */
+      if (result.evaluation.graduated > 0) {
+        toast.info(t('actions.syncGraduated', { count: result.evaluation.graduated }));
+      }
       if (result.evaluation.retracted > 0) {
         toast.info(
           t('actions.syncRetracted', {

@@ -39,6 +39,10 @@ providers ─► merge ─► store ─► evaluate ─┬─► ignore
                                     existing acquisition sweeps
                                                 │
                                         Smart Download decides
+                                                │
+                                      first release grabbed
+                                                │
+                              leaves the catalogue — managed from RSS Feeds
 ```
 
 Two schedules drive it, both using the platform's existing scheduler:
@@ -46,7 +50,7 @@ Two schedules drive it, both using the platform's existing scheduler:
 | Job | Interval | What it does |
 | --- | --- | --- |
 | `media_discovery_provider_sync` | hourly tick, refreshes a provider every 6 h | Pulls catalogues, merges, stores. **Decides nothing.** |
-| `media_discovery_evaluate` | hourly | Runs enabled templates over stored titles and acts on the results. |
+| `media_discovery_evaluate` | hourly | Retires monitored titles that have started downloading, then runs enabled templates over stored titles and acts on the results. |
 
 A catalogue refresh writes rows and updates counters. It cannot, by itself, cause
 an acquisition — that separation is why a sync can run on a schedule without
@@ -326,6 +330,16 @@ stored and populated, and simply never passed along.
 | Unknown | `needs_review` |
 | Providers disagree | `needs_review`, with both dates kept |
 
+**These two gates are asked once, on the way in.** They decide whether to *start*
+following a show, and they are not re-applied to one already monitored. A
+monitored show's premiere moves into the past on its own; re-asking then answers
+"no" for the one thing guaranteed to happen to every show, and that answer used
+to reach the retraction path — deleting the generated rule of a series that was
+downloading correctly, mid-season, because time passed. Everything else about a
+template *is* re-applied: a category removed, a network dropped or a language
+that no longer qualifies are real answers about the title, and monitoring still
+ends.
+
 **Unknown and conflicting dates refuse to automate.** Treating an unknown date as
 acceptable is exactly the case this gate exists to prevent, and it would be
 silent.
@@ -353,6 +367,47 @@ Deliberately. "Monitor films once they reach **streaming**" is a legitimate
 configuration, and a film's digital date is routinely a year after its theatrical
 one — gating on a past premiere would break it. For films, the release-type and
 window rules already define what "upcoming" means.
+
+## Leaving the catalogue: a show that starts downloading graduates
+
+**Once a monitored show grabs its first release, it leaves Media Discovery.** The
+discovery record is deleted; its acquisition rule and watchlist entry are not
+touched, and it goes on downloading exactly as before. From that point it is an
+ordinary acquisition, managed from **RSS Feeds**.
+
+This is the catalogue answering its own question. Discovery exists to decide
+*what to start following*; once a show is actually downloading, that is settled,
+and keeping the row would make the monitored list a mix of two different things —
+shows waiting to begin, and shows already running. Only the first kind is a
+decision anybody still has to make.
+
+| What goes | What stays |
+| --- | --- |
+| The `DiscoveredMedia` row, and its evaluations and release dates | The generated RSS rule, enabled and unchanged |
+| Its place in the Discover catalogue | The watchlist entry, and its wanted episodes |
+| | Every downloaded file and torrent |
+
+**"Grabbed its first release" means an `RssAcquisition` row exists** against the
+generated rule — evidence that the rule actually pulled something, not an
+inference from a date. A title that has never grabbed one is still only a plan,
+and a plan can be withdrawn at no cost.
+
+The title is also **suppressed by `dedupeKey`, with reason `graduated`**. Without
+that, the next provider sync re-lists the show and a series you are already
+downloading reappears in the inbox as a fresh find. It is not a rejection, and
+the distinct reason is what lets the suppressions list say "you already have
+this" rather than "you said no to this".
+
+A graduation is announced — as `media_discovery.graduated`, and in the toast
+after a sync — because a show quietly vanishing from Discover otherwise reads as
+a fault.
+
+:::note Graduation is also the safety net during retraction
+A template edit re-opens every decision. If an edit and a first grab land in the
+same tick, the show graduates rather than being retracted: deleting the rule of a
+series that is mid-season would stop it downloading with nothing on screen saying
+why.
+:::
 
 ## Match preferences are required for auto-monitoring
 

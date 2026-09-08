@@ -184,6 +184,10 @@
         "title": "Vigilancia retirada",
         "description": "Un título vigilado dejó de calificar para su plantilla. Se eliminó su regla generada y se archivó su entrada de lista de seguimiento; no se tocaron los medios descargados ni los torrents."
       },
+      "graduated": {
+        "title": "Ya se descarga por su cuenta",
+        "description": "Un título vigilado obtuvo su primera versión y salió del catálogo de descubrimiento. Su regla y su entrada de lista de seguimiento quedaron intactas — de ahora en adelante se administra desde Fuentes RSS."
+      },
       "provider_sync_failed": {
         "title": "Falló la actualización de un proveedor de descubrimiento",
         "description": "No se pudo actualizar el catálogo de un proveedor. Se conservó el catálogo anterior."

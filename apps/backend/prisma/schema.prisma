@@ -4287,9 +4287,14 @@ model DiscoverySuppression {
   title     String
   mediaType String?
 
-  /// manual | retracted. A person deleting it, versus a template that stopped
-  /// matching — different causes, and only the first should survive a template
-  /// being edited back.
+  /// manual | retracted | graduated. A person deleting it, versus a template
+  /// that stopped matching, versus a show that started grabbing and left the
+  /// catalogue under its own steam — different causes, and only the first
+  /// should survive a template being edited back.
+  ///
+  /// `graduated` is not a rejection. The suppression exists so a provider
+  /// re-listing the show tomorrow does not put a series you are already
+  /// downloading back in the inbox as though it were a new find.
   reason       String   @default("manual")
   suppressedAt DateTime @default(now())
   suppressedBy String?
