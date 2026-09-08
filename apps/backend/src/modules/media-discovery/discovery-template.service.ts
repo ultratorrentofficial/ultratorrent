@@ -405,6 +405,21 @@ export class DiscoveryTemplateService {
     });
   }
 
+  /**
+   * The input fields that become database columns.
+   *
+   * This list and `POLICY_KEYS` are two halves of one fact and drift apart
+   * silently. Five fields — `autoMonitorEnabled`, `requireUpcoming`,
+   * `gracePeriodDays`, `pastReleaseBehavior`, `returningSeriesBehavior` — were
+   * in `POLICY_KEYS` but missing here, which is the worst possible shape for the
+   * bug: `policyChanged` SAW the edit, so the save reported success, bumped
+   * `policyVersion` and reopened every decision this template had made — while
+   * discarding the values that were actually changed. Unchecking "monitor
+   * automatically" therefore did nothing except clear the catalogue's decisions.
+   *
+   * `discovery-template-columns.spec.ts` now asserts every policy key survives a
+   * round trip, so adding a sixth cannot repeat it.
+   */
   private columns(input: DiscoveryTemplateInput): Record<string, unknown> {
     const out: Record<string, unknown> = {};
     const copy = <K extends keyof DiscoveryTemplateInput>(key: K) => {
@@ -418,7 +433,8 @@ export class DiscoveryTemplateService {
         'notifyOnlyCategories', 'ignoreCategories', 'blockedFromAutoCategories',
         'categoryMatchMode', 'minimumConfidence', 'acquisitionTemplateId', 'rssFeedId',
         'storageProfileId', 'pathTemplate', 'createIntakeDirectory', 'autoAddLimitPerDay',
-        'autoAddLimitPerWeek',
+        'autoAddLimitPerWeek', 'autoMonitorEnabled', 'requireUpcoming', 'gracePeriodDays',
+        'pastReleaseBehavior', 'returningSeriesBehavior',
       ] as Array<keyof DiscoveryTemplateInput>
     ).forEach(copy);
     if (input.name !== undefined) out.name = input.name.trim();
@@ -437,7 +453,7 @@ const MAX_GRACE_DAYS = 14;
 const PAST_RELEASE_BEHAVIORS = ['review', 'ignore'] as const;
 const RETURNING_SERIES_BEHAVIORS = ['existing_only', 'review'] as const;
 
-const POLICY_KEYS = [
+export const POLICY_KEYS = [
   'mediaType', 'providers', 'upcomingWindowDays', 'regions', 'languages',
   'minimumPopularity', 'minimumRating', 'minimumVoteCount', 'networks',
   'streamingServices', 'studios', 'seriesTypes', 'releaseTypes',

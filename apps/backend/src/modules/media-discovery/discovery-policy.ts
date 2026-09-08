@@ -295,7 +295,20 @@ export function evaluateDiscovery(
    * is off is actionable, being told it failed a threshold it never reached is
    * not.
    */
-  if (template.autoMonitorEnabled === false) {
+  if (template.autoMonitorEnabled === false && ctx.retaining) {
+    /*
+     * Turning the switch off stops NEW titles being monitored. It does not undo
+     * the ones already monitored.
+     *
+     * Read the other way it is a demolition button: every title this template
+     * monitors returns `needs_review`, which is not `auto_monitor`, which is the
+     * retraction path — so unchecking one box would delete every generated rule
+     * the template ever made. Nobody unchecking "monitor matching titles
+     * automatically" is asking for that, and undoing monitoring in bulk is what
+     * the removal tool is for, where it is scoped and previewed first.
+     */
+    add('auto_monitor_switch', 'info', 'Automatic monitoring is off for new titles; this one is already monitored');
+  } else if (template.autoMonitorEnabled === false) {
     add('auto_monitor_switch', 'fail', 'Automatic monitoring is switched off for this template');
     return verdict(
       'needs_review',

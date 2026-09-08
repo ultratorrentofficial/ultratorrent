@@ -287,3 +287,27 @@ describe('re-judging a show this template already monitors', () => {
     expect(verdict.applies).toBe(false);
   });
 });
+
+/*
+ * The auto-monitor switch is an admission control too.
+ *
+ * Read as a retention test it is a demolition button: every monitored title
+ * returns `needs_review`, which is not `auto_monitor`, which is the retraction
+ * path — so unchecking one box would delete every generated rule the template
+ * ever made.
+ */
+describe('turning automatic monitoring off', () => {
+  const OFF: PolicyTemplate = { ...TEMPLATE, autoMonitorEnabled: false };
+  const qualifying = series({
+    releaseDates: [{ releaseType: 'series_premiere', date: day(7), region: 'US' }],
+  });
+
+  it('holds a new title for review instead of monitoring it', () => {
+    expect(evaluateDiscovery(qualifying, OFF, { now: NOW }).decision).toBe('needs_review');
+  });
+
+  it('leaves a title it already monitors alone', () => {
+    const verdict = evaluateDiscovery(qualifying, OFF, { now: NOW, retaining: true });
+    expect(verdict.decision).toBe('auto_monitor');
+  });
+});
