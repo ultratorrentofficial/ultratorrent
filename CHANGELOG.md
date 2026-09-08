@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.90.4] - 2026-09-08
+
+### Fixed
+- discovery matches languages canonically, so a template naming English no longer rejects every TMDB title stored as en; and a title a template ruled out now says why instead of Not evaluated
+
 ## [0.90.3] - 2026-09-07
 
 ### Fixed
