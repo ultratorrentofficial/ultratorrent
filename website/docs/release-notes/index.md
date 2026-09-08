@@ -12,13 +12,43 @@ keywords: [release notes, changelog, versions, what's new, upgrade]
 This page is generated from `CHANGELOG.md` at build time. **Do not edit it by hand** — change the changelog and rebuild.
 :::
 
-Every released version, newest first. This page shows the **25 most recent** of **202** releases; the complete history lives in [CHANGELOG.md](https://github.com/ultratorrentofficial/ultratorrent/blob/main/CHANGELOG.md).
+Every released version, newest first. This page shows the **25 most recent** of **205** releases; the complete history lives in [CHANGELOG.md](https://github.com/ultratorrentofficial/ultratorrent/blob/main/CHANGELOG.md).
 
 Versions are [semantic](https://semver.org/): a **minor** bump means new capability, a **patch** means fixes only. Upgrading is covered in [Upgrading](/install/upgrading).
 
-## 0.90.0 — 2026-09-06
+## 0.90.3 — 2026-09-07
 
 _Latest release._
+
+### Fixed
+
+- discovery shows episode air times in your own timezone, and titles can be selected and removed in bulk
+
+Tagged [`v0.90.3`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.90.3).
+
+## 0.90.2 — 2026-09-07
+
+### Fixed
+
+- the docs image build includes the changelog the release notes page is generated from
+
+Tagged [`v0.90.2`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.90.2).
+
+## 0.90.1 — 2026-09-07
+
+### Fixed
+
+- the discovery catalogue can be managed: remove a title at a chosen scope with a preview of what goes, re-decide everything when a template changes, retract titles that stop matching, and page through the listing
+- media discovery resolves canonical identity before auto-monitoring, so a show already on the watchlist, already ruled or already in the library is never monitored twice
+- discovery auto-monitoring is limited to series that have not premiered yet, with unknown and conflicting dates held for review, so an old show airing this week is no longer imported automatically
+- a discovery template must carry match preferences to auto-monitor, so every generated RSS rule can actually acquire — one without them matched nothing at all
+- a duplicate reconciliation tool finds shows monitored more than once and proposes a safe merge — archiving rather than deleting, and never touching media, torrents or hand-authored rules
+- match preference profiles can be authored from the UI — an ordered ladder editor with reordering, quality fields, size bounds and per-rung terms
+- a disabled module says which of three things disabled it, instead of blaming an administrator for one that is simply off by default
+
+Tagged [`v0.90.1`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.90.1).
+
+## 0.90.0 — 2026-09-06
 
 ### New
 
@@ -310,31 +340,6 @@ Tagged [`v0.84.0`](https://github.com/ultratorrentofficial/ultratorrent/releases
 - Rename works inside a show, and a deployed frontend is no longer masked by a cached index.html
 
 Tagged [`v0.83.10`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.83.10).
-
-## 0.83.9 — 2026-08-18
-
-### Fixed
-
-- Library Browser: destructive jobs show progress and hand back a refreshed view, rename works from the action bar, and TV shows sort by their newest episode
-
-Tagged [`v0.83.9`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.83.9).
-
-## 0.83.8 — 2026-08-18
-
-### Fixed
-
-- Clearing an RSS history item's downloaded status now actually lets the rule grab it again
-- Clearing a still-seeding release now removes the torrent, its files and its library copy so the full download and import cycle runs again
-
-Tagged [`v0.83.8`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.83.8).
-
-## 0.83.7 — 2026-08-18
-
-### Fixed
-
-- Activity Scheduler: the delete-after-seeding option shows its label instead of a raw translation key
-
-Tagged [`v0.83.7`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.83.7).
 
 ## Older releases
 

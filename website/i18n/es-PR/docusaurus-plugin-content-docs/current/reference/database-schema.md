@@ -2515,6 +2515,7 @@ Tabla: `discovered_media_release_dates`
 | `discoveredMediaId` | `String` |
 | `releaseType` | `String` |
 | `date` | `DateTime?` |
+| `airsAt` | `DateTime?` |
 | `region` | `String?` |
 | `source` | `String` |
 | `confidence` | `Float` |

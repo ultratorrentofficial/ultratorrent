@@ -6571,6 +6571,14 @@ export interface DiscoveredMediaItem {
   rssRuleId: string | null;
   lastSeenAt: string;
   releaseDates: DiscoveredReleaseDate[];
+  /**
+   * The most recent evaluation, when there is one.
+   *
+   * Present even for a title with no `decision` — that combination means a
+   * template looked at it and found it out of scope, which is very different
+   * from never having been looked at.
+   */
+  evaluations?: Array<{ reason: string; decision: string; createdAt: string }>;
 }
 
 export interface DiscoveredMediaPage {

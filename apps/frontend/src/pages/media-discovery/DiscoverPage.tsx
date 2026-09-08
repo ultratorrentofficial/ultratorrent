@@ -70,12 +70,22 @@ type DecisionKey =
   | 'notify'
   | 'ignored'
   | 'notEvaluated'
+  | 'outsideTemplate'
   | 'alreadyMonitored'
   | 'monitoringIncomplete'
   | 'existsNotMonitored'
   | 'reviewPastRelease';
 
-function decisionTone(decision: string | null): { key: DecisionKey; className: string } {
+function decisionTone(
+  decision: string | null,
+  wasEvaluated = false,
+): { key: DecisionKey; className: string } {
+  /*
+   * No decision but an evaluation exists means a template judged it and found it
+   * out of scope. Calling that "Not evaluated" is what made a language-filter
+   * mismatch look like the engine had simply never run.
+   */
+  if (!decision && wasEvaluated) return { key: 'outsideTemplate', className: MUTED };
   switch (decision) {
     case 'auto_monitor':
       return { key: 'monitored', className: 'border-emerald-400/40 bg-emerald-400/10 text-emerald-300' };
@@ -115,7 +125,8 @@ function DiscoveryCard({
   onToggle: () => void;
 }) {
   const { t } = useTranslation('mediaDiscovery');
-  const tone = decisionTone(item.decision);
+  const lastEvaluation = item.evaluations?.[0] ?? null;
+  const tone = decisionTone(item.decision, Boolean(lastEvaluation));
   // The soonest dated release, described in the viewer's own time when the
   // provider gave a real instant, and as a plain day when it did not.
   const next = nextRelease(item.releaseDates);
@@ -175,8 +186,16 @@ function DiscoveryCard({
             * an explanation and it belongs on the card — putting it behind a
             * detail view makes the common question the expensive one.
             */}
-          {item.decisionReason && (
-            <p className="line-clamp-2 text-xs text-muted-foreground">{item.decisionReason}</p>
+          {/*
+            * The reason, always — including for a title no decision was stamped
+            * on, where it comes from the evaluation instead. That case is the
+            * one somebody is most likely to be staring at wondering why their
+            * show is not being monitored.
+            */}
+          {(item.decisionReason || lastEvaluation?.reason) && (
+            <p className="line-clamp-2 text-xs text-muted-foreground">
+              {item.decisionReason ?? lastEvaluation?.reason}
+            </p>
           )}
 
           <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">

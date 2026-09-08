@@ -208,6 +208,12 @@ Una regla RSS se filtra por sus candidatos de coincidencia si tiene alguno, y po
 Por eso una plantilla sin preferencias de coincidencia producía una regla activada, con descarga automática, y permanentemente inerte, sin que nada indicara la falla. Ahora se valida al activar la plantilla y otra vez al escribir la regla, y una plantilla que no puede construir una regla funcional retiene sus títulos para revisión en vez de crear una vigilancia que parece completa y no hace nada.
 :::
 
+:::note Los idiomas se comparan de forma canónica
+Los proveedores no coinciden en cómo se llama un idioma — TMDB guarda `en`, TVmaze guarda `English` — y ambos acaban en el mismo catálogo. Los idiomas de una plantilla se comparan mediante una forma canónica, así que nombrar cualquiera coincide con un título guardado como el otro. Un idioma no reconocido sigue coincidiendo consigo mismo, y un título sin idioma no puede satisfacer una lista que nombra idiomas concretos.
+
+Un título que una plantilla evaluó y dejó fuera de alcance muestra **Fuera de esta plantilla**, con la razón. Solo un título que ninguna plantilla ha alcanzado aún muestra *Sin evaluar*.
+:::
+
 ## La bandeja
 
 Cada tarjeta lleva **la razón por la que está ahí**. Un motor de descubrimiento que vigila cosas en silencio es uno en el que no puedes confiar ni corregir.

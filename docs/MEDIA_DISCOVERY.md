@@ -438,6 +438,24 @@ identities are weak — TVmaze-only shows often carry no IMDb or TVDB id, which
 caps confidence below the default 0.8 floor — or the automatic-add limit is
 spent. The reason on each card says which.
 
+**"A show I know matches says *Outside this template*."** Read the reason on the
+card — it names the gate that rejected it. The commonest causes are the template's
+**languages**, **regions** and **release types**, which are scope filters: a
+template listing `series_premiere` only will pass over a returning series that has
+an episode airing, because that is not a series premiere.
+
+:::note Languages are matched canonically
+Providers disagree about what a language is called — TMDB stores `en`, TVmaze
+stores `English` — and both end up in one catalogue. They are compared through a
+canonical form, so a template naming either matches a title stored as the other.
+A language nothing recognises still matches itself.
+:::
+
+**"A title says *Not evaluated*."** It no longer should: a title a template judged
+and found out of scope reads **Outside this template** with the reason. If it
+genuinely says *Not evaluated*, no template has reached it yet — a sweep examines
+up to 500 titles per run.
+
 **"My template monitors nothing."** Check the category policy against the genres
 your providers actually emit. TMDB says `Science Fiction`; TVmaze says `Science
 Fiction` too, but plenty of shows carry no genres at all — and a title with **no**

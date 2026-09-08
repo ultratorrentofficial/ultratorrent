@@ -219,7 +219,8 @@
     "alreadyMonitored": "Already monitored",
     "monitoringIncomplete": "Monitoring incomplete",
     "existsNotMonitored": "In your library, not monitored",
-    "reviewPastRelease": "Past release — review"
+    "reviewPastRelease": "Past release — review",
+    "outsideTemplate": "Outside this template"
   },
   "duplicates": {
     "error": "Could not check for duplicates.",

@@ -12,7 +12,7 @@ keywords: [release notes, changelog, versions, what's new, upgrade]
 Esta página se genera desde `CHANGELOG.md` al compilar. **No la edites a mano** — cambia el changelog y vuelve a compilar.
 :::
 
-Cada versión publicada, la más reciente primero. Esta página muestra las **25 más recientes** de **202** versiones; el historial completo está en [CHANGELOG.md](https://github.com/ultratorrentofficial/ultratorrent/blob/main/CHANGELOG.md).
+Cada versión publicada, la más reciente primero. Esta página muestra las **25 más recientes** de **205** versiones; el historial completo está en [CHANGELOG.md](https://github.com/ultratorrentofficial/ultratorrent/blob/main/CHANGELOG.md).
 
 Las versiones son [semánticas](https://semver.org/): un salto **minor** significa capacidad nueva, un **patch** significa solo correcciones. La actualización se cubre en [Actualizar](/install/upgrading).
 
@@ -20,9 +20,39 @@ Las versiones son [semánticas](https://semver.org/): un salto **minor** signifi
 Las entradas del changelog se escriben en inglés en el momento del lanzamiento y se publican tal cual. Los encabezados y la estructura de esta página están traducidos; el texto de cada entrada no lo está.
 :::
 
-## 0.90.0 — 2026-09-06
+## 0.90.3 — 2026-09-07
 
 _Última versión._
+
+### Corregido
+
+- discovery shows episode air times in your own timezone, and titles can be selected and removed in bulk
+
+Etiquetada [`v0.90.3`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.90.3).
+
+## 0.90.2 — 2026-09-07
+
+### Corregido
+
+- the docs image build includes the changelog the release notes page is generated from
+
+Etiquetada [`v0.90.2`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.90.2).
+
+## 0.90.1 — 2026-09-07
+
+### Corregido
+
+- the discovery catalogue can be managed: remove a title at a chosen scope with a preview of what goes, re-decide everything when a template changes, retract titles that stop matching, and page through the listing
+- media discovery resolves canonical identity before auto-monitoring, so a show already on the watchlist, already ruled or already in the library is never monitored twice
+- discovery auto-monitoring is limited to series that have not premiered yet, with unknown and conflicting dates held for review, so an old show airing this week is no longer imported automatically
+- a discovery template must carry match preferences to auto-monitor, so every generated RSS rule can actually acquire — one without them matched nothing at all
+- a duplicate reconciliation tool finds shows monitored more than once and proposes a safe merge — archiving rather than deleting, and never touching media, torrents or hand-authored rules
+- match preference profiles can be authored from the UI — an ordered ladder editor with reordering, quality fields, size bounds and per-rung terms
+- a disabled module says which of three things disabled it, instead of blaming an administrator for one that is simply off by default
+
+Etiquetada [`v0.90.1`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.90.1).
+
+## 0.90.0 — 2026-09-06
 
 ### Nuevo
 
@@ -314,31 +344,6 @@ Etiquetada [`v0.84.0`](https://github.com/ultratorrentofficial/ultratorrent/rele
 - Rename works inside a show, and a deployed frontend is no longer masked by a cached index.html
 
 Etiquetada [`v0.83.10`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.83.10).
-
-## 0.83.9 — 2026-08-18
-
-### Corregido
-
-- Library Browser: destructive jobs show progress and hand back a refreshed view, rename works from the action bar, and TV shows sort by their newest episode
-
-Etiquetada [`v0.83.9`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.83.9).
-
-## 0.83.8 — 2026-08-18
-
-### Corregido
-
-- Clearing an RSS history item's downloaded status now actually lets the rule grab it again
-- Clearing a still-seeding release now removes the torrent, its files and its library copy so the full download and import cycle runs again
-
-Etiquetada [`v0.83.8`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.83.8).
-
-## 0.83.7 — 2026-08-18
-
-### Corregido
-
-- Activity Scheduler: the delete-after-seeding option shows its label instead of a raw translation key
-
-Etiquetada [`v0.83.7`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.83.7).
 
 ## Versiones anteriores
 

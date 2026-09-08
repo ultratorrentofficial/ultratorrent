@@ -200,7 +200,24 @@ export class MediaDiscoveryController {
       {
         where,
         orderBy: [{ lastSeenAt: 'desc' }],
-        include: { releaseDates: { orderBy: { date: 'asc' } } },
+        include: {
+          releaseDates: { orderBy: { date: 'asc' } },
+          /*
+           * The most recent evaluation, so a title with no decision can still say
+           * why.
+           *
+           * A template that finds a title out of scope records the evaluation and
+           * deliberately leaves `DiscoveredMedia` untouched — which is right, but
+           * left the card reading "Not evaluated" for 472 of 596 titles that had
+           * every one been evaluated. That sends somebody looking for a sweep
+           * that never ran instead of the filter that rejected it.
+           */
+          evaluations: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            select: { reason: true, decision: true, templateId: true, createdAt: true },
+          },
+        },
       },
       parsePage(page, pageSize),
     );

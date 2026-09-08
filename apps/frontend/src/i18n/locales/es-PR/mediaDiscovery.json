@@ -219,7 +219,8 @@
     "alreadyMonitored": "Ya vigilado",
     "monitoringIncomplete": "Vigilancia incompleta",
     "existsNotMonitored": "En tu biblioteca, sin vigilar",
-    "reviewPastRelease": "Ya estrenada — revisar"
+    "reviewPastRelease": "Ya estrenada — revisar",
+    "outsideTemplate": "Fuera de esta plantilla"
   },
   "duplicates": {
     "error": "No se pudo buscar duplicados.",

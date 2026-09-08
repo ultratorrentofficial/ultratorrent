@@ -208,6 +208,12 @@ An RSS rule is filtered by its match candidates if it has any, and by its includ
 A template without match preferences therefore used to produce a rule that was enabled, auto-downloading, and permanently inert, with nothing indicating a fault. It is now validated when the template is enabled and again when the rule is written, and a template that cannot build a working rule holds its titles for review instead of creating monitoring that looks complete and does nothing.
 :::
 
+:::note Languages are matched canonically
+Providers disagree about what a language is called — TMDB stores `en`, TVmaze stores `English` — and both end up in the same catalogue. Template languages are compared through a canonical form, so naming either matches a title stored as the other. A language nothing recognises still matches itself, and a title whose provider gave no language cannot satisfy a list that names specific ones.
+
+A title a template judged and found out of scope reads **Outside this template**, with the reason. Only a title no template has reached yet reads *Not evaluated*.
+:::
+
 ## The inbox
 
 Every card carries **the reason it is there**. A discovery engine that silently monitors things is one you can neither trust nor correct.

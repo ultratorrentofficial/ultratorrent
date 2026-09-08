@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { languageAllowed } from '@ultratorrent/shared';
 import type { DiscoveryCapability, ReleaseType } from '@ultratorrent/shared';
 import type {
   DiscoveryProviderHealth,
@@ -250,20 +251,16 @@ export class TvmazeDiscoveryProvider implements ReleaseDiscoveryProvider {
  * An empty list means "anywhere", because that is what a template that named
  * nothing asked for.
  */
-const LANGUAGE_ALIASES: Record<string, string> = {
-  en: 'english', es: 'spanish', fr: 'french', de: 'german', it: 'italian',
-  pt: 'portuguese', ja: 'japanese', ko: 'korean', zh: 'chinese', ru: 'russian',
-  nl: 'dutch', sv: 'swedish', da: 'danish', no: 'norwegian', fi: 'finnish',
-  pl: 'polish', tr: 'turkish', he: 'hebrew', ar: 'arabic', hi: 'hindi',
-};
+/*
+ * The alias table moved to `@ultratorrent/shared` (`canonicalLanguage`). It used
+ * to live here and be used only to filter what THIS provider returned, which is
+ * why the policy — comparing a stored value against a template — never got the
+ * benefit of it, and why `en` never matched `English`.
+ */
 
 function matchesLocale(show: any, q: DiscoveryQuery): boolean {
   if (q.languages?.length) {
-    const want = new Set(
-      q.languages.map((l) => LANGUAGE_ALIASES[l.toLowerCase()] ?? l.toLowerCase()),
-    );
-    const have = String(show?.language ?? '').toLowerCase();
-    if (!have || !want.has(have)) return false;
+    if (!languageAllowed(show?.language, q.languages)) return false;
   }
   if (q.regions?.length) {
     const country = show?.network?.country?.code ?? show?.webChannel?.country?.code ?? null;

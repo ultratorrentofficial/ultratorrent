@@ -1,3 +1,4 @@
+import { languageAllowed } from '@ultratorrent/shared';
 import type { CategoryMatchMode, DiscoveryDecision, ReleaseType } from '@ultratorrent/shared';
 
 /**
@@ -178,11 +179,22 @@ export function evaluateDiscovery(
 
   // --- locale --------------------------------------------------------------
   if (template.languages.length) {
-    const lang = media.originalLanguage ? norm(media.originalLanguage) : null;
-    const want = template.languages.map(norm);
-    if (!lang || !want.includes(lang)) {
-      add('language', 'fail', `Language ${media.originalLanguage ?? 'unknown'} is not in the template's list`);
-      return notApplicable('Language not allowed');
+    /*
+     * Compared canonically, because providers disagree about what a language is
+     * called: TMDB stores `en`, TVmaze stores `English`, and both land in the
+     * same catalogue. Comparing raw meant a template saying "English" rejected
+     * every TMDB-sourced title — 170 of 596 rows on a live catalogue — and the
+     * inbox showed them as though nothing had ever looked at them.
+     */
+    if (!languageAllowed(media.originalLanguage, template.languages)) {
+      add(
+        'language',
+        'fail',
+        `Language ${media.originalLanguage ?? 'unknown'} is not in the template's list (${template.languages.join(', ')})`,
+      );
+      return notApplicable(
+        `Language ${media.originalLanguage ?? 'unknown'} is not one this template accepts`,
+      );
     }
     add('language', 'pass', `Language ${media.originalLanguage} is allowed`);
   }
