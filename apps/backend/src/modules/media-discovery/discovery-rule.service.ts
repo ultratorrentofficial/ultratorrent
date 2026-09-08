@@ -130,9 +130,9 @@ export class DiscoveryRuleService {
 
     /*
      * The canonical title, WITHOUT the year, is what the matcher compares
-     * against a release name. `ruleName()` adds the year for the rules list,
-     * where two works sharing a title must be distinguishable; a release is
-     * named "Show.S01E01...", not "Show (2026).S01E01...".
+     * against a release name — a release is named "Show.S01E01...", not
+     * "Show (2026).S01E01...". `ruleName()` drops the year too, so the rule
+     * reads as the show it follows rather than as a catalogue entry.
      */
     const subject = {
       title: canonicalizeTitle(media.title, media.year).title,
