@@ -45,6 +45,14 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.90.5] - 2026-09-08
+
+### Fixed
+- a discovery template can be told not to monitor automatically, and a held title can be imported from review — creating everything an automatic monitor would
+- refresh catalogues no longer contacts providers that are switched off
+- a generated rule records its target path, so a template path template is no longer inert when intake directory creation is off
+- discovery cards show the synopsis, network, rating and status, and a template can filter by network, streaming service or studio
+
 ## [0.90.4] - 2026-09-08
 
 ### Fixed
