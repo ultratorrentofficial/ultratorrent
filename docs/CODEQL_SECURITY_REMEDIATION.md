@@ -17,13 +17,13 @@ is indistinguishable from one that was suppressed.
 Taken from the GitHub code-scanning API on **2026-09-08**, against `main` at
 `9549d3e2`, before any remediation.
 
-| Severity | Baseline | After Phase 1 | After Phase 2 |
-| --- | --- | --- | --- |
-| Critical | 8 | **4** (all 4 by-design) | 4 |
-| High | 103 | 101 | 101 |
-| Medium | 13 | 13 | 13 |
-| Quality-only (no security severity) | 39 | 39 | 39 |
-| **Total open** | **163** | **157** | **157** |
+| Severity | Baseline | Phase 1 | Phase 2 (paths) | Phase 2 (regex) |
+| --- | --- | --- | --- | --- |
+| Critical | 8 | **4** (all by-design) | 4 | 4 |
+| High | 103 | 101 | 101 | **98** |
+| Medium | 13 | 13 | 13 | 13 |
+| Quality-only | 39 | 39 | 39 | 39 |
+| **Total open** | **163** | **157** | **157** | **154** |
 
 Phase 2 closed no alerts, by design — see SECURITY-05. Of the 101 High, **56 now
 carry a documented false-positive disposition** backed by tests, leaving 45
@@ -360,9 +360,18 @@ any real canonicalisation — including `Blade Runner 2049`, `1923` and `2012`,
 where the year must NOT be stripped. A further 5 in
 `acquisition-template.spec.ts` cover the injection fix at its call site.
 
-**Verification status.** Requires a rescan. #193 and #14 are expected to persist:
-both still construct a `RegExp` from stored input, which is what the rules
-detect, and the operator authoring a regular expression is the feature.
+**Verification — rescanned.** CodeQL ran against `b52c016e`.
+`js/polynomial-redos` went **9 → 6**: both `media-identity` alerts (#195, #196)
+closed as `fixed`, and one of the `media-renamer` pair (#110) with them.
+
+`js/regex-injection` remains at 2, as predicted. Both sites still construct a
+`RegExp` from stored input — which is what the rule detects and what the feature
+requires. The escaping changes what the pattern *means*, not whether a pattern is
+built, so the alert is unaffected by the fix and the disposition is
+**false positive, documented**. That the alert did not move is precisely why it
+was worth reading the file rather than trusting the alert count: the genuine bug
+it led to was thirty lines from the line it pointed at, and closing the alert was
+never going to be the signal.
 
 ### Remaining High groups (not yet remediated)
 
