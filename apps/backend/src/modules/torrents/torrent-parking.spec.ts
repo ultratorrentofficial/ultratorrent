@@ -233,6 +233,50 @@ describe('TorrentParkingService — probing and revival', () => {
     expect(rows).toHaveLength(1); // still parked
   });
 
+  it('releases a torrent that completed WHILE parked, though it reports no seeds and no throughput', async () => {
+    /*
+     * The regression this exists for. A completed torrent reports `downloadRate: 0`
+     * (nothing left to fetch) and `seedsConnected: 0` (a seeder connects to leechers,
+     * not to other seeds), so the evidence test can never pass for it and it was
+     * re-parked forever — and the scheduler skips parked torrents, so its seeding
+     * policy, age deadline included, stopped being evaluated at all.
+     */
+    const { svc, provider, rows } = build(
+      [dead({
+        state: TorrentState.SEEDING,
+        progress: 1,
+        seedsConnected: 0,
+        downloadRate: 0,
+        seedsTotal: 29,
+        peersTotal: 23,
+      })],
+      [{ hash: 'aaa', engineId: 'e1', name: 'x', probingSince: new Date(), lastProbedAt: null, probeCount: 0 }],
+    );
+
+    const summary = await svc.tick();
+
+    expect(summary.revived).toBe(1);
+    expect(summary.stillDead).toBe(0);
+    expect(provider.forceStart).toHaveBeenCalledWith('aaa', false); // back to normal queueing
+    expect(provider.resumeTorrent).toHaveBeenCalledWith('aaa');
+    expect(rows).toHaveLength(0); // no longer parked — the scheduler can see it again
+  });
+
+  it('still refuses a tracker-claims-seeders torrent that has NOT completed', async () => {
+    // Guards the fix's blast radius: completion is the new release condition, and it
+    // must not soften the evidence rule for anything still downloading.
+    const { svc, rows } = build(
+      [dead({ progress: 0.4, seedsTotal: 29 })],
+      [{ hash: 'aaa', engineId: 'e1', name: 'x', probingSince: new Date(), lastProbedAt: null, probeCount: 0 }],
+    );
+
+    const summary = await svc.tick();
+
+    expect(summary.revived).toBe(0);
+    expect(summary.stillDead).toBe(1);
+    expect(rows).toHaveLength(1);
+  });
+
   it('re-parks a probed torrent that is still dead, and counts the failure for backoff', async () => {
     const { svc, provider, rows } = build(
       [dead()],

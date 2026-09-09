@@ -344,13 +344,34 @@ export class TorrentParkingService {
         await this.forget(provider.engineId, row.hash);
         continue;
       }
-      // Revive on EVIDENCE, never on the tracker's claim. `seedsTotal` is exactly the
-      // number that lies — a torrent parked as `stalled` has a tracker advertising
-      // seeders while nothing connects, so trusting it here would revive the torrent
-      // every probe and re-park it every tick, forever. A force-started probe that
-      // has genuinely found a swarm shows it: a seed actually connected, or bytes
-      // actually moving.
-      const alive = t.seedsConnected > 0 || t.downloadRate > 0;
+      /*
+       * Completion releases it outright, ahead of any liveness test.
+       *
+       * Parking asks "can this still finish downloading?", so a torrent that HAS
+       * finished is not a dead swarm — {@link deadReason} already refuses to park
+       * one (`progress >= 1`). The exit has to agree with the entry, and it did
+       * not: BOTH signals below are structurally zero for a completed torrent.
+       * `downloadRate` is 0 permanently because there is nothing left to fetch,
+       * and `seedsConnected` counts *seeds*, which a complete torrent does not
+       * connect to — its swarm is leechers, counted by `peersConnected`.
+       *
+       * So a torrent that completed WHILE parked failed this test on every probe
+       * and was re-parked for good. That is worse than a stuck queue slot: the
+       * scheduler treats `parked` as untouchable, so its seeding policy — including
+       * the age deadline that exists to remove it — was never evaluated again.
+       * Observed live: `Trying.S05E08…` parked `stalled` on 2026-08-26, completed
+       * 2026-08-27, still parked 14 days and 18 probes later at ratio 1.25 with 29
+       * seeds in the swarm.
+       *
+       * Otherwise revive on EVIDENCE, never on the tracker's claim. `seedsTotal` is
+       * exactly the number that lies — a torrent parked as `stalled` has a tracker
+       * advertising seeders while nothing connects, so trusting it here would revive
+       * the torrent every probe and re-park it every tick, forever. A force-started
+       * probe that has genuinely found a swarm shows it: a seed actually connected,
+       * or bytes actually moving.
+       */
+      const completed = t.progress >= 1;
+      const alive = completed || t.seedsConnected > 0 || t.downloadRate > 0;
       try {
         if (alive) {
           // Hand it back to the engine's normal queue: drop force-start (so it
@@ -359,8 +380,13 @@ export class TorrentParkingService {
           await provider.resumeTorrent(row.hash);
           await this.forget(provider.engineId, row.hash);
           revived++;
+          // Say which of the two it was. A completed torrent reports zero seeds and
+          // zero throughput, so the swarm sentence would read as a contradiction of
+          // the very reason it was released.
           this.logger.log(
-            `Revived "${row.name}" — ${t.seedsConnected} seed(s) connected, ${t.downloadRate} B/s`,
+            completed
+              ? `Released "${row.name}" from parking — it finished downloading while parked`
+              : `Revived "${row.name}" — ${t.seedsConnected} seed(s) connected, ${t.downloadRate} B/s`,
           );
         } else {
           await provider.forceStart(row.hash, false);
