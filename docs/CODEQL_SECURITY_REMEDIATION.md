@@ -25,6 +25,16 @@ Taken from the GitHub code-scanning API on **2026-09-08**, against `main` at
 | Quality-only | 39 | 39 | 39 | 39 | 39 | 39 | 39 |
 | **Total open** | **163** | 157 | 157 | 154 | 148 | 148 | **146** |
 
+Final state after all groups: **146 open** — 4 critical, 90 high, 13 medium,
+39 quality-only.
+
+**The count is not the result.** Seven genuine defects were found and fixed, none
+of them at the line the alert pointed to, and five separate fixes left the count
+flat or raised it because the rules model a shape rather than a risk. An
+`fstat` that verifies an inode is still a `stat` followed by an `open`; a bound
+added before a read is still a check before a use; a `replace` inside a loop that
+repeats to a fixpoint is still a `replace`.
+
 The TOCTOU column is flat, and within it `js/file-system-race` went 4 → **5**.
 Two real races were closed and one new alert was raised on the safer code. The
 count is not the measure.
@@ -599,7 +609,13 @@ no HTML here: `-->` is the SRT/VTT cue separator (`00:00:01,000 --> 00:00:04,000
 and the line is format detection, not sanitization. One of the two alerts is on
 the spec file.
 
-**Verification status.** Requires a rescan.
+**Verification — rescanned.** CodeQL ran against `d79dae82`.
+`js/insecure-temporary-file` **closed**. `js/file-system-race` went 5 → **6**:
+the `stat` added before `readFile` to bound the subtitle is itself a
+check-then-use pair, so bounding a read created an alert.
+
+High stayed at 90. That is the fifth time in this effort that a correct fix has
+not reduced the count, and the third where it raised one.
 
 ### Remaining High groups (not yet remediated)
 
