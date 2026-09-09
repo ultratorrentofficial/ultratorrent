@@ -45,6 +45,22 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.90.10] - 2026-09-09
+
+### Fixed
+- Media Discovery no longer adds unreleased shows to missing-episode tracking, which was searching indexers for episodes that had not aired
+- Provider endpoints are validated at a shared trust boundary, redirects refused, and public unsubscribe parameters type-checked at the request boundary
+- Storage capability probing refuses a root it cannot locate, so a blank storage profile path can no longer create and recursively delete a directory in the working directory
+- A generated acquisition rung no longer treats a provider-supplied show title as a regular expression, and title canonicalisation is bounded against pathological input
+- A hostile key in a torrent file or a provider configuration can no longer replace the prototype of the object it is copied into
+- A file replaced between the safety check and the read is now refused rather than served, and artwork thumbnails stream from the same file they were measured from
+- Provider HTML is reduced to text correctly: entity decoding no longer re-creates the tags that stripping removed, and a subtitle cue can no longer take quadratic time to render
+- A local subtitle file is now size-bounded like a downloaded one, so an oversized file in the library cannot be read whole into memory
+- CI actions are pinned to commit SHAs and the workflow token is limited to read access
+- The backend image ships a patched npm, fixing CVE-2026-59873 in the tar library npm bundles
+- The lint gate runs for the first time: ESLint is installed and configured, and the findings it surfaced are fixed
+- Fix React hook dependencies: a nullish empty-array fallback no longer defeats every downstream memo, and four hooks now list what they close over
+
 ## [0.90.9] - 2026-09-08
 
 ### Fixed
