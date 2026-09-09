@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { mkdtemp, mkdir, writeFile, rm, symlink, unlink } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, rm, symlink } from 'node:fs/promises';
 
 /**
  * The swap has to happen BETWEEN the service's `stat` and its `open`, and it has
