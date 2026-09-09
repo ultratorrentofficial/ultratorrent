@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { link, mkdir, rm, stat, symlink, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { promisify } from 'node:util';
 import { Injectable, Logger } from '@nestjs/common';
 import type { StorageCapabilities } from '@ultratorrent/shared';
@@ -11,6 +11,29 @@ const run = promisify(execFile);
 
 /** Where probe scratch files live, so a failed probe leaves nothing behind. */
 const PROBE_DIR = '.ultratorrent-probe';
+
+/**
+ * The first storage root that is not a usable absolute path, described.
+ *
+ * Deliberately narrow: it checks the SHAPE of the path, not whether it exists or
+ * is writable — those are what the probe itself measures, and duplicating them
+ * here would report the same failure twice with different words.
+ */
+function firstInvalidRoot(...roots: string[]): string | null {
+  for (const root of roots) {
+    if (typeof root !== 'string' || root.trim() === '') {
+      return 'Storage root is empty; refusing to probe a path relative to the working directory';
+    }
+    if (root.includes('\0')) {
+      return 'Storage root contains a null byte';
+    }
+    if (!isAbsolute(root)) {
+      return `Storage root must be an absolute path: ${root}`;
+    }
+  }
+  return null;
+}
+
 
 /**
  * Find out what the storage can actually do — by doing it.
@@ -52,6 +75,30 @@ export class StorageCapabilityDetector {
   ): Promise<StorageCapabilities & { detail: string; error: string | null }> {
     const detail: string[] = [];
     let error: string | null = null;
+
+    /*
+     * Both roots must be absolute before anything touches the filesystem.
+     *
+     * This probe creates a scratch directory and then removes it RECURSIVELY, so
+     * the one thing that must never be in doubt is where it is operating. These
+     * are storage-profile paths — administrative configuration, not request
+     * input — but `join('', '.ultratorrent-probe')` yields a RELATIVE path, and
+     * a relative path resolves against the process working directory. An empty
+     * or blank root would therefore have created and then recursively deleted a
+     * directory inside the application's own working tree, which is nobody's
+     * intent and is not something a stat check further down would have caught.
+     *
+     * Refused rather than defaulted: a probe that cannot say where it is running
+     * has nothing useful to report, and guessing a root is precisely how a
+     * cleanup lands somewhere unexpected.
+     */
+    const rootError = firstInvalidRoot(sourceRoot, targetRoot);
+    if (rootError) {
+      const caps = { sameDevice: false, hardlink: false, reflink: false, symlink: false,
+        providerRelocation: false, filesystem: null };
+      await this.persist(profileId, sourceRoot, targetRoot, caps, '', rootError);
+      return { ...caps, detail: '', error: rootError };
+    }
 
     let sameDevice = false;
     let filesystem: string | null = null;

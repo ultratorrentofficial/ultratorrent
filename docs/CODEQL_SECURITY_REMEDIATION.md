@@ -212,14 +212,80 @@ input: both variable segments are now percent-encoded, and redirects are refused
 
 ---
 
-## High findings (not yet remediated)
+## High findings
+
+### SECURITY-05 — `js/path-injection` (68 alerts)
+
+**Distribution.** `modules/files` 39 · `modules/media` 16 ·
+`modules/media-intake` 12 · `modules/torrents` 1.
+
+**The count overstates the problem, and it is worth saying how.** These are not
+68 distinct call paths. `file-fs.util.ts` (13 alerts) is a thin wrapper over
+`fs/promises` taking already-resolved absolute paths, and `files.service.ts`
+(15 alerts) is its main caller — CodeQL reports the same flows again one frame
+deeper. `file-path.service.ts` (6) and `path-safety.ts` (1) are the containment
+utilities themselves. Roughly a dozen real call paths generate the 68.
+
+**Security analysis.** A mature containment model already exists in
+`modules/files/path-safety.ts`: `resolveLogical` normalises and asserts the
+result sits inside a configured root; `resolveExisting` additionally resolves
+symlinks with `realpath` and re-checks containment against the resolved roots;
+`assertDeletable` refuses a configured root, the filesystem root and a list of
+system directories. Containment is tested as `target === root ||
+target.startsWith(root + path.sep)` — the trailing separator being what stops
+`/srv/mediaXXX` passing as `/srv/media`.
+
+Every flagged sink outside `media-intake` was traced and reaches the filesystem
+through one of those gates, or through `FilePathService.assertWithinHardRoots`
+in the media modules. CodeQL does not recognise a `startsWith(root + sep)` check
+as a sanitizer, so it reports the flow regardless.
+
+**That claim is now tested rather than asserted.** 68 alerts resting on "the
+gate is sound" deserved evidence, so
+`modules/files/path-safety-adversarial.spec.ts` adds 43 cases beyond the existing
+`path-safety.spec.ts` and `path-safety-symlink.spec.ts`: percent- and
+double-percent-encoded traversal, overlong UTF-8 (`..%c0%af`), dot-sequence
+tricks (`....//`, `..;/`), Windows separators and UNC paths on POSIX, absolute
+and multi-slash paths, Unicode separator lookalikes (`\u2044`, fullwidth stops)
+and zero-width characters, null bytes, a 5 000-segment traversal, degenerate
+inputs, and the multi-root form where absolute paths are accepted on the wire.
+Every case ends contained or refused. **No hole was found.**
+
+**Disposition: documented false positives**, for the 56 alerts covered by those
+gates. They should be dismissed in the GitHub UI as *won't fix — by design*,
+citing this section, rather than left to accumulate.
+
+### SECURITY-05b — `storage-capability-detector` (12 alerts) — genuine gap, fixed
+
+The exception, and the reason the group was worth auditing rather than dismissing
+wholesale. `StorageCapabilityDetector.probe()` had **no path validation at all**:
+it built `join(targetRoot, PROBE_DIR)` and then created a scratch directory and
+removed it **recursively**.
+
+`PROBE_DIR` is a constant, so it cannot traverse, and the roots are storage-profile
+configuration rather than request input — which is why this is a shape check and
+not a containment gate. The specific hazard is narrower and easy to miss:
+`join('', '.ultratorrent-probe')` yields a **relative** path, and a relative path
+resolves against the process working directory. A blank or whitespace root would
+therefore have created and then recursively deleted a directory inside the
+application's own tree — succeeding silently, so nothing downstream would have
+caught it.
+
+**Remediation.** Both roots must be non-empty, null-byte-free and absolute before
+anything touches the filesystem. A failure is refused and recorded with the
+reason, rather than defaulted: a probe that cannot say where it is running has
+nothing useful to report. 10 tests in
+`storage-capability-roots.spec.ts` cover empty, blank and relative roots on both
+sides, assert the error names the specific problem, and assert that two absolute
+roots still proceed to measurement.
+
+### Remaining High groups (not yet remediated)
 
 Audited and grouped by root cause; **no code changed yet**. Recorded here so the
 next session starts from analysis rather than from the alert list.
 
 | Group | Rule | Count | Initial read |
 | --- | --- | --- | --- |
-| SECURITY-05 | `js/path-injection` | 68 | The dominant group by far. UltraTorrent legitimately manages library, staging, intake and artwork paths, and `docs/SECURITY.md` already documents a file-path validation model. The work is to determine which sinks resolve against an asserted root and which do not — not to add a blanket filter. |
 | SECURITY-04 | `js/polynomial-redos` | 11 | Release-name and title parsing. Needs per-pattern analysis: bounded input, ambiguous quantifiers, and whether the input is attacker-controlled at all. |
 | SECURITY-02b | `js/remote-property-injection` | 7 | Provider JSON indexed into objects. Same class as the type-confusion group already fixed. |
 | SECURITY-05b | `js/file-system-race` | 4 | TOCTOU between a check and a filesystem operation. |
