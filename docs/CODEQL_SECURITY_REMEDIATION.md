@@ -430,6 +430,49 @@ closed as `fixed`; only `bencode.ts` remains, because `out[key] = …` is still 
 dynamic write and `Object.create(null)` removes the *danger* rather than the
 dynamism. That one is a documented false positive.
 
+### SECURITY-05c — `js/file-system-race` (4 alerts)
+
+| Alert | Location | Disposition |
+| --- | --- | --- |
+| #171 | `modules/files/files.service.ts:269` | **Fixed** |
+| #79 | `modules/media/media-artwork.service.ts:492` | **Fixed** |
+| #174 | `common/route-shadowing.spec.ts:26` | False positive — test code |
+| #80 | `website/scripts/generate-screenshot-placeholders.mjs:136` | False positive — docs build script |
+
+**Two are not production code.** A spec file and a script that runs on a
+developer's machine at docs-build time; neither is reachable by anyone. They are
+recorded rather than edited, because changing test or build code to satisfy a
+scanner is how a suite stops describing the system.
+
+**The gap the path work did not cover.** SECURITY-05 established that every
+filesystem sink resolves against an asserted root. That check is against a
+**path** — resolved, symlink-followed, asserted inside a root — and a path is a
+name, not a thing. Between the check and the use, what the name refers to can be
+replaced. Anyone able to write into a media directory can do it, and that
+includes a torrent unpacking into one.
+
+`FilesService.preview` did `stat(target)` and then `open(target)`, resolving the
+name twice. It now compares the opened inode (`fstat` on the handle) against the
+one that was checked, and refuses a mismatch rather than re-checking: something
+moved underneath the read, and the honest answer is to stop.
+
+`MediaArtworkService` did `stat(cachePath)` then `createReadStream(cachePath)` —
+the size describing one file while the bytes came from another, which is a
+mismatched `Content-Length` at best and a swapped file served as `image/webp` at
+worst. It opens once and streams from the handle, closing it on both `close` and
+`error` so a leaked descriptor per thumbnail cannot exhaust the process.
+
+**Tests.** `preview-toctou.spec.ts` uses a real temporary directory and a real
+swap rather than a mocked `fs`, because the property under test is what the
+filesystem does with names and inodes — a mock would prove nothing. **Verified to
+fail without the fix** (1 of 4 failing when the inode check is removed), which is
+the only way to know the test is describing the bug. It also asserts that a
+symlink pointing outside the root is still refused by containment, so the two
+mechanisms stay visibly distinct: containment handles the name, the inode check
+handles the swap.
+
+**Verification status.** Requires a rescan.
+
 ### Remaining High groups (not yet remediated)
 
 Audited and grouped by root cause; **no code changed yet**. Recorded here so the

@@ -4,7 +4,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { mkdir, writeFile, stat, readdir } from 'node:fs/promises';
+import { mkdir, open, writeFile, stat, readdir } from 'node:fs/promises';
 import { createReadStream, type ReadStream } from 'node:fs';
 import * as path from 'node:path';
 import sharp from 'sharp';
@@ -491,9 +491,28 @@ export class MediaArtworkService {
           .toBuffer();
         await writeFile(cachePath, buf);
       }
-      const finalStat = await stat(cachePath);
+      /*
+       * Measure and stream the SAME file.
+       *
+       * `stat(path)` then `createReadStream(path)` resolves the name twice, and
+       * between the two the name can come to mean something else. The size then
+       * describes one file while the bytes come from another — a mismatched
+       * `Content-Length` at best, and at worst a swapped file served under the
+       * `image/webp` this method promises.
+       *
+       * Opening once and reading from the handle removes the second resolution:
+       * both the size and the bytes come from the inode that was opened. The
+       * handle is closed when the stream finishes, including on error, since a
+       * leaked descriptor per thumbnail request would exhaust the process.
+       */
+      const handle = await open(cachePath, 'r');
+      const finalStat = await handle.stat();
+      const stream = handle.createReadStream();
+      const release = () => { void handle.close().catch(() => undefined); };
+      stream.once('close', release);
+      stream.once('error', release);
       return {
-        stream: createReadStream(cachePath),
+        stream,
         contentType: 'image/webp',
         size: finalStat.size,
       };

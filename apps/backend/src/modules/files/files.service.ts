@@ -269,6 +269,25 @@ export class FilesService {
     const handle = await open(target, 'r');
     let buf: Buffer;
     try {
+      /*
+       * The handle must still be the file that was checked.
+       *
+       * Containment was established against a PATH — resolved, symlink-followed
+       * and asserted inside a root — and a path is a name, not a thing. Between
+       * that resolution and this `open`, whatever the name refers to can be
+       * replaced: a file swapped for a symlink pointing out of the root, by
+       * anyone able to write into a media directory, which includes a torrent
+       * unpacking into it.
+       *
+       * `fstat` describes the inode actually opened, so comparing it with the
+       * inode that was checked closes the window rather than narrowing it. A
+       * mismatch is refused rather than re-checked: something moved underneath
+       * this read, and the honest answer is to stop.
+       */
+      const opened = await handle.stat();
+      if (opened.ino !== info.ino || opened.dev !== info.dev) {
+        throw new BadRequestException('File changed while it was being read');
+      }
       const chunk = Buffer.alloc(Math.min(info.size, maxBytes + 1));
       // Read until the window is full or the file ends: a single `read()` is
       // allowed to come back short, and trusting it would silently truncate the
