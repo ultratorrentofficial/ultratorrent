@@ -7,6 +7,7 @@ import type {
   RawDiscovery,
   ReleaseDiscoveryProvider,
 } from './discovery-provider';
+import { htmlToText } from '../../common/html-text';
 
 const BASE = 'https://api.tvmaze.com';
 /** The full schedule is ~12 MB. Generous, and only ever on a background sync. */
@@ -310,14 +311,14 @@ function num(v: unknown): number | null {
  */
 function stripHtml(v: unknown): string | null {
   if (typeof v !== 'string' || !v.trim()) return null;
-  const text = v
-    .replace(/<[^>]*>/g, '')
-    .replace(/&amp;/g, '&')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/\s+/g, ' ')
-    .trim();
+  /*
+   * `htmlToText` rather than a chain of replaces, which had this wrong twice.
+   *
+   * Tags were stripped BEFORE entities were decoded, so `&lt;script&gt;` — which
+   * contains no literal `<` — survived the strip and was then decoded into real
+   * markup by the very next line. And the strip was a single pass, so
+   * `<scr<script>ipt>` became `<script>` by having its inner tag removed.
+   */
+  const text = htmlToText(v).replace(/\s+/g, ' ').trim();
   return text || null;
 }

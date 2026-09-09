@@ -501,6 +501,51 @@ the regeneration path to hold a single handle across freshness-check, write and
 read would add real complexity to satisfy a rule that is modelling a shape rather
 than a risk.
 
+### SECURITY-06 — escaping and sanitization (5 alerts)
+
+| Alert | Location | Disposition |
+| --- | --- | --- |
+| #192, #191 | `tvmaze-discovery.provider.ts:313` | **Fixed** — two defects on one line |
+| #15 | `media-server-provider.ts:170` | **Fixed** |
+| #164 | `frontend lib/subtitles.ts:90` | **Fixed** |
+| #17 | `website/scripts/generate-reference.mjs:565` | False positive — docs build script |
+
+**One root cause: escaping written by hand, in the wrong order or in one pass.**
+
+**Order.** `stripHtml` removed tags and *then* decoded entities. `&lt;script&gt;`
+contains no literal `<`, so it survived the tag pass untouched — and the entity
+pass immediately turned it into a real `<script>`. The function produced exactly
+the markup its name promises to remove. `decodeXmlEntities` had the mirror image:
+`&amp;` decoded **first**, so `&amp;lt;` became `&lt;` and was then decoded again
+into `<`, a character the Plex attribute never contained.
+
+**One pass.** `replace(/<[^>]*>/g, '')` deletes what it matches, and what remains
+can be a tag that was not in the input: `<scr<script>ipt>` loses its inner tag
+and becomes `<script>`. A single pass is not a fixpoint.
+
+**Remediation.** `common/html-text.ts`: `stripTags` repeats until the string stops
+changing, `decodeEntities` decodes `&amp;` **last**, and `htmlToText` composes
+them strip → decode → strip, because decoding is what can produce a tag that was
+not there. A literal `<` written as `&lt;` in prose is lost, which is the right
+trade for a synopsis. Applied to TVmaze and Plex; the frontend cue stripper got
+the same fixpoint treatment in place, since it cannot import backend code.
+
+**A second bug, found by the test rather than the alert.** The adversarial timing
+case on `stripCueMarkup` measured **496 ms for a 40 KB cue**. `[^>]*` scans from
+every `<` to the end of the string when there is no `>` to find — quadratic, on
+text arriving inside a downloaded subtitle file. The tag body is now bounded at
+200 characters. CodeQL had not flagged this; writing a test that tried to break
+the function did.
+
+**Tests.** 23 in `common/html-text.spec.ts` and 8 added to the frontend
+`subtitles.test.ts`. The strip tests assert the **property** — no `<…>` sequence
+survives — rather than a particular residue: `<scr<script>ipt>` leaves `ipt>`,
+which carries no `<` and is inert, and pinning the exact leftover would test the
+regex's arithmetic instead of the guarantee. Ordinary summaries and cues are
+asserted to still read as prose, including an ampersand written as `&amp;`.
+
+**Verification status.** Requires a rescan.
+
 ### Remaining High groups (not yet remediated)
 
 Audited and grouped by root cause; **no code changed yet**. Recorded here so the

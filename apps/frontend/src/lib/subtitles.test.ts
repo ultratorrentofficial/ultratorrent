@@ -163,3 +163,42 @@ describe('msToShortClock', () => {
     expect(msToShortClock(3_725_000)).toBe('1:02:05');
   });
 });
+
+/**
+ * Cue markup removal must reach a fixpoint.
+ *
+ * Subtitle files come from OpenSubtitles and Podnapisi — third parties — so cue
+ * text is untrusted however ordinary it looks. A single pass is not a fixpoint:
+ * deleting what it matched can leave a tag that was not in the input.
+ */
+describe('stripCueMarkup on hostile cue text', () => {
+  it.each([
+    '<scr<i>ipt>alert(1)</scr<i>ipt>',
+    '<<i>b>bold</<i>b>',
+    '<i><b>nested</b></i>',
+    '<img src=x onerror=alert(1)>',
+  ])('leaves nothing markup-shaped in %s', (input) => {
+    expect(stripCueMarkup(input)).not.toMatch(/<[a-zA-Z]/);
+  });
+
+  /* Deleting a tag can reveal one that was not in the input. */
+  it('removes a tag revealed by removing another', () => {
+    expect(stripCueMarkup('<i<i>>text')).not.toMatch(/<[a-zA-Z]/);
+  });
+
+  /* Ordinary cues must survive unchanged. */
+  it.each([
+    ['<i>Italic line</i>', 'Italic line'],
+    ['{\\an8}Positioned', 'Positioned'],
+    ['Line one\\NLine two', 'Line one\nLine two'],
+    ['Plain text', 'Plain text'],
+  ])('still renders %s as text', (input, expected) => {
+    expect(stripCueMarkup(input)).toBe(expected);
+  });
+
+  it('terminates on pathological input', () => {
+    const start = Date.now();
+    stripCueMarkup('<i'.repeat(20_000));
+    expect(Date.now() - start).toBeLessThan(400);
+  });
+});

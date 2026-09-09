@@ -10,6 +10,7 @@ export type MediaServerKind = 'plex' | 'jellyfin' | 'emby' | 'kodi';
 
 /** Decrypted connection config passed to a provider at call time. */
 import { parseProviderBaseUrl } from '../../common/provider-url';
+import { decodeEntities } from '../../common/html-text';
 
 export interface MediaServerConfig {
   baseUrl?: string;
@@ -167,13 +168,13 @@ export function parsePlexUsersXml(xml: string): ProviderUser[] {
 
 /** Minimal XML entity decode for the handful that appear in Plex attributes. */
 function decodeXmlEntities(s: string): string {
-  return s
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&apos;/g, "'");
+  /*
+   * `&amp;` was decoded FIRST, which decodes one round too many: `&amp;lt;`
+   * became `&lt;` and the next rule turned that into `<`, producing a character
+   * the Plex attribute never contained. Decoding it last yields the literal
+   * `&lt;` that was actually written.
+   */
+  return decodeEntities(s);
 }
 
 /** Jellyfin/Emby expose ids as `ProviderIds: { Imdb, Tmdb, Tvdb }`. Pure. */
