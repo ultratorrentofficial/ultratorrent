@@ -711,6 +711,23 @@ to fix, and independent of the application code.
 - **101 High findings are unaddressed**, including 68 path-injection alerts. This
   is the largest remaining body of security work. (Two `js/polynomial-redos`
   alerts closed incidentally with the Phase 1 changes.)
+- **CI has failed on 39 of the last 40 runs**, at the Lint step, since long before
+  this work began. That is the same broken lint gate noted below, and it means
+  the pipeline has had no signal for some time: a change that genuinely broke CI
+  would be indistinguishable from the standing failure. Worth fixing before the
+  next release, because it currently makes the "fresh build + boot" gate the only
+  one actually enforcing anything.
+
+- **`security.yml`'s `container-scan` blocks on a real, fixable CRITICAL.**
+  `CVE-2026-59873` — `tar` 7.5.11 → 7.5.19, "node-tar: Denial of Service via
+  crafted gzip bomb" — reported against the built backend image. The gate is
+  working exactly as designed; the vulnerability is genuine and directly relevant
+  to an application that handles archives. It is **not** in the repository's
+  lockfile, so it enters during the image build, and no open Dependabot PR
+  addresses it. Pre-existing and unrelated to this remediation (it fails
+  identically on commits before it), but it is the reason that workflow is red
+  and it deserves its own fix.
+
 - **`npm run lint` does not run.** ESLint finds no configuration file anywhere in
   the repository, so the lint gate — including CI's `npm run lint --workspaces
   --if-present` — exits non-zero without linting anything. Pre-existing and
