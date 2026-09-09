@@ -83,7 +83,7 @@ const jobBridge = {
   startNodeJob: jest.fn().mockResolvedValue(null), finishNodeJob: jest.fn(), cancelJob: jest.fn(),
 } as any;
 
-const eventBus = { emit: jest.fn() } as any;
+const _eventBus = { emit: jest.fn() } as any;
 
 function makeService(prisma: FakePrisma, run: jest.Mock) {
   const automation = { runWorkflowAction: run } as any;

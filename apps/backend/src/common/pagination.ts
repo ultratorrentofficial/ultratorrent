@@ -44,7 +44,7 @@ export function pageOf<T>(items: T[], total: number, params: PageParams): Page<T
  * be expressed structurally here — callers keep their own row types.
  */
 export async function paginate<T = unknown>(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   delegate: { count: (a: any) => Promise<number>; findMany: (a: any) => Promise<T[]> },
   args: { where?: unknown; orderBy?: unknown; include?: unknown; select?: unknown },
   params: PageParams,

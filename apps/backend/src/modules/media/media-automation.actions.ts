@@ -203,7 +203,7 @@ export class MediaAutomationActions {
   async renameItem(
     itemId: string,
     modeOverride: RenameMode | undefined,
-    ctx: AuditContext = {},
+    _ctx: AuditContext = {},
     dryRun = false,
     /**
      * The torrent this item's files arrived on, when the caller knows it. Passed

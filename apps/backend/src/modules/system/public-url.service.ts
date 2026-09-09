@@ -11,7 +11,7 @@ const PROBE_TIMEOUT_MS = 6_000;
 
 /** Let's Encrypt warns at 30 days; below 14 the operator should already be worried. */
 const CERT_WARN_DAYS = 30;
-const CERT_CRITICAL_DAYS = 14;
+const _CERT_CRITICAL_DAYS = 14;
 
 interface PublicUrlConfig {
   url?: string;

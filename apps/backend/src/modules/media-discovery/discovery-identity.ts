@@ -1,5 +1,4 @@
 import { canonicalizeTitle } from '@ultratorrent/shared';
-import { normalizeTitle } from '../media/imdb/imdb-match';
 import type { RawDiscovery, RawReleaseDate } from './discovery-provider';
 
 /**

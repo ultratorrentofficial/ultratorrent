@@ -25,7 +25,6 @@ import { MediaController } from '../media/media.controller';
 import { CleanupController } from '../media/cleanup/cleanup.controller';
 import { PlatformJobsController } from '../jobs/platform-jobs.controller';
 import { TorrentsController } from '../torrents/torrents.controller';
-import { FilesController } from '../files/files.controller';
 import { SubtitleIntelligenceController } from '../subtitle-intelligence/subtitle-intelligence.controller';
 import { MEDIA_ACTIONS } from '../media/media-actions';
 import { DUPLICATE_ACTIONS } from '../media/duplicates-actions';

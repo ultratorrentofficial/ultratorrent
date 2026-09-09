@@ -1,4 +1,3 @@
-import { Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
@@ -9,7 +8,7 @@ import {
   IsString,
   MaxLength,
   Min,
-  ValidateNested,
+  
 } from 'class-validator';
 
 export class ScoreDto {

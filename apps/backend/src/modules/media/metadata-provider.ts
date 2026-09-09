@@ -718,7 +718,7 @@ export class TmdbMetadataProvider implements MediaMetadataProvider {
     };
   }
 
-  private mapTv(hit: any, full: any, q: MediaLookup): MediaMetadataDetails {
+  private mapTv(hit: any, full: any, _q: MediaLookup): MediaMetadataDetails {
     const credits = full?.credits ?? {};
     const cast = (credits.cast ?? [])
       .slice(0, 20)

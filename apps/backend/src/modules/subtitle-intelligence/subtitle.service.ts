@@ -21,7 +21,7 @@ import {
 import type { NormalizedSubtitle, SubtitleProvider, SubtitleSearchQuery } from './providers/subtitle-provider';
 import { VideoFingerprintService } from './fingerprint/video-fingerprint.service';
 import { SubtitleInstallService } from './pipeline/subtitle-install.service';
-import { buildSearchLevels, levelAllowsAutoAccept, type SearchLevel } from './search/search-strategy';
+import { buildSearchLevels, type SearchLevel } from './search/search-strategy';
 import { scoreCandidate, type ScoringContext } from './search/scoring';
 import { validateSubtitle } from './validation/subtitle-validator';
 import { runtimeCrossCheck } from './validation/runtime-check';

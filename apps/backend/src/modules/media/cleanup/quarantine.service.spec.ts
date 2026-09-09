@@ -11,11 +11,11 @@ jest.mock('node:fs/promises', () => ({
   rm: jest.fn(async () => undefined),
 }));
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+ 
 const fsUtil = require('../../files/file-fs.util') as {
   pathExists: jest.Mock; moveRecursive: jest.Mock; computeSize: jest.Mock;
 };
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+ 
 const fsp = require('node:fs/promises') as { rm: jest.Mock };
 
 const user = { id: 'u1', username: 'op', roles: [], permissions: [] } as never;

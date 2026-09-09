@@ -116,7 +116,7 @@ describe('failure and quarantine are different things', () => {
      * must look at this". Conflating them means either retrying something that
      * can never succeed, or parking something that just needed a second go.
      */
-    const { svc, transitions } = build(jobAt('completed'));
+    const { svc } = build(jobAt('completed'));
     const out = await svc.advance('j1');
     void out;
     // Re-run with an unreadable source to trigger the real verify quarantine.

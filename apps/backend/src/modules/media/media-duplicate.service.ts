@@ -708,10 +708,10 @@ export class MediaDuplicateService {
    * nothing, because a notification per scheduled scan is a notification an
    * operator turns off.
    */
-  private announce(metrics: DetectionMetrics, scored: ScoredGroup[]): void {
+  private announce(metrics: DetectionMetrics, _scored: ScoredGroup[]): void {
     if (!metrics.groupsDetected) return;
 
-    const base = {
+    const _base = {
       groupCount: metrics.groupsDetected,
       newGroups: metrics.groupsCreated,
       duplicateCount: metrics.candidatesWritten,

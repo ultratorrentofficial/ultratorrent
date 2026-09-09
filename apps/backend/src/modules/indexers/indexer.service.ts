@@ -165,7 +165,7 @@ export class IndexerService {
   }
 
   async update(id: string, dto: UpdateIndexerDto, ctx: AuditCtx = {}) {
-    const existing = await this.load(id);
+    const _existing = await this.load(id);
     const data: Prisma.IndexerUpdateInput = {
       name: dto.name,
       implementation: dto.implementation,

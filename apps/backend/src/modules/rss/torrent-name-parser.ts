@@ -309,14 +309,14 @@ export function parseTorrentName(raw: string): ParsedTorrentMeta {
   if (/\brepack\b/i.test(ws)) { meta.repack = true; explain('Flag', 'REPACK', 'Detected REPACK (corrected release).'); }
 
   // Title = everything before the earliest marker
-  let title = ws.slice(0, cutIndex).replace(/[\s\-]+$/, '').trim();
+  let title = ws.slice(0, cutIndex).replace(/[\s-]+$/, '').trim();
   // Drop a leading "[Group] " anime fansub tag from the title but record it.
   const fansub = /^\[([^\]]+)\]\s*/.exec(title);
   if (fansub) {
     if (!meta.releaseGroup) { meta.releaseGroup = fansub[1]; explain('Release Group', fansub[1], 'Detected from leading [..] fansub tag.'); }
     title = title.slice(fansub[0].length).trim();
   }
-  title = title.replace(/[\[\]()]/g, '').replace(/\s+/g, ' ').trim();
+  title = title.replace(/[[\]()]/g, '').replace(/\s+/g, ' ').trim();
   if (title) {
     meta.title = title;
     const boundary = meta.season !== null ? `S${meta.season}E${meta.episode}` : meta.year !== null ? String(meta.year) : 'the first metadata token';

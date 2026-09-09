@@ -502,7 +502,7 @@ export class MediaShowDuplicateService {
             ? path.resolve(choice!) === path.resolve(f.path)
             : f.sizeBytes > clash.sizeBytes;
 
-          const winner = incomingWins ? f : clash;
+          const _winner = incomingWins ? f : clash;
           const loser = incomingWins ? clash : f;
           collisions.push({
             key: k,

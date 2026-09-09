@@ -378,7 +378,7 @@ export class MediaServerSessionService {
   private async announceStart(
     conn: { id: string; name: string | null; kind?: string | null },
     s: ProviderSession,
-    multiServer: boolean,
+    _multiServer: boolean,
   ): Promise<void> {
     this.realtime.broadcast('media_server.session.started', {
       connectionId: conn.id,

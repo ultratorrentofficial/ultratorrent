@@ -135,7 +135,8 @@ export function FilesPage() {
   const toggleOne = (p: string) =>
     setSelected((prev) => {
       const next = new Set(prev);
-      next.has(p) ? next.delete(p) : next.add(p);
+      if (next.has(p)) next.delete(p);
+      else next.add(p);
       return next;
     });
   const selectAll = () => setSelected(new Set(items.map((n) => n.path)));

@@ -92,7 +92,6 @@ describe('IntakeReconcilerService', () => {
       listing([]),
     );
     // A job may have moved on since the query; that is a fact, not a crash.
-    (svc as never as { intake: unknown });
     expect(await svc.reconcile()).toBe(2);
   });
 });

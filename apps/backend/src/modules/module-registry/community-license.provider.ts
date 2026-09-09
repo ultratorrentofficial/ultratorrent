@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import {
   LicenseProvider,
   LicenseStatus,
-  ModuleManifest,
+  
 } from '@ultratorrent/shared';
 import { ALL_MANIFESTS } from './manifests';
 

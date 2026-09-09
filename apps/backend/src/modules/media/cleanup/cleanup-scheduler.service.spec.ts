@@ -4,7 +4,7 @@ import { BREAKER } from './domain/storage-pressure';
 jest.mock('node:fs/promises', () => ({
   statfs: jest.fn(async () => ({ blocks: 1000, bsize: 4096, bfree: 100, bavail: 50 })),
 }));
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+ 
 const { statfs } = require('node:fs/promises') as { statfs: jest.Mock };
 
 const NOW = new Date('2026-07-22T04:00:00Z');

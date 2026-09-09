@@ -75,7 +75,8 @@ export function CleanupWizard({
   const toggle = (p: string) =>
     setSelected((prev) => {
       const next = new Set(prev);
-      next.has(p) ? next.delete(p) : next.add(p);
+      if (next.has(p)) next.delete(p);
+      else next.add(p);
       return next;
     });
 

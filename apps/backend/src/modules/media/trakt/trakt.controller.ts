@@ -6,7 +6,7 @@
  * let one user drive another's link would be an account-takeover primitive, not a
  * feature.
  */
-import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { PERMISSIONS } from '@ultratorrent/shared';

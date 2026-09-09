@@ -614,11 +614,6 @@ export class WorkflowExecutionService implements OnModuleInit {
       result: status === 'failed' ? 'failure' : 'success',
     });
 
-    // Notify the Notification Center on terminal outcomes (routable domain events).
-    if (status === 'failed') {
-    } else if (status === 'completed' || status === 'completed_with_warnings') {
-    }
-
     // If this was a subworkflow child, resume the parent node down success/failure.
     const input = (row?.inputContext as { __parentExecutionId?: string; __parentNodeId?: string } | null) ?? {};
     if (input.__parentExecutionId && input.__parentNodeId) {

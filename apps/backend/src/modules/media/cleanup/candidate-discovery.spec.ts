@@ -62,7 +62,7 @@ function makeService(over: {
     startRunJob: jest.fn(async () => 'job-1'),
     finish: jest.fn(async () => undefined),
   };
-  const eventBus = { emit: jest.fn() };
+  const _eventBus = { emit: jest.fn() };
 
   const service = new CandidateDiscoveryService(
     prisma as never, audit as never, protections as never, filePath as never,

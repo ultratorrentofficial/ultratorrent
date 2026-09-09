@@ -238,7 +238,7 @@ export function matchSubtitlesFor(mediaName: string, names: string[]): string[] 
 
 /**
  * The language a subtitle filename claims, from the tag between the stem and the
- * extension (`…​.en.srt`, `…​.pt-BR.srt`, `…​.spanish.srt`). `null` when it
+ * extension (`….en.srt`, `….pt-BR.srt`, `….spanish.srt`). `null` when it
  * claims nothing — an unlabelled `film.srt` is common and guessing would be worse.
  */
 export function subtitleLanguageTag(name: string): string | null {

@@ -94,7 +94,7 @@ describe('ImdbTrigramIndexService', () => {
     it('cancels an in-flight build instead of waiting for it', async () => {
       // Without this, PrismaService.$disconnect() blocks on the CONCURRENTLY build
       // for the rest of its run (~8min measured) and systemd SIGKILLs the process.
-      const { svc, prisma, queried } = build({}, { activeBuildPids: [4242] });
+      const { svc, queried } = build({}, { activeBuildPids: [4242] });
       svc.onModuleInit();
       await svc.onModuleDestroy();
 

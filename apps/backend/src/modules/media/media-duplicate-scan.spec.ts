@@ -93,7 +93,7 @@ function makePrisma(items: any[]) {
 
 /** Inert stand-ins: what is broadcast is asserted in the events spec, not here. */
 const realtime = () => ({ broadcast: jest.fn() }) as any;
-const bus = () => ({ emit: jest.fn() }) as any;
+const _bus = () => ({ emit: jest.fn() }) as any;
 
 /** Two items that are the same movie — one duplicate group. */
 const pair = (n: number) => [

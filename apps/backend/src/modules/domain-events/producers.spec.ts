@@ -4,7 +4,7 @@ import { StorageWatchService } from '../system/storage-watch.service';
 import { ProviderWatchService } from '../engine/provider-watch.service';
 
 jest.mock('node:fs/promises', () => ({ statfs: jest.fn() }));
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+ 
 const { statfs } = require('node:fs/promises') as { statfs: jest.Mock };
 
 /* ------------------------------------------------------------ edge detector */

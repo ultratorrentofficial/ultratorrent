@@ -13,7 +13,7 @@ jest.mock('../../files/file-fs.util', () => ({
   statSafe: jest.fn(async () => ({ size: 2048, isDirectory: () => false })),
 }));
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+ 
 const fsUtil = require('../../files/file-fs.util') as {
   pathExists: jest.Mock; statSafe: jest.Mock;
 };
@@ -99,7 +99,7 @@ function makeService(over: {
       toRelative: jest.fn(() => '/Movies/Film/film.mkv'),
     },
   };
-  const eventBus = { emit: jest.fn() };
+  const _eventBus = { emit: jest.fn() };
   // The Jobs Center mirror is observability, never authority — see the bridge tests.
   const jobBridge = {
     startExecutionJob: jest.fn(async () => 'job-1'),

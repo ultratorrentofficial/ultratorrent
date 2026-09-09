@@ -329,7 +329,7 @@ export class TorrentParkingService {
   private async judgeProbes(
     provider: TorrentEngineProvider,
     byHash: Map<string, NormalizedTorrent>,
-    rules: ParkingRules,
+    _rules: ParkingRules,
   ): Promise<{ revived: number; stillDead: number }> {
     const probing = await this.prisma.parkedTorrent.findMany({
       where: { engineId: provider.engineId, probingSince: { not: null } },

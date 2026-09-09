@@ -64,7 +64,7 @@ describe('TorrentSyncService — the completed-torrent deadlock', () => {
       evaluateMany: jest.fn(async () => {}),
       reconcileCompleted: jest.fn(async () => {}),
     };
-    const notifications = { dispatch: jest.fn(async () => { calls.push('notify'); }) };
+    const _notifications = { dispatch: jest.fn(async () => { calls.push('notify'); }) };
     const nameRepair = { repair: jest.fn(async () => { calls.push('nameRepair'); }) };
     const provider = {
       engineId: 'e1',

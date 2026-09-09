@@ -126,7 +126,7 @@ export function normalize(input: string): string {
     // yields "grey s anatomy" and never matches the "greys anatomy" on the wire —
     // silently rejecting every release for 20 monitored shows.
     .replace(/['’`]/g, '')
-    .replace(/[._\-]+/g, ' ')
+    .replace(/[._-]+/g, ' ')
     .replace(/[^a-z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();

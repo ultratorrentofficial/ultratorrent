@@ -36,5 +36,11 @@
   "engines": {
     "node": ">=20.0.0"
   },
-  "workspaces:note": "UltraTorrent uses npm workspaces. Run `npm install` at the repo root."
+  "workspaces:note": "UltraTorrent uses npm workspaces. Run `npm install` at the repo root.",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.10.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "typescript-eslint": "^8.70.0"
+  }
 }

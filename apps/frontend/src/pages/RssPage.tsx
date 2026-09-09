@@ -98,7 +98,8 @@ export function RssPage() {
   const toggleFeed = (id: string) =>
     setExpandedFeeds((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   const fileInputRef = useRef<HTMLInputElement>(null);

@@ -18,7 +18,7 @@ import { Request } from 'express';
 import {
   FilePriority,
   PERMISSIONS,
-  TorrentPriority,
+  
   TorrentState,
 } from '@ultratorrent/shared';
 import { TorrentsService } from './torrents.service';

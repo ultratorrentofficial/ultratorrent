@@ -9,7 +9,7 @@ import { TrashService } from '../files/trash.service';
 import { AuditService } from '../audit/audit.service';
 import { WS_EVENTS, type DuplicateResolutionEventPayload } from '@ultratorrent/shared';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
-import { LANG_TAG, SUBTITLE_EXT } from './media-renamer';
+import { LANG_TAG } from './media-renamer';
 
 /**
  * Ceiling on one bulk call. Not a performance limit — a blast-radius limit: an

@@ -1,4 +1,3 @@
-import { BadRequestException } from '@nestjs/common';
 import { renderPathFragment, renderTargetPath } from './discovery-path';
 
 const ROOT = '/media/Staging';

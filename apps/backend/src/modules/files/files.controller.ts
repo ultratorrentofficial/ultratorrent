@@ -51,7 +51,7 @@ import {
   DeleteFileDto,
   MoveConflictPreflightDto,
   MoveFileDto,
-  PathDto,
+  
   RenameFileDto,
   ResolveConflictsDto,
   SetRootPathDto,

@@ -1,7 +1,6 @@
 import {
   evaluateSeedConditions,
   type SeedConditionNode,
-  type SeedConditionVerdict,
   type SeedFacts,
 } from './seed-conditions';
 

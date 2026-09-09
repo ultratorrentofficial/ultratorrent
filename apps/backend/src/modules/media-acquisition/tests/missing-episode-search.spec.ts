@@ -181,7 +181,7 @@ describe('MissingEpisodeSearchService.sweep — gating', () => {
 
 describe('MissingEpisodeSearchService.sweep — grab flow', () => {
   it('grabs the release the match preferences selected', async () => {
-    const { svc, updates, evaluator, matchPrefs, eventBus, realtime } = build({ candidates: [cand()] });
+    const { svc, updates, evaluator, matchPrefs, realtime } = build({ candidates: [cand()] });
     const summary = await svc.sweep();
     expect(summary).toMatchObject({ scanned: 1, grabbed: 1 });
     // preferences decided the pick; grabSelected got the release + magnet + source.

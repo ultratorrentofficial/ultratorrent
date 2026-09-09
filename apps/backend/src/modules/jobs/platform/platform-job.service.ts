@@ -7,7 +7,7 @@ import { JobRegistry } from './job-registry.service';
 import {
   ACTIVE_STATUSES,
   assertTransition,
-  isTerminal,
+  
   type JobStatus,
 } from './job-status';
 import { redact, sanitizeError } from './job-redaction';
@@ -61,20 +61,6 @@ export class PlatformJobService implements OnModuleInit {
     private readonly realtime: RealtimeGateway,
   ) {}
 
-  /**
-   * Broadcast an operational job event (failed / stalled / completed-with-warnings)
-   * over realtime. Sanitized fields only.
-   */
-  private async emitOperational(jobId: string, event: string, extra: Record<string, unknown> = {}): Promise<void> {
-    const row = await this.prisma.platformJob
-      .findUnique({ where: { id: jobId }, select: { id: true, type: true, name: true, moduleKey: true, workspaceKey: true, errorCode: true, errorMessage: true, correlationId: true } })
-      .catch(() => null);
-    if (!row) return;
-    try {
-    } catch {
-      /* bus is best-effort */
-    }
-  }
 
   /** Emit a `jobs.*` event scoped to the job's own required permission. */
   private emitRow(row: PlatformJob | (Partial<PlatformJob> & { id: string; type: string; moduleKey: string; status: string; requiredPermission: string | null }), wsEvent: string, message?: string): void {

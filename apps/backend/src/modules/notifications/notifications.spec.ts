@@ -526,7 +526,7 @@ describe('NotificationDispatcher', () => {
       return facts.find((f: any) => f.icon === 'clock')?.value;
     };
 
-    // eslint-disable-next-line no-console
+     
     const pr = timeOf('u-pr');
     const madrid = timeOf('u-madrid');
     expect(pr).toBeTruthy();

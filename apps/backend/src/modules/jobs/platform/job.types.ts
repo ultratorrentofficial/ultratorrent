@@ -45,7 +45,7 @@ export interface JobCapabilities {
  * A module's declaration of a job type. Registered once with the {@link JobRegistry};
  * the Jobs Center reads this metadata and never contains module business logic.
  */
-export interface JobDefinition<TInput = unknown, TResult = unknown> {
+export interface JobDefinition<TInput = unknown, _TResult = unknown> {
   /** Globally-unique, namespaced type, e.g. "media.library_scan". */
   type: string;
   moduleKey: string;

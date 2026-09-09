@@ -200,9 +200,13 @@ export class ProtectionService {
         });
       }
 
-      const soon = await this.expiring(EXPIRY_WARN_DAYS);
-      if (soon.length) {
-      }
+      /*
+       * No warning is emitted for protections that are merely APPROACHING expiry.
+       * `expiring()` is still served by `GET /protections/expiring`, so the data
+       * is available on request — the sweep simply does not push it anywhere. The
+       * query that used to feed an empty block has been removed rather than left
+       * to run for nothing on every sweep.
+       */
       if (justExpired.length) {
         this.logger.log(`${justExpired.length} protection(s) lapsed since the last sweep`);
       }

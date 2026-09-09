@@ -2,7 +2,7 @@ import { BadRequestException, ForbiddenException, NotFoundException } from '@nes
 import { ProtectionService } from './protection.service';
 
 const audit = { record: jest.fn() } as any;
-const eventBus = { emit: jest.fn() } as any;
+const _eventBus = { emit: jest.fn() } as any;
 
 /** Minimal in-memory double for the calls the service makes. */
 class FakePrisma {

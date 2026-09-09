@@ -151,7 +151,7 @@ describe('NFO write → read', () => {
     // sidecar answered rather than a provider.
     const back = parseNfoXml('<movie></movie>');
     expect(back.providerName).toBe('local-nfo');
-    const { providerName, ...facts } = back;
+    const { providerName: _providerName, ...facts } = back;
     expect(facts).toEqual({});
   });
 });

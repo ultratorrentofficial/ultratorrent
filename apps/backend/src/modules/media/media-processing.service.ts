@@ -67,7 +67,7 @@ export class MediaProcessingService {
   ) {}
 
   /** Publish a domain event onto the Notification Center bus (fire-and-forget). */
-  private emitEvent(event: string, t: NormalizedTorrent, extra: Record<string, unknown> = {}): void {
+  private emitEvent(event: string, t: NormalizedTorrent, _extra: Record<string, unknown> = {}): void {
   }
 
   /** Fire a `media.*` automation trigger with the torrent as context (best-effort). */

@@ -233,7 +233,6 @@ export class DiscoveryEvaluationService {
     // Read once, then spend locally: a single pass must not out-race its own cap.
     const budget = await this.budget.state(template.id, template, now);
     let remaining = Math.min(budget.remainingToday, budget.remainingThisWeek);
-    let heldForReview = 0;
     /*
      * Digest buffers. Each holds enough of a title to be judged without opening
      * anything — poster, synopsis, network, rating, premiere — because a list of
@@ -464,7 +463,6 @@ export class DiscoveryEvaluationService {
       }
 
       if (effective.decision === 'needs_review') {
-        heldForReview += 1;
         // The reason differs per title here — an unresolved identity, an
         // exhausted allowance — so it travels with the title rather than being
         // flattened into one sentence about all of them.

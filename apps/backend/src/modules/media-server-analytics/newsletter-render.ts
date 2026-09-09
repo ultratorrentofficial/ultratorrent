@@ -198,7 +198,7 @@ export function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 }
 
-function interp(tpl: string, vars: Record<string, string | number>): string {
+function _interp(tpl: string, vars: Record<string, string | number>): string {
   return tpl.replace(/\{\{(\w+)\}\}/g, (_, k) => escapeHtml(String(vars[k] ?? '')));
 }
 
