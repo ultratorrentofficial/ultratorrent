@@ -55,8 +55,27 @@ class BencodeReader {
 
   readDict(): Record<string, { value: unknown; start: number; end: number }> {
     this.pos++; // 'd'
+    /*
+     * No prototype. Every key here comes from a `.torrent` file, which is
+     * downloaded from a tracker or an indexer and is therefore entirely
+     * untrusted, and a bencode dict may name any key it likes — including
+     * `__proto__`.
+     *
+     * On a `{}` literal that assignment does not store an entry at all: it
+     * invokes the inherited setter and REPLACES this object's prototype with
+     * the value. The parsed dict then silently loses that key while gaining
+     * whatever properties the attacker's object carried, so a later lookup like
+     * `root['info']` can resolve through the prototype to something no torrent
+     * actually declared. Today the wrapper shape (`{value, start, end}`) happens
+     * to stop that reaching `infoHashFromTorrent` — which is an accident of this
+     * file's internals, not a property anybody chose, and not one to rely on.
+     *
+     * `Object.create(null)` removes the question. `__proto__` becomes an
+     * ordinary own key, lookups cannot inherit anything, and nothing legitimate
+     * changes: this map is only ever read by key.
+     */
     const out: Record<string, { value: unknown; start: number; end: number }> =
-      {};
+      Object.create(null);
     while (String.fromCharCode(this.byte()) !== 'e') {
       const key = this.readString().toString('utf8');
       const start = this.pos;

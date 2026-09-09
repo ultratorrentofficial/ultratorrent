@@ -11,6 +11,7 @@ import { TvShowStatusService } from '../rss/tv-show-status/tv-show-status.servic
 import { normalizeTitle } from '../rss/tv-show-status/tv-show-status-provider';
 import { parseTorrentName } from '../rss/torrent-name-parser';
 import { ImdbSeriesResolver, type ResolvedSeries } from './imdb-series-resolver.service';
+import { safeEntries } from '../../common/safe-object';
 
 /** Shows healed per picker load. Bounded so the background pass stays cheap; the
  * rest are picked up on the next open (or in one shot via the explicit sweep). */
@@ -54,7 +55,7 @@ export function mergeExternalIds(
       ? (current as Record<string, unknown>)
       : {};
   const merged: Record<string, string> = {};
-  for (const [provider, raw] of Object.entries({ ...base, ...patch })) {
+  for (const [provider, raw] of safeEntries({ ...base, ...patch })) {
     const value = typeof raw === 'string' ? raw.trim() : raw == null ? '' : String(raw);
     if (value) merged[provider] = value;
   }

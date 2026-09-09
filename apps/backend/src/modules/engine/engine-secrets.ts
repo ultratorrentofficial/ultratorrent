@@ -1,4 +1,5 @@
 import { SecretCipher } from '../../common/crypto/secret-cipher';
+import { safeEntries } from '../../common/safe-object';
 
 /**
  * Encrypt/redact helpers for the freeform `TorrentEngine.config` JSON. Secret
@@ -17,7 +18,7 @@ export function encryptEngineConfig(
 ): EngineConfig {
   const out: EngineConfig = {};
   const encrypted: string[] = [];
-  for (const [k, v] of Object.entries(config ?? {})) {
+  for (const [k, v] of safeEntries(config ?? {})) {
     if (k === '__encrypted') continue;
     if (
       (ENGINE_SECRET_KEYS as readonly string[]).includes(k) &&

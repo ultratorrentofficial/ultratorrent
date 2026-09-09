@@ -13,6 +13,7 @@ import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { SecretCipher } from '../../../common/crypto/secret-cipher';
 import { CapabilityRegistry } from '../../context-actions/capability-registry.service';
 import { SUBTITLE_PROVIDER_CAPABILITY } from '../subtitle-actions';
+import { safeEntries } from '../../../common/safe-object';
 
 export const REDACTED = '••••••••';
 const SECRET_KEYS = new Set(['apiKey', 'username', 'password', 'token']);
@@ -116,7 +117,7 @@ export class SubtitleProviderSettingsService {
     const nextConfig: Record<string, unknown> = { ...storedConfig };
 
     if (patch.config) {
-      for (const [k, v] of Object.entries(patch.config)) {
+      for (const [k, v] of safeEntries(patch.config)) {
         if (SECRET_KEYS.has(k)) {
           if (isRedacted(v)) continue; // keep existing ciphertext
           if (v === '' || v == null) {

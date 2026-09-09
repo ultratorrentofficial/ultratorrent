@@ -19,6 +19,7 @@ import {
   ServerInfo,
   UnsupportedCapabilityError,
 } from './media-server-provider';
+import { safeEntries } from '../../common/safe-object';
 
 /** Config keys treated as secrets and encrypted at rest. */
 const SECRET_KEYS = ['token', 'apiKey', 'password'] as const;
@@ -49,7 +50,7 @@ export class MediaServerIntegrationService {
   private encryptConfig(config: Record<string, unknown>): Record<string, unknown> {
     const out: Record<string, unknown> = {};
     const encFields: string[] = [];
-    for (const [k, v] of Object.entries(config ?? {})) {
+    for (const [k, v] of safeEntries(config ?? {})) {
       if (SECRET_KEYS.includes(k as (typeof SECRET_KEYS)[number]) && typeof v === 'string' && v) {
         out[k] = this.cipher.encrypt(v);
         encFields.push(k);
@@ -202,7 +203,7 @@ export class MediaServerIntegrationService {
       const current = (existing.config as Record<string, unknown>) ?? {};
       const decrypted = this.decryptConfig(current) as Record<string, unknown>;
       const merged: Record<string, unknown> = { ...decrypted };
-      for (const [k, v] of Object.entries(input.config)) {
+      for (const [k, v] of safeEntries(input.config)) {
         // A redacted secret placeholder means "keep existing".
         if (
           SECRET_KEYS.includes(k as (typeof SECRET_KEYS)[number]) &&

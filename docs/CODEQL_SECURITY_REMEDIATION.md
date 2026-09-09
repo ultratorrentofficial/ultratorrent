@@ -373,6 +373,58 @@ was worth reading the file rather than trusting the alert count: the genuine bug
 it led to was thirty lines from the line it pointed at, and closing the alert was
 never going to be the signal.
 
+### SECURITY-02b — `js/remote-property-injection` (7 alerts)
+
+All seven report the same thing — *a property name to write to depends on a
+user-provided value* — and all seven are the same shape: a map whose **keys**
+come from outside is copied into a fresh object.
+
+**Why the key matters.** `JSON.parse` returns `__proto__` as a real own
+property, so it survives into `Object.entries`. Assigning it to an object
+literal does not store an entry: it invokes the inherited setter and **replaces
+that object's prototype**. The copy silently loses the key and gains whatever the
+attacker's object carried, so a later lookup can resolve to something nobody
+stored.
+
+**The bencode parser is the one that deserved the attention.**
+`infrastructure/rtorrent/bencode.ts` decodes `.torrent` files — downloaded from
+trackers and indexers, entirely untrusted — and bencode lets a dict name any key.
+Verified empirically rather than reasoned about: assigning `__proto__` on the
+plain object *does* hijack that object's prototype, and a later `root['info']`
+*can* resolve through it.
+
+Whether that is exploitable today turns on an accident. `readDict` stores a
+wrapper (`{ value, start, end }`), so the hijacked prototype carries no `info`
+key and `infoHashFromTorrent` throws as it should. **No forgery is achievable.**
+But that is a property of this file's internals rather than one anybody chose,
+and `infoHashFromTorrent` computes a SHA-1 over `data.subarray(info.start,
+info.end)` — had the prototype been able to supply an `info`, an attacker would
+have chosen the byte range the hash is computed over.
+
+**Remediation.** `Object.create(null)` for the bencode dict: `__proto__` becomes
+an ordinary own key, no lookup can inherit, and nothing legitimate changes since
+the map is only ever read by key.
+
+The other six are configuration copies — engine secrets, media-server
+integration (×3), the watchlist and subtitle provider settings. Those objects are
+handed to Prisma as JSON columns, spread, and passed to code that may reasonably
+call a method on them, so a null prototype is the wrong tool. They use
+`common/safe-object.ts` instead, which drops `__proto__`, `constructor` and
+`prototype` at the copy. Nothing legitimate is lost: no engine, media server or
+subtitle provider has a setting by those names, and a request sending one is not
+configuring anything.
+
+**Tests.** `common/safe-object.spec.ts`, 13 cases: each refused key, ordinary
+settings preserved, the target prototype asserted intact after a hostile copy,
+engine encryption still working on the real secret beside the hostile key, and
+the bencode parser exercised through its public `infoHashFromTorrent` — a hostile
+key beside a real `info` yields the same hash as the clean torrent, and a torrent
+declaring no `info` is refused rather than satisfied by an inherited lookup.
+
+**Verification status.** Requires a rescan. These may persist: the rules detect a
+computed property write, which still happens — the guard changes *which keys
+reach it*, not that the write is dynamic.
+
 ### Remaining High groups (not yet remediated)
 
 Audited and grouped by root cause; **no code changed yet**. Recorded here so the
