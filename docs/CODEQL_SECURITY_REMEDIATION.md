@@ -17,13 +17,13 @@ is indistinguishable from one that was suppressed.
 Taken from the GitHub code-scanning API on **2026-09-08**, against `main` at
 `9549d3e2`, before any remediation.
 
-| Severity | Baseline | Phase 1 | Paths | Regex | Property inj. | TOCTOU |
-| --- | --- | --- | --- | --- | --- | --- |
-| Critical | 8 | **4** (by-design) | 4 | 4 | 4 | 4 |
-| High | 103 | 101 | 101 | 98 | 92 | **92** |
-| Medium | 13 | 13 | 13 | 13 | 13 | 13 |
-| Quality-only | 39 | 39 | 39 | 39 | 39 | 39 |
-| **Total open** | **163** | 157 | 157 | 154 | 148 | **148** |
+| Severity | Baseline | Phase 1 | Paths | Regex | Prop. inj. | TOCTOU | Escaping |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Critical | 8 | **4** (by-design) | 4 | 4 | 4 | 4 | 4 |
+| High | 103 | 101 | 101 | 98 | 92 | 92 | **90** |
+| Medium | 13 | 13 | 13 | 13 | 13 | 13 | 13 |
+| Quality-only | 39 | 39 | 39 | 39 | 39 | 39 | 39 |
+| **Total open** | **163** | 157 | 157 | 154 | 148 | 148 | **146** |
 
 The TOCTOU column is flat, and within it `js/file-system-race` went 4 → **5**.
 Two real races were closed and one new alert was raised on the safer code. The
@@ -544,7 +544,19 @@ which carries no `<` and is inert, and pinning the exact leftover would test the
 regex's arithmetic instead of the guarantee. Ordinary summaries and cues are
 asserted to still read as prose, including an ampersand written as `&amp;`.
 
-**Verification status.** Requires a rescan.
+**Verification — rescanned.** CodeQL ran against `08632198`: the escaping group
+is **5 → 3**, and High is 92 → 90.
+
+**All four production sites closed** — both TVmaze alerts, the Plex decoder and
+the frontend cue stripper. Two new alerts took their place, on
+`common/html-text.ts` and on its own **spec file**: the rule sees the single
+`replace` inside `stripTags` and does not model the loop that repeats it to a
+fixpoint. The utility is the fix for that rule's finding and is now reported by
+it.
+
+That is the fourth time in this backlog that a correct fix has left an alert
+standing, and the second where it created one. Documented rather than worked
+around: making the loop invisible to the rule would mean writing worse code.
 
 ### Remaining High groups (not yet remediated)
 
