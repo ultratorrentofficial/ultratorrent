@@ -71,7 +71,10 @@ def main() -> int:
         print("usage: console-screenshots.py <tmux-capture-file>", file=sys.stderr)
         return 2
 
-    raw = open(capture, encoding="utf-8", errors="replace").read()
+    # Context-managed: the handle was relying on refcount collection, which
+    # CPython happens to do promptly and other runtimes do not promise.
+    with open(capture, encoding="utf-8", errors="replace") as fh:
+        raw = fh.read()
     parts = re.split(r"@@@PAGE (\d)@@@\n", raw)
     if len(parts) < 3:
         print("capture has no @@@PAGE n@@@ markers", file=sys.stderr)

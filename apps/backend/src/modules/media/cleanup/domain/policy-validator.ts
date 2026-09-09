@@ -49,7 +49,9 @@ export function validatePolicyDocument(doc: CleanupPolicyDocument): PolicyValida
       `Unsupported document schemaVersion ${doc.schemaVersion}; expected ${POLICY_DOCUMENT_SCHEMA_VERSION}.`);
   }
 
-  const bytes = Buffer.byteLength(JSON.stringify(doc ?? {}), 'utf8');
+  // `doc` is non-null from here: the malformed-document guard above returned.
+  // The `?? {}` that used to be here read as though it could still be nullish.
+  const bytes = Buffer.byteLength(JSON.stringify(doc), 'utf8');
   if (bytes > POLICY_LIMITS.maxDocumentBytes) {
     err('document.too_large', `Document is ${bytes} bytes; the maximum is ${POLICY_LIMITS.maxDocumentBytes}.`);
   }

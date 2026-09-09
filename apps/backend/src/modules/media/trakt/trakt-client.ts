@@ -339,7 +339,9 @@ export class TraktClient {
     const sep = path.includes('?') ? '&' : '?';
     const items: T[] = [];
     let page = 1;
-    let pages = 1;
+    // Assigned from the first response's page count before it is ever read: the
+    // do-while body always runs once, and `call` defaults the header to 1.
+    let pages: number;
 
     do {
       const { status, json, pageCount } = await this.call(

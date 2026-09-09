@@ -17,7 +17,7 @@
  */
 import { PrismaClient } from '@prisma/client';
 import sharp from 'sharp';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const ROOT = process.env.DEMO_ROOT ?? '/home/dayala/.ut-rtorrent/downloads/demo';

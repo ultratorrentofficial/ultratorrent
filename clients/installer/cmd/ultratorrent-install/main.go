@@ -337,9 +337,23 @@ func emit(p *plan.Plan, asJSON bool, output string) error {
 		if err != nil {
 			return err
 		}
-		defer f.Close()
 		if err := p.WriteJSON(f); err != nil {
+			f.Close()
 			return err
+		}
+		/*
+		 * Closed explicitly, and its error returned.
+		 *
+		 * This was `defer f.Close()`, which discards it — and on a writable file
+		 * the close is where a delayed write actually fails: a full disk, a quota,
+		 * a network mount that drops. The plan would be truncated on disk while
+		 * this function returned nil and told the operator it had been written.
+		 *
+		 * The message moved below the close for the same reason: it may only
+		 * claim success once the bytes are durably handed over.
+		 */
+		if err := f.Close(); err != nil {
+			return fmt.Errorf("writing %s: %w", output, err)
 		}
 		fmt.Fprintf(os.Stderr, "Plan written to %s\n", output)
 	}

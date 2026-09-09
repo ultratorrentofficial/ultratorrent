@@ -11,7 +11,6 @@ actually emits is handled — 256-colour fg/bg, the 16 basics, bold, faint,
 underline, strikethrough and reset. Anything else is ignored rather than guessed
 at, so an unhandled code loses styling instead of corrupting the output.
 """
-import hashlib
 import html
 import re
 import sys

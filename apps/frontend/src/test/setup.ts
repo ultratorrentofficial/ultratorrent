@@ -13,6 +13,17 @@ import '@/i18n';
  */
 if (!('ResizeObserver' in globalThis)) {
   (globalThis as { ResizeObserver?: unknown }).ResizeObserver = class {
+    /*
+     * The constructor takes the callback the real API takes, even though this
+     * stub never invokes it.
+     *
+     * Without it the class has a default zero-argument constructor, so every
+     * `new ResizeObserver(cb)` in the app is passing an argument to something
+     * that declares none — a stand-in that does not have the shape of the thing
+     * it stands in for. Static analysis reads the global as this class and says
+     * so, and it is right to.
+     */
+    constructor(_callback: ResizeObserverCallback) {}
     observe() {}
     unobserve() {}
     disconnect() {}

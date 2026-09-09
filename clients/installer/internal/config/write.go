@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -370,10 +371,14 @@ func (w *Writer) Write(f File) ([]Action, error) {
 	if err != nil {
 		return nil, fmt.Errorf("creating %s: %w", tmp, err)
 	}
-	if _, err := fh.WriteString(f.Content); err != nil {
-		fh.Close()
+	if _, werr := fh.WriteString(f.Content); werr != nil {
+		// The write error is the one that matters and stays first; a close error
+		// on the way out is joined rather than dropped, so a filesystem that
+		// failed twice does not report once. `errors.Join` ignores a nil, so the
+		// message is unchanged in the ordinary case.
+		cerr := fh.Close()
 		os.Remove(tmp)
-		return nil, fmt.Errorf("writing %s: %w", tmp, err)
+		return nil, fmt.Errorf("writing %s: %w", tmp, errors.Join(werr, cerr))
 	}
 	if err := fh.Close(); err != nil {
 		os.Remove(tmp)

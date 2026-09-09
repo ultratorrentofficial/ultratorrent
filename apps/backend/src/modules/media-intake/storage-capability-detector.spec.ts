@@ -100,6 +100,41 @@ describe('storage capability probe', () => {
     expect(caps.reflink).toBe(false);
   });
 
+  /*
+   * The probe exists because a path string cannot tell you whether hardlinking
+   * works — so the case where it does not has to be exercised, or the mock that
+   * simulates it is scenery. `linkFails` and `symlinkFails` were wired into the
+   * fs mock and never turned on by any test.
+   */
+  it('reports no hardlink support when the link probe fails', async () => {
+    // EXDEV is the real-world shape: two directories that stat as one device can
+    // still refuse a link, which is exactly what measuring rather than inferring
+    // is meant to catch.
+    linkFails = true;
+    const { svc } = build();
+    const caps = await svc.probe('p1', '/staging', '/library');
+    expect(caps.sameDevice).toBe(true);
+    expect(caps.hardlink).toBe(false);
+    expect(caps.error).toBeNull();
+  });
+
+  it('reports no symlink support when the symlink probe fails', async () => {
+    // EPERM, as a NAS share that permits writes but not symlinks returns.
+    symlinkFails = true;
+    const { svc } = build();
+    const caps = await svc.probe('p1', '/staging', '/library');
+    expect(caps.symlink).toBe(false);
+    expect(caps.hardlink).toBe(true);
+  });
+
+  it('still cleans up its scratch directory when a link probe fails', async () => {
+    linkFails = true;
+    symlinkFails = true;
+    const { svc } = build();
+    await svc.probe('p1', '/staging', '/library');
+    expect(fsCalls.removed.some((p) => p.includes('.ultratorrent-probe'))).toBe(true);
+  });
+
   it('requires cp --reflink=always, never auto', async () => {
     /*
      * `--reflink=auto` silently falls back to a full copy, so it succeeds on
