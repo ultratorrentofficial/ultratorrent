@@ -17,13 +17,17 @@ is indistinguishable from one that was suppressed.
 Taken from the GitHub code-scanning API on **2026-09-08**, against `main` at
 `9549d3e2`, before any remediation.
 
-| Severity | Baseline | Phase 1 | Paths | Regex | Property injection |
-| --- | --- | --- | --- | --- | --- |
-| Critical | 8 | **4** (by-design) | 4 | 4 | 4 |
-| High | 103 | 101 | 101 | 98 | **92** |
-| Medium | 13 | 13 | 13 | 13 | 13 |
-| Quality-only | 39 | 39 | 39 | 39 | 39 |
-| **Total open** | **163** | 157 | 157 | 154 | **148** |
+| Severity | Baseline | Phase 1 | Paths | Regex | Property inj. | TOCTOU |
+| --- | --- | --- | --- | --- | --- | --- |
+| Critical | 8 | **4** (by-design) | 4 | 4 | 4 | 4 |
+| High | 103 | 101 | 101 | 98 | 92 | **92** |
+| Medium | 13 | 13 | 13 | 13 | 13 | 13 |
+| Quality-only | 39 | 39 | 39 | 39 | 39 | 39 |
+| **Total open** | **163** | 157 | 157 | 154 | 148 | **148** |
+
+The TOCTOU column is flat, and within it `js/file-system-race` went 4 → **5**.
+Two real races were closed and one new alert was raised on the safer code. The
+count is not the measure.
 
 **15 alerts closed as `fixed` across all phases**, and a further ~59 carry a
 documented false-positive disposition backed by tests.
@@ -471,7 +475,31 @@ symlink pointing outside the root is still refused by containment, so the two
 mechanisms stay visibly distinct: containment handles the name, the inode check
 handles the swap.
 
-**Verification status.** Requires a rescan.
+**Verification — rescanned, and the count went UP.** CodeQL ran against
+`a1e427bb`: `js/file-system-race` is **4 → 5**.
+
+Worth setting out exactly, because it is the sharpest example in this backlog of
+the count being the wrong measure.
+
+- `files.service.ts:269` still reports. The rule sees a `stat`-then-`open` pair,
+  which is still there; what changed is that the second operation now *verifies*
+  it got the inode the first one described. The rule models the pattern, not
+  whether the pattern is guarded.
+- `media-artwork.service.ts` now has **two** alerts where it had one. The
+  pre-existing pair is the cache-freshness `stat` at 484 followed by
+  `writeFile`; my `open` at 508 is a second use after that same check, so it is
+  reported as well.
+
+The code is safer — proven by a test that fails without the fix — and the
+dashboard is one worse. Both statements are true, and only the first one is about
+security.
+
+The remaining artwork pair was left deliberately. It is a check-then-act on a
+thumbnail cache the server itself writes, inside the hard roots, where the
+"attacker" would already need write access to a directory we own. Restructuring
+the regeneration path to hold a single handle across freshness-check, write and
+read would add real complexity to satisfy a rule that is modelling a shape rather
+than a risk.
 
 ### Remaining High groups (not yet remediated)
 
