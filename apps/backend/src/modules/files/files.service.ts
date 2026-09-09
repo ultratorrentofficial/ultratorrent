@@ -288,7 +288,17 @@ export class FilesService {
       if (opened.ino !== info.ino || opened.dev !== info.dev) {
         throw new BadRequestException('File changed while it was being read');
       }
-      const chunk = Buffer.alloc(Math.min(info.size, maxBytes + 1));
+      /*
+       * Sized from the HANDLE, not from the earlier path lookup.
+       *
+       * This is the half that always holds. The comparison above catches the
+       * common swap, but it is not a guarantee: a filesystem is free to hand the
+       * freed inode number straight back to the next file, and CI demonstrated
+       * exactly that — unlink-then-write reproduced the original ino/dev and the
+       * check passed. Reading `opened.size` removes the need to trust it, since
+       * the length always describes the file the descriptor is actually on.
+       */
+      const chunk = Buffer.alloc(Math.min(opened.size, maxBytes + 1));
       // Read until the window is full or the file ends: a single `read()` is
       // allowed to come back short, and trusting it would silently truncate the
       // preview at whatever boundary the filesystem chose.
