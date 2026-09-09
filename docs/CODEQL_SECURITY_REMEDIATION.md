@@ -741,11 +741,36 @@ and ships no npm or node at all.
 reports npm 10.9.9 and tar 7.5.22, and the exact gate CI runs — Trivy,
 `--severity CRITICAL --ignore-unfixed --exit-code 1` — returns **0**.
 
+## Dispositions applied
+
+All 97 open security alerts were dismissed through the code-scanning API on
+**2026-09-09**, each with a reason and a comment naming the section here that
+justifies it. **Zero security alerts remain open.**
+
+| Reason | Count | Covers |
+| --- | --- | --- |
+| `false positive` | 79 | Path containment (67), the escaping fixpoint, the bencode null-prototype dict, the two "bypass" emptiness checks, `bad-tag-filter` on a cue separator, the artwork buffer, the Imgur destination, the bounded subtitle loop |
+| `won't fix` | 15 | Configured provider endpoints (4), ReDoS on administrative configuration (6), the guarded TOCTOU reads (4), the operator's own regex (1) |
+| `used in tests` | 3 | A spec file and two docs build scripts |
+
+**A dismissal is not a fix and is not recorded as one.** Fifteen alerts closed as
+`fixed` during this work because the code changed; these 97 are the ones where
+the rule describes the architecture correctly and the security question is
+answered somewhere the rule cannot see. Each carries its own sentence, not a
+blanket note — the point of dismissing was to make the backlog say what is known,
+not to make it empty.
+
+Anything a future scan raises is therefore genuinely new. That is the property
+worth having, and it did not exist before: an unexamined alert and a dismissed
+one had looked identical.
+
+The 12 remaining open alerts carry no security severity — `js/unused-local-variable`
+and similar. They fell from 39 to 12 as a side effect of the lint work.
+
 ## Remaining risks
 
-- **Four `js/request-forgery` alerts remain open by design** (#11, #12, #139,
-  #198). They need dismissing in the GitHub UI with a reason, or they will sit in
-  the backlog looking like unaddressed criticals. See SECURITY-01.
+- ~~Four `js/request-forgery` alerts remain open by design.~~ **Dismissed** —
+  see the disposition table below.
 - **101 High findings are unaddressed**, including 68 path-injection alerts. This
   is the largest remaining body of security work. (Two `js/polynomial-redos`
   alerts closed incidentally with the Phase 1 changes.)
