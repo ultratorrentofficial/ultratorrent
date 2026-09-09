@@ -298,6 +298,72 @@ nothing useful to report. 10 tests in
 sides, assert the error names the specific problem, and assert that two absolute
 roots still proceed to measurement.
 
+### SECURITY-03 — `js/regex-injection` (2 alerts) — one genuine bug
+
+| Alert | Location |
+| --- | --- |
+| #193 | `media-discovery/acquisition-template.service.ts:251` |
+| #14 | `rss/match-engine.ts:397` |
+
+**#193 is a real defect, found by following the alert rather than dismissing it.**
+CodeQL flags the `new RegExp(c.pattern)` in `assertCandidate`, which is only a
+validity check — the compiled expression is discarded. That site is benign. But
+reading the file to establish that led to `patternFor`, thirty lines away:
+
+```ts
+return candidate.pattern?.trim() ? candidate.pattern : title;   // before
+```
+
+When a ladder rung has `matchType: 'regex'` and no pattern, the **show title is
+substituted** — and the title comes from TMDB or TVmaze. Two consequences:
+
+- **Correctness.** `S.W.A.T. Exiles` becomes the pattern `S.W.A.T. Exiles`, in
+  which every `.` matches any character, so the rung matches releases it should
+  not. Not hypothetical: that show is in the live catalogue.
+- **ReDoS.** A provider title containing nested quantifiers becomes an expression
+  evaluated against every item in every polled feed.
+
+**Remediation.** `common/escape-regex.ts` — one function, single-pass escaping
+rather than a chain of `replace` calls, which is how a backslash gets escaped
+twice. Applied in `patternFor` for the `regex` type only: `wildcard` does its own
+escaping and deliberately keeps `*` and `?` meaningful, and the smart types match
+on tokens rather than an expression.
+
+**#14 is the operator's own regular expression** — writing one is the point of
+that match type — so injection is not the finding. The subject is not the
+operator's, though: it arrives from a feed. See SECURITY-04.
+
+### SECURITY-04 — `js/polynomial-redos` (9 alerts)
+
+**Root cause across all of them:** an unbounded quantifier meeting an unbounded
+subject. Three were worth fixing on exploitability; the rest run on short
+administrative configuration.
+
+| Fix | Why |
+| --- | --- |
+| `media-identity.ts` — `[\s._-]*` → `[\s._-]{0,32}`, `[\s._-]+` → `{1,32}` | Runs on every provider title, RSS rule name and library item. The pattern is unanchored at the start, so a title made of separators cost O(n²). No real title puts 32 separators before its year. |
+| `media-renamer.ts` `stripProviderIdTag` — bounded `[^}\]]{0,128}` and `\s{0,8}` | Applied to names derived from torrents and folders — untrusted text. A real provider-id tag is a dozen characters. |
+| `match-engine.ts` — subject capped at 1 024 characters before an operator regex runs | The pattern is the operator's; the release name is a third party's. Backtracking scales with input length, so capping the subject makes even a careless expression return. Truncation cannot turn a non-match into a match. |
+
+Not changed: `sanitizeSegment` (3 alerts), `discovery-template.service.ts`
+(a `pathTemplate`, administrative and short) and `newsletter-image.service.ts`
+(a configured base URL). Bounded inputs from configuration rather than from a
+feed; recorded here so the decision is visible rather than implied.
+
+**Tests.** `common/regex-safety.spec.ts` — 35 cases. Escaping is asserted to make
+a literal match itself and to stop `.` matching an arbitrary character, with a
+single-pass backslash check. Timing assertions run adversarial inputs (50 000
+separators, 100 000 characters, unterminated tags, bracket runs) against a
+deliberately loose 400 ms budget, so they catch quadratic behaviour without
+becoming flaky. Six cases assert that bounding the separator run did not change
+any real canonicalisation — including `Blade Runner 2049`, `1923` and `2012`,
+where the year must NOT be stripped. A further 5 in
+`acquisition-template.spec.ts` cover the injection fix at its call site.
+
+**Verification status.** Requires a rescan. #193 and #14 are expected to persist:
+both still construct a `RegExp` from stored input, which is what the rules
+detect, and the operator authoring a regular expression is the feature.
+
 ### Remaining High groups (not yet remediated)
 
 Audited and grouped by root cause; **no code changed yet**. Recorded here so the

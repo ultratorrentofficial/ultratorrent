@@ -166,6 +166,60 @@ describe('mapping a template onto a rule', () => {
     expect(rows[1].excludedTerms).toEqual(['CAM', 'TS']);
   });
 
+  /**
+   * A title is text a metadata provider chose, and the fallback puts it where a
+   * pattern is expected. For a `regex` rung it was compiled as one, so
+   * `S.W.A.T. Exiles` matched `SXWXAXTX` — and a provider name containing
+   * nested quantifiers became an expression run against every polled feed item.
+   */
+  describe('a title used as a pattern is treated as literal text', () => {
+    const withType = (matchType: string) => ({
+      ...template,
+      candidates: [{ ...template.candidates[0], matchType, pattern: null }] as never,
+    });
+    const subject = (title: string) => ({ title, mediaType: 'tv' });
+
+    it('escapes a title falling back into a regex rung', () => {
+      const { svc } = harness();
+      const [row] = svc.toRuleCandidates(withType('regex'), 'r', subject('S.W.A.T. Exiles'));
+      expect(new RegExp(row.pattern as string, 'i').test('S.W.A.T. Exiles')).toBe(true);
+      expect(new RegExp(row.pattern as string, 'i').test('SXWXAXTX Exiles')).toBe(false);
+    });
+
+    it('neutralises a title built to backtrack', () => {
+      const { svc } = harness();
+      const [row] = svc.toRuleCandidates(withType('regex'), 'r', subject('(a+)+$'));
+      const start = Date.now();
+      new RegExp(row.pattern as string, 'i').test(`${'a'.repeat(5000)}b`);
+      expect(Date.now() - start).toBeLessThan(400);
+    });
+
+    /* An explicit pattern is the operator's choice and is passed through. */
+    it('leaves an explicitly authored pattern alone', () => {
+      const { svc } = harness();
+      const rows = svc.toRuleCandidates(
+        { ...template, candidates: [{ ...template.candidates[0], matchType: 'regex', pattern: '^Show\\.S\\d{2}' }] as never },
+        'r',
+        subject('Show'),
+      );
+      expect(rows[0].pattern).toBe('^Show\\.S\\d{2}');
+    });
+
+    /* Wildcard does its own escaping and must keep `*` and `?` meaningful. */
+    it('does not escape a title for a wildcard rung', () => {
+      const { svc } = harness();
+      const [row] = svc.toRuleCandidates(withType('wildcard'), 'r', subject('S.W.A.T. Exiles'));
+      expect(row.pattern).toBe('S.W.A.T. Exiles');
+    });
+
+    /* The smart types match on tokens, not on a regular expression. */
+    it('passes the plain title to a smart rung', () => {
+      const { svc } = harness();
+      const [row] = svc.toRuleCandidates(withType('smart_episode_match'), 'r', subject('S.W.A.T. Exiles'));
+      expect(row.pattern).toBe('S.W.A.T. Exiles');
+    });
+  });
+
   it('does not duplicate a term a rung already carried', () => {
     const { svc } = harness();
     const rows = svc.toRuleCandidates(

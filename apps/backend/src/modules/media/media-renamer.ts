@@ -672,7 +672,14 @@ export function isExtrasContainer(name: string): boolean {
  * this module — putting it there would close an import cycle.
  */
 export function stripProviderIdTag(name: string): string {
-  return name.replace(/[{[]\s*(?:tv|tm|im)db(?:id)?[-=:\s][^}\]]*[}\]]/gi, ' ').replace(/\s{2,}/g, ' ').trim();
+  /*
+   * Both runs are bounded. This is applied to names derived from torrents and
+   * folders on disk — untrusted text — and an unbounded `[^}\]]*` inside a
+   * global match backtracks quadratically over a long run of brackets. A real
+   * provider-id tag is a dozen characters; 128 is generous and leaves the
+   * behaviour identical for anything genuine.
+   */
+  return name.replace(/[{[]\s{0,8}(?:tv|tm|im)db(?:id)?[-=:\s][^}\]]{0,128}[}\]]/gi, ' ').replace(/\s{2,}/g, ' ').trim();
 }
 
 /** Trailing separators dropped and case folded, for comparing folder paths. */

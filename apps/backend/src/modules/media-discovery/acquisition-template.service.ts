@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import type { AcquisitionRuleTemplateCandidate, Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { escapeRegex } from '../../common/escape-regex';
 
 /**
  * HOW a discovered title should be acquired: an ordered ladder of release
@@ -339,5 +340,21 @@ function patternFor(candidate: { matchType: string; pattern: string | null }, ti
   if (candidate.matchType === 'smart_episode_match' || candidate.matchType === 'smart_movie_match') {
     return title;
   }
-  return candidate.pattern?.trim() ? candidate.pattern : title;
+  if (candidate.pattern?.trim()) return candidate.pattern;
+
+  /*
+   * The fallback substitutes a TITLE where a pattern was expected, and a title
+   * is literal text that a metadata provider chose — not an expression somebody
+   * wrote. For a `regex` rung it was being compiled as one.
+   *
+   * Two things went wrong with that. `S.W.A.T. Exiles` stops meaning what it
+   * says: every `.` matches any character, so the rung quietly matches releases
+   * it should not. And a title is untrusted input from TMDB or TVmaze, so a
+   * name containing nested quantifiers becomes a pattern evaluated against every
+   * item in every polled feed.
+   *
+   * `wildcard` is left alone: its own conversion escapes the metacharacters and
+   * deliberately keeps `*` and `?`, which is what makes it a wildcard.
+   */
+  return candidate.matchType === 'regex' ? escapeRegex(title) : title;
 }

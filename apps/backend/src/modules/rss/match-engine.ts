@@ -177,6 +177,14 @@ function dropLeadingArticle(toks: string[]): string[] {
  * are stripped before comparing; leading-article differences are ignored. A
  * *leading* year is kept — it can be the whole title ("2020").
  */
+/**
+ * How much of a release name an operator-authored regular expression may see.
+ *
+ * Release names run to roughly a hundred characters; a kilobyte is far beyond
+ * anything genuine and short enough that a pathological pattern still returns.
+ */
+const MAX_REGEX_SUBJECT = 1024;
+
 export function showTitleMatch(pattern: string, title: string): boolean {
   if (!pattern) return true;
   const pat = dropLeadingArticle(tokens(pattern));
@@ -398,7 +406,19 @@ function coreMatch(
       } catch {
         return { label: 'regex', passed: false, detail: 'invalid regular expression' };
       }
-      const passed = re.test(title);
+      /*
+       * The pattern is the operator's — writing one is the point of this match
+       * type — but the TITLE is not: it arrives from a feed, and a feed is a
+       * third party. A pattern that backtracks badly is cheap on a normal
+       * release name and expensive on a long one, and this runs inside the poll
+       * loop against every item of every feed.
+       *
+       * Bounding the subject is the mitigation that does not require judging the
+       * pattern: backtracking cost scales with input length, so a cap makes even
+       * a careless expression finish. No real release name approaches it, and
+       * truncating cannot turn a non-match into a match.
+       */
+      const passed = re.test(title.length > MAX_REGEX_SUBJECT ? title.slice(0, MAX_REGEX_SUBJECT) : title);
       return { label: 'regex', passed, detail: passed ? 'regex matched' : 'regex did not match' };
     }
     case 'wildcard': {

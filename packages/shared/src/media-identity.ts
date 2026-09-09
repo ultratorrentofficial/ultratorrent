@@ -31,10 +31,19 @@ const LATEST_PLAUSIBLE_YEAR = 2999;
  * Anchored to the END on purpose. `(2022)` at the end of "Tulsa King (2022)" is
  * how a UI renders a year; the same digits anywhere else are part of the name.
  */
-const TRAILING_YEAR = /[\s._-]*[([]\s*(\d{4})\s*[)\]]\s*$/;
+/*
+ * The separator run is BOUNDED.
+ *
+ * `[\s._-]*` is unanchored and the pattern is tried at every position, so a
+ * title made of separators costs O(n²) — a canonicalisation that runs on every
+ * provider title, every RSS rule name and every library item. Thirty-two is far
+ * more than any real title puts between its name and its year, so the semantics
+ * are unchanged for anything genuine while the backtracking becomes linear.
+ */
+const TRAILING_YEAR = /[\s._-]{0,32}[([]\s*(\d{4})\s*[)\]]\s*$/;
 
 /** A bare trailing year, as release names write it: `The.Terminal.List.2022`. */
-const TRAILING_BARE_YEAR = /[\s._-]+(\d{4})\s*$/;
+const TRAILING_BARE_YEAR = /[\s._-]{1,32}(\d{4})\s*$/;
 
 export interface CanonicalTitle {
   /** Display form, year suffix removed, whitespace tidied. */
