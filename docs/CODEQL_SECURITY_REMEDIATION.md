@@ -558,6 +558,49 @@ That is the fourth time in this backlog that a correct fix has left an alert
 standing, and the second where it created one. Documented rather than worked
 around: making the loop invisible to the rule would mean writing worse code.
 
+### SECURITY-07 — the remaining High singles (6 alerts)
+
+| Alert | Rule | Location | Disposition |
+| --- | --- | --- | --- |
+| #13 | `js/loop-bound-injection` | `subtitle-validator.ts:94` | **Fixed at the source** |
+| #82 | `js/insecure-temporary-file` | `web:capture-screenshots.mjs:435` | **Fixed** |
+| #74, #75 | `js/user-controlled-bypass` | `media.service.ts:351,393` | False positive |
+| #165, #166 | `js/bad-tag-filter` | `fe:lib/subtitles.ts:77` and its spec | False positive |
+
+**#13 — the loop was already bounded, but only by three providers out of four.**
+`parseSrtVtt` iterates the lines of a downloaded subtitle file. Following the
+bound upstream showed OpenSubtitles, Podnapisi and SubDL each refuse a body over
+`MAX_SUB_BYTES` (3 MB) — and `local-repository.provider.ts` read whatever was on
+disk straight into a string with no limit at all.
+
+Containment says the file is inside a storage root; it says nothing about how
+big it is, and a torrent unpacking into the library is enough to put a very large
+file with a `.srt` name there. `readFile` would load the whole thing into memory
+before the parser saw a line. The local provider now checks `stat` first and
+refuses past the same 3 MB limit — checked rather than read-and-measured,
+because reading it is the part that costs. Four tests.
+
+**#82 — a predictable path in `/tmp`.** A docs build script wrote its run summary
+to `/tmp/shots-report.json`. Not production and not reachable in any deployment,
+but on a shared machine another user can create that name as a symlink first and
+the script writes through it. Nothing reads the file, so it now sits beside the
+screenshots it describes. Fixed rather than dismissed because it costs one line;
+unlike test code, moving a script's output distorts nothing.
+
+**#74, #75 — not a security check.** `testTmdbKey` and `testTvdbKey` guard on
+`if (!key)`, which is an emptiness check, and the "sensitive action" it guards is
+verifying a key against the provider — the entire purpose of the endpoint.
+Authorization was confirmed as instructed: both are `@RequirePermissions(SETTINGS_MANAGE)`,
+and neither response echoes the key.
+
+**#165, #166 — the rule pattern-matched.** `js/bad-tag-filter` warns that a
+regex parsing `-->` misses the `--!>` form of an HTML comment end tag. There is
+no HTML here: `-->` is the SRT/VTT cue separator (`00:00:01,000 --> 00:00:04,000`)
+and the line is format detection, not sanitization. One of the two alerts is on
+the spec file.
+
+**Verification status.** Requires a rescan.
+
 ### Remaining High groups (not yet remediated)
 
 Audited and grouped by root cause; **no code changed yet**. Recorded here so the

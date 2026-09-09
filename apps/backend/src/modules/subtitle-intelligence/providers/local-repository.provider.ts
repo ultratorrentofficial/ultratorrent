@@ -8,7 +8,7 @@
  * config row can never escape the allow-list.
  */
 import { Logger } from '@nestjs/common';
-import { readFile, readdir } from 'node:fs/promises';
+import { readFile, readdir , stat } from 'node:fs/promises';
 import * as path from 'node:path';
 import { SubtitleTags, subtitleTagsFromName } from '../../../common/languages';
 import {
@@ -21,6 +21,9 @@ import {
   SubtitleSearchQuery,
   detectSubtitleFormat,
 } from './subtitle-provider';
+
+/** Matches the remote providers: a real subtitle is orders of magnitude smaller. */
+const MAX_SUB_BYTES = 3 * 1024 * 1024;
 
 /** The slice of FilePathService the provider needs — keeps it DI-light + testable. */
 export interface FsGuard {
@@ -185,6 +188,26 @@ export class LocalRepositoryProvider implements SubtitleProvider {
     const raw = candidate.providerFileId ?? candidate.downloadUrl?.replace(/^local:/, '');
     if (!raw) throw new Error('candidate has no local path');
     const safe = this.guard.assertWithinHardRoots(raw);
+
+    /*
+     * Bounded like every other provider.
+     *
+     * The remote providers each refuse a body over `MAX_SUB_BYTES`; this one
+     * read whatever was on disk into a string. Containment says the file is
+     * inside a storage root — it does not say the file is small, and a torrent
+     * unpacking into the library is enough to put a multi-gigabyte file with a
+     * `.srt` name there. `readFile` would then load the whole thing into memory
+     * before the parser ever saw a line.
+     *
+     * Checked with `stat` rather than by reading and measuring, because reading
+     * it is the part that costs.
+     */
+    const info = await stat(safe);
+    if (info.size > MAX_SUB_BYTES) {
+      throw new Error(
+        `Subtitle file is too large (${info.size} bytes, limit ${MAX_SUB_BYTES})`,
+      );
+    }
     const content = await readFile(safe, 'utf8');
     const format = detectSubtitleFormat(safe) ?? 'srt';
     return { content, format, byteLength: Buffer.byteLength(content) };

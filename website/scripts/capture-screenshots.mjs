@@ -432,4 +432,13 @@ if (withErrors.length) {
   console.log('\nCaptured, but the page logged a JS error:');
   for (const o of withErrors) console.log(`  ${o.name}: ${o.errors[0]}`);
 }
-fs.writeFileSync('/tmp/shots-report.json', JSON.stringify({ ok, failed }, null, 2));
+/*
+ * Written beside the screenshots rather than to a fixed path in /tmp.
+ *
+ * `/tmp/shots-report.json` is predictable and world-writable-adjacent: on a
+ * shared machine another user can create that name as a symlink first, and this
+ * script then writes through it. Nothing reads the file — it is a run summary —
+ * so putting it next to the output it describes costs nothing and removes the
+ * question.
+ */
+fs.writeFileSync(path.join(OUT, 'capture-report.json'), JSON.stringify({ ok, failed }, null, 2));
