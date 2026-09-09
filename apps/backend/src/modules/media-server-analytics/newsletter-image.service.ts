@@ -169,6 +169,10 @@ export class NewsletterImageService {
       const clientId = this.cipher.decrypt(cfg.encryptedImgurClientId);
       const res = await fetch('https://api.imgur.com/3/image', {
         method: 'POST',
+        // The host is a constant, so this is not a redirect to somewhere new —
+        // it is a redirect carrying the `Client-ID` header somewhere new. Same
+        // reasoning as the provider clients hardened in the SSRF work.
+        redirect: 'error',
         headers: { Authorization: `Client-ID ${clientId}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: buf.toString('base64'), type: 'base64' }),
         signal: AbortSignal.timeout(15000),

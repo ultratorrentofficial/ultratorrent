@@ -7,6 +7,12 @@ on:
   schedule:
     - cron: '0 6 * * 1' # weekly
 
+# Read-only, for every job here. Gitleaks reads history, the audits read the
+# lockfile and Trivy reads a locally built image; none of them writes anything
+# back, and these run on pull requests where the diff is not yet trusted.
+permissions:
+  contents: read
+
 jobs:
   secret-scan:
     runs-on: ubuntu-latest
@@ -15,7 +21,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Gitleaks secret scan
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Assert no private keys committed
@@ -58,14 +64,14 @@ jobs:
       - name: Build Community image
         run: docker build -f apps/backend/Dockerfile -t ultratorrent/community:backend .
       - name: Trivy image scan — BLOCK on fixable critical
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ultratorrent/community:backend
           severity: CRITICAL
           ignore-unfixed: true # don't fail on base-image CVEs with no fix yet
           exit-code: '1'
       - name: Trivy image scan (high+, report only)
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ultratorrent/community:backend
           severity: HIGH,CRITICAL

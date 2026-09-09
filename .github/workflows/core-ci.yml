@@ -5,6 +5,13 @@ on:
     branches: [main, master]
   pull_request:
 
+# The GITHUB_TOKEN gets only what the jobs use, which is reading the checkout.
+# Without a block the token takes the repository default, and a workflow that
+# builds Docker images from a pull request is exactly where a write-capable
+# default becomes worth having.
+permissions:
+  contents: read
+
 jobs:
   build-test:
     runs-on: ubuntu-latest

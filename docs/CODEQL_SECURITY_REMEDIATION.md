@@ -617,6 +617,72 @@ check-then-use pair, so bounding a read created an alert.
 High stayed at 90. That is the fifth time in this effort that a correct fix has
 not reduced the count, and the third where it raised one.
 
+## Medium findings
+
+### SECURITY-08 — GitHub Actions hygiene (10 alerts) — fixed
+
+The only group in this backlog where the alert count and the risk agree.
+
+**`actions/unpinned-tag` (4).** Three third-party actions ran from a mutable
+ref, and one of them — `aquasecurity/trivy-action@master` — from a **branch**.
+A tag can be moved and a branch moves by definition, so each CI run fetched
+whatever that repository's owner had published most recently. If any of those
+projects were compromised, the next run would execute the attacker's code inside
+this repository's CI with whatever token it holds. Now pinned to commit SHAs,
+each with the version in a trailing comment so the ref is still readable:
+
+| Action | Pinned to |
+| --- | --- |
+| `gitleaks/gitleaks-action` | `ff98106…` (v2) |
+| `aquasecurity/trivy-action` | `ed142fd…` (v0.36.0 — a release, replacing `master`) |
+| `contributor-assistant/github-action` | `ca4a40a…` (v2.6.1) |
+
+Annotated tags were dereferenced to the commit they point at, rather than pinning
+the tag object. `actions/*` and `github/codeql-action/*` are left on version tags:
+they are GitHub-owned, which is a different trust level, and the rule does not
+flag them.
+
+**`actions/missing-workflow-permissions` (6).** `core-ci.yml` (2 jobs) and
+`security.yml` (4 jobs) declared no `permissions`, so `GITHUB_TOKEN` took the
+repository default. Both now declare `contents: read` at workflow level, which is
+all any of those jobs uses: Gitleaks reads history, the audits read the lockfile,
+Trivy reads a locally built image, and the CI job builds. Nothing writes back.
+
+This matters most on `pull_request`, where the code being built is not yet
+trusted — a write-capable default token in a job that runs a contributor's diff
+is the shape of a supply-chain problem. `cla.yml` and `docs.yml` already declared
+theirs and were not flagged; `codeql.yml` declares per-job.
+
+**Verified:** all five workflow files parse, and every third-party `uses:` now
+carries a SHA.
+
+### SECURITY-09 — the three JS medium alerts — false positives
+
+| Alert | Location | Why |
+| --- | --- | --- |
+| #163, #77 | `media-artwork.service.ts:616, 845` | The untrusted value is the **buffer**, not the path |
+| #81 | `newsletter-image.service.ts:173` | Outbound body depends on file data; the destination is a constant |
+
+**#163, #77 (`js/http-to-file-access`).** Writing downloaded image bytes to disk
+is what the feature does. Every component of the path is server-controlled — the
+storage root, fixed directory names, the artwork type, `Date.now()`, and an
+extension from a three-entry map — and `assertWithinHardRoots` is applied anyway,
+with a comment saying it is belt-and-braces. The two things that would make this
+real are both already handled: the buffer is capped at `MAX_ARTWORK_BYTES`
+(10 MB) at both sites, and the MIME comes from `sniffImageMime(buffer)` — the
+file's own magic bytes — so `MIME_EXT[mime]` cannot be steered by a remote
+`Content-Type` header.
+
+**#81 (`js/file-access-to-http`).** The destination is the literal
+`https://api.imgur.com/3/image`, so there is no SSRF; the upload is opt-in
+(nothing happens without a configured client ID) and the payload is bounded
+upstream at 12 MB raw / 500 KB resized.
+
+**One defensive improvement applied anyway:** the Imgur call now uses
+`redirect: 'error'`. The host is constant, so this is not about reaching a new
+destination — it is about not carrying the `Client-ID` header to one. Same
+reasoning as the provider clients in SECURITY-01.
+
 ### Remaining High groups (not yet remediated)
 
 Audited and grouped by root cause; **no code changed yet**. Recorded here so the
