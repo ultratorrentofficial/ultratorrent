@@ -1,5 +1,32 @@
 import { BadRequestException } from '@nestjs/common';
 import { mkdtemp, mkdir, writeFile, rm, symlink, unlink } from 'node:fs/promises';
+
+/**
+ * The swap has to happen BETWEEN the service's `stat` and its `open`, and it has
+ * to happen on every runner rather than whenever module binding happens to
+ * cooperate. Wrapping the real `stat` in a module factory is the only form that
+ * intercepts the binding the service actually imported.
+ *
+ * `swapAfterStatOf` is null for every test but the one that wants the race.
+ */
+let swapAfterStatOf: string | null = null;
+
+jest.mock('node:fs/promises', () => {
+  const actual = jest.requireActual('node:fs/promises');
+  return {
+    ...actual,
+    stat: async (...args: unknown[]) => {
+      const info = await actual.stat(...(args as [string]));
+      if (swapAfterStatOf && String(args[0]) === swapAfterStatOf) {
+        const path = swapAfterStatOf;
+        swapAfterStatOf = null; // once, so the re-read inside the service is stable
+        await actual.unlink(path);
+        await actual.writeFile(path, 'substituted');
+      }
+      return info;
+    },
+  };
+});
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { FilesService } from './files.service';
@@ -32,6 +59,7 @@ describe('previewing a file that is replaced underneath the read', () => {
   });
 
   afterEach(async () => {
+    swapAfterStatOf = null;
     await rm(root, { recursive: true, force: true });
   });
 
@@ -52,23 +80,15 @@ describe('previewing a file that is replaced underneath the read', () => {
     await writeFile(target, 'original');
     await writeFile(decoy, 'substituted');
 
-    const realStat = jest.requireActual('node:fs/promises').stat;
-    const fsp = require('node:fs/promises');
-    const spy = jest.spyOn(fsp, 'stat').mockImplementation(async (...args: unknown[]) => {
-      const info = await realStat(...(args as [string]));
-      // The check has happened; swap the name before the read opens it.
-      if (String(args[0]) === target) {
-        await unlink(target);
-        await writeFile(target, 'substituted');
-      }
-      return info;
-    });
+    /*
+     * `jest.spyOn` on the module object does not reliably intercept the binding
+     * the service imported — it worked locally and did not in CI, which makes it
+     * the wrong tool. `jest.mock` with a factory replaces the binding itself, so
+     * the swap happens deterministically on every runner.
+     */
+    swapAfterStatOf = target;
 
-    try {
-      await expect(svc.preview('/swap.txt')).rejects.toBeInstanceOf(BadRequestException);
-    } finally {
-      spy.mockRestore();
-    }
+    await expect(svc.preview('/swap.txt')).rejects.toBeInstanceOf(BadRequestException);
   });
 
   /*
