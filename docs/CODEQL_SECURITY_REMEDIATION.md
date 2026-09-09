@@ -17,13 +17,17 @@ is indistinguishable from one that was suppressed.
 Taken from the GitHub code-scanning API on **2026-09-08**, against `main` at
 `9549d3e2`, before any remediation.
 
-| Severity | Baseline | After Phase 1 |
-| --- | --- | --- |
-| Critical | 8 | **4** (all 4 documented as by-design) |
-| High | 103 | 101 |
-| Medium | 13 | 13 |
-| Quality-only (no security severity) | 39 | 39 |
-| **Total open** | **163** | **157** |
+| Severity | Baseline | After Phase 1 | After Phase 2 |
+| --- | --- | --- | --- |
+| Critical | 8 | **4** (all 4 by-design) | 4 |
+| High | 103 | 101 | 101 |
+| Medium | 13 | 13 | 13 |
+| Quality-only (no security severity) | 39 | 39 | 39 |
+| **Total open** | **163** | **157** | **157** |
+
+Phase 2 closed no alerts, by design — see SECURITY-05. Of the 101 High, **56 now
+carry a documented false-positive disposition** backed by tests, leaving 45
+genuinely unexamined.
 
 Post-Phase-1 counts are from a real CodeQL run against `210f3911`, not an
 estimate. Six alerts closed as `fixed`: three type-confusion, two
@@ -254,6 +258,21 @@ Every case ends contained or refused. **No hole was found.**
 **Disposition: documented false positives**, for the 56 alerts covered by those
 gates. They should be dismissed in the GitHub UI as *won't fix — by design*,
 citing this section, rather than left to accumulate.
+
+**Verification — rescanned, and the count did not move.** CodeQL ran against
+`7d16f6bc`: `js/path-injection` remains at **68**, including the 12 in
+`storage-capability-detector`. That is the correct outcome and worth stating
+plainly rather than dressing up. The fix there is a *shape* check — the root must
+be absolute — not a containment sanitizer, and the dataflow from storage-profile
+configuration to a filesystem call still exists because probing a configured root
+is the entire purpose of the service. Nothing in this group can be closed by
+writing better code; these alerts close by being dismissed with a reason, or not
+at all.
+
+What the work delivered was therefore not a lower number: it was one real bug
+fixed, and 56 alerts moved from *unexamined* to *false positive with adversarial
+tests behind the claim*. The distinction matters, because an unexamined alert and
+a dismissed one look identical in a backlog and are not the same thing.
 
 ### SECURITY-05b — `storage-capability-detector` (12 alerts) — genuine gap, fixed
 
