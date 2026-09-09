@@ -18,6 +18,15 @@ import { ContextActionBar } from './ContextActionBar';
 import { EMPTY_SELECTION, applyClick, clearSelection, pruneSelection, toggleChecked, type SelectionState } from './selection';
 
 /**
+ * One shared empty array, so a fallback is the SAME reference every render.
+ *
+ * `?? []` allocates a new array each time, which changes the identity every
+ * downstream `useMemo` depends on — the memo then recomputes on every render
+ * and does nothing at all, precisely while the query is still loading.
+ */
+const EMPTY_LIST: never[] = [];
+
+/**
  * One show, drilled into its seasons and episodes.
  *
  * The Library → Show → Season → Episode path, served entirely by the existing
@@ -107,7 +116,7 @@ export function ShowDetailView({
     return map;
   }, [health.data]);
 
-  const seasons = query.data?.seasons ?? [];
+  const seasons = query.data?.seasons ?? EMPTY_LIST;
 
   /*
    * The show's folder, derived from any episode's path rather than requested

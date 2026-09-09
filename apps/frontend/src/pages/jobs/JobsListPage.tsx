@@ -20,6 +20,15 @@ import { ActionMenu } from '@/actions/ActionMenu';
 import { useContextActions } from '@/actions/useContextActions';
 import type { EntityRef } from '@ultratorrent/shared';
 
+/**
+ * One shared empty array, so a fallback is the SAME reference every render.
+ *
+ * `?? []` allocates a new array each time, which changes the identity every
+ * downstream `useMemo` depends on — the memo then recomputes on every render
+ * and does nothing at all, precisely while the query is still loading.
+ */
+const EMPTY_LIST: never[] = [];
+
 const PAGE_SIZE = 25;
 
 /**
@@ -111,7 +120,7 @@ export function JobsListPage() {
     },
   });
 
-  const jobs = query.data?.items ?? [];
+  const jobs = query.data?.items ?? EMPTY_LIST;
   const total = query.data?.total ?? 0;
   const allSelected = jobs.length > 0 && jobs.every((j) => selected.has(j.id));
   const toggle = (id: string) =>

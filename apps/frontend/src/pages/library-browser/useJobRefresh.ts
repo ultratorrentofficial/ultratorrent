@@ -27,6 +27,12 @@ const POLL_CEILING_MS = 10 * 60 * 1000;
  * finished would be noise.
  */
 export function useJobRefresh(queryKey: readonly unknown[]): (jobId: string) => void {
+  /*
+   * The key by VALUE. Call sites pass an array literal, so `queryKey` is a fresh
+   * reference every render; depending on it directly would resubscribe and
+   * re-create the callback on each one. This changes only when the contents do.
+   */
+  const keyId = JSON.stringify(queryKey);
   const qc = useQueryClient();
   const watched = useRef(new Set<string>());
 
@@ -44,9 +50,15 @@ export function useJobRefresh(queryKey: readonly unknown[]): (jobId: string) => 
       (event) => wsClient.on(event, onSettled as never),
     );
     return () => offs.forEach((off) => off());
-    // The key is a literal at every call site; stringified so a fresh array
-    // identity each render does not resubscribe on every render.
-  }, [qc, JSON.stringify(queryKey)]);
+    /*
+     * `keyId`, not `queryKey`. Call sites pass an array literal, so the array is
+     * a new reference on every render and depending on it directly would tear
+     * down and re-establish the socket subscription each time. The stringified
+     * form changes only when the key's CONTENTS change, which is the actual
+     * condition for resubscribing.
+     */
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyId is queryKey by value
+  }, [qc, keyId]);
 
   /*
    * The event is the fast path, not the only one. It is delivered over a socket
@@ -85,7 +97,8 @@ export function useJobRefresh(queryKey: readonly unknown[]): (jobId: string) => 
           .catch(() => undefined);
       }, POLL_MS);
     },
-    // Same stringification as above: the key is a literal at the call site.
-    [qc, JSON.stringify(queryKey)],
+    // Same reasoning as the subscription above: by value, not by identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyId is queryKey by value
+    [qc, keyId],
   );
 }

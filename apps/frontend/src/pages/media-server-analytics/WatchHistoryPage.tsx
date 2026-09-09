@@ -10,6 +10,15 @@ import { Badge, type BadgeVariant } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { MediaServerIcon } from '@/components/media-servers/MediaServerIcon';
 
+/**
+ * One shared empty array, so a fallback is the SAME reference every render.
+ *
+ * `?? []` allocates a new array each time, which changes the identity every
+ * downstream `useMemo` depends on — the memo then recomputes on every render
+ * and does nothing at all, precisely while the query is still loading.
+ */
+const EMPTY_LIST: never[] = [];
+
 const PAGE_SIZE = 50;
 
 function duration(seconds: number | null): string {
@@ -98,7 +107,7 @@ export function WatchHistoryPage() {
   const servers = new Map((dash.data?.connections ?? []).map((c) => [c.id, { name: c.name, kind: c.kind }]));
   const showServer = servers.size > 1;
 
-  const rows = q.data?.items ?? [];
+  const rows = q.data?.items ?? EMPTY_LIST;
 
   // Summary before detail: what this page of history amounts to, so the table
   // answers "what happened" rather than being the only thing that answers it.

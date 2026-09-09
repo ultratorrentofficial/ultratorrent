@@ -10,6 +10,15 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
 
+/**
+ * One shared empty array, so a fallback is the SAME reference every render.
+ *
+ * `?? []` allocates a new array each time, which changes the identity every
+ * downstream `useMemo` depends on — the memo then recomputes on every render
+ * and does nothing at all, precisely while the query is still loading.
+ */
+const EMPTY_LIST: never[] = [];
+
 const TONE: Record<MigrationVerdict, 'success' | 'secondary' | 'warning'> = {
   convertible: 'success',
   already_managed: 'secondary',
@@ -66,7 +75,7 @@ export function MigrationWizardPage() {
     onError: (e) => toast.error(t('migrate.revertFailed'), e instanceof ApiError ? e.message : undefined),
   });
 
-  const rows = preview.data ?? [];
+  const rows = preview.data ?? EMPTY_LIST;
   const convertible = useMemo(() => rows.filter((r) => r.verdict === 'convertible'), [rows]);
   const managed = useMemo(() => rows.filter((r) => r.verdict === 'already_managed'), [rows]);
 

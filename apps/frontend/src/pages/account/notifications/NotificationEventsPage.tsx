@@ -12,6 +12,15 @@ import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
 
+/**
+ * One shared empty array, so a fallback is the SAME reference every render.
+ *
+ * `?? []` allocates a new array each time, which changes the identity every
+ * downstream `useMemo` depends on — the memo then recomputes on every render
+ * and does nothing at all, precisely while the query is still loading.
+ */
+const EMPTY_LIST: never[] = [];
+
 /** The four columns, in the order the table reads left to right. */
 const CHANNELS: Array<{ type: NotificationChannelType; icon: typeof Bell }> = [
   { type: 'in_app', icon: Bell },
@@ -74,7 +83,7 @@ export function NotificationEventsPage() {
     onError: (e: Error) => toast.error(e?.message || t('events.saveFailed')),
   });
 
-  const rows = prefs.data?.rows ?? [];
+  const rows = prefs.data?.rows ?? EMPTY_LIST;
 
   const categories = useMemo(
     () => [...new Set(rows.map((r) => r.definition.category))].sort(),

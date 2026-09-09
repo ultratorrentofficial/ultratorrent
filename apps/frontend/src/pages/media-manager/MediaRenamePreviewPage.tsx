@@ -25,6 +25,15 @@ import { CenteredSpinner } from '@/components/ui/feedback';
 import { cn } from '@/lib/utils';
 import { presetLabel, modeLabel } from './constants';
 
+/**
+ * One shared empty array, so a fallback is the SAME reference every render.
+ *
+ * `?? []` allocates a new array each time, which changes the identity every
+ * downstream `useMemo` depends on — the memo then recomputes on every render
+ * and does nothing at all, precisely while the query is still loading.
+ */
+const EMPTY_LIST: never[] = [];
+
 /** Destinations that appear more than once in a plan are conflicts. */
 function conflictSet(plan: RenamePlan | undefined): Set<string> {
   const seen = new Map<string, number>();
@@ -53,7 +62,7 @@ export function MediaRenamePreviewPage() {
   const [showUnchanged, setShowUnchanged] = useState(false);
   const [showSkipped, setShowSkipped] = useState(false);
 
-  const libraries = librariesQuery.data ?? [];
+  const libraries = librariesQuery.data ?? EMPTY_LIST;
   const library: MediaLibrary | undefined = libraries.find((l) => l.id === libraryId);
 
   const libraryOptions = useMemo(

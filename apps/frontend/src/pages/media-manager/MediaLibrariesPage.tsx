@@ -140,9 +140,9 @@ export function MediaLibrariesPage() {
       offCompleted();
       offFailed();
     };
-    // `toast`/`t` are closed over by the completed handler. Both are stable, so this
-    // re-subscribes only on a language change, which is harmless.
-  }, [toast, t]);
+    // `toast`/`t`/`queryClient` are closed over by the completed handler. All are
+    // stable, so this re-subscribes only on a language change, which is harmless.
+  }, [toast, t, queryClient]);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['media', 'libraries'],

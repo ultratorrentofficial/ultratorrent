@@ -124,7 +124,7 @@ export function TorrentActionsBar({ torrent, onDeleted }: TorrentActionsBarProps
         void override('force_start', t('scheduler.overrides.kind.force_start')),
       'torrent_scheduler.clearOverrides': () => void clearAll(),
     };
-  }, [torrent.hash, t, toast, queryClient]);
+  }, [torrent.hash, torrent.engineId, t, toast, queryClient]);
 
   return (
     <>

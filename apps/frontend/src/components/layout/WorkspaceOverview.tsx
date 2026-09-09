@@ -10,6 +10,15 @@ import type { NavGroup } from '@/components/layout/navigation';
 import { cn } from '@/lib/utils';
 
 /**
+ * One shared empty array, so a fallback is the SAME reference every render.
+ *
+ * `?? []` allocates a new array each time, which changes the identity every
+ * downstream `useMemo` depends on — the memo then recomputes on every render
+ * and does nothing at all, precisely while the query is still loading.
+ */
+const EMPTY_LIST: never[] = [];
+
+/**
  * A workspace's **Overview** — its landing page. Composes the workspace's Quick Actions,
  * its navigable pages (the {@link ModuleHub} tile grid), and a live Active-Jobs widget
  * for workspaces that run background work. Everything is built from RBAC/module-filtered
@@ -18,7 +27,7 @@ import { cn } from '@/lib/utils';
  */
 export function WorkspaceOverview({ group }: { group: NavGroup }) {
   const { actions } = usePaletteProviders();
-  const actionIds = WORKSPACE_ACTION_IDS[group.id] ?? [];
+  const actionIds = WORKSPACE_ACTION_IDS[group.id] ?? EMPTY_LIST;
   const quickActions = useMemo(
     () => actionIds.map((id) => actions.find((a) => a.id === id)).filter((a): a is NonNullable<typeof a> => !!a),
     [actionIds, actions],

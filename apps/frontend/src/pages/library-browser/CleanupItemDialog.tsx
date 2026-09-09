@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -47,13 +47,18 @@ export function CleanupItemDialog({
 
   // A real run pins an immutable PUBLISHED version, so a draft-only policy
   // would 400 from a control that looked available.
-  const runnable = (policies.data?.items ?? []).filter((p) => !!p.publishedVersionId);
+  const runnable = useMemo(
+    () => (policies.data?.items ?? []).filter((p) => !!p.publishedVersionId),
+    [policies.data],
+  );
 
   // Preselect when there is only one sensible answer, so the common case is one
   // click rather than a picker with a single option.
   useEffect(() => {
     if (runnable.length === 1) setPolicyId(runnable[0].id);
-  }, [runnable.length]);
+    // On `runnable` rather than its length: a list that stays one entry long
+    // while that entry CHANGES would otherwise leave the old id selected.
+  }, [runnable]);
 
   const run = useMutation({
     mutationFn: () => api.cleanup.runPolicyOnItems(policyId, itemIds),

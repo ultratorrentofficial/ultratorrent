@@ -19,6 +19,15 @@ import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedbac
 import { formatBytes } from '@/lib/format';
 import { CleanupHeader, StatusBadge, toNum } from './_shared';
 
+/**
+ * One shared empty array, so a fallback is the SAME reference every render.
+ *
+ * `?? []` allocates a new array each time, which changes the identity every
+ * downstream `useMemo` depends on — the memo then recomputes on every render
+ * and does nothing at all, precisely while the query is still loading.
+ */
+const EMPTY_LIST: never[] = [];
+
 export function CleanupRunDetailPage() {
   const { t } = useTranslation('cleanup');
   const toast = useToast();
@@ -49,7 +58,7 @@ export function CleanupRunDetailPage() {
     onError: (e) => toast.error(t('common.actionFailed'), e instanceof ApiError ? e.message : undefined),
   });
 
-  const rows = query.data?.items ?? [];
+  const rows = query.data?.items ?? EMPTY_LIST;
   const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
   const toggleAll = () => {
     setSelected((prev) => {
