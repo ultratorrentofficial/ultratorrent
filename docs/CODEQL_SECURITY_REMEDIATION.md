@@ -17,13 +17,16 @@ is indistinguishable from one that was suppressed.
 Taken from the GitHub code-scanning API on **2026-09-08**, against `main` at
 `9549d3e2`, before any remediation.
 
-| Severity | Baseline | Phase 1 | Phase 2 (paths) | Phase 2 (regex) |
-| --- | --- | --- | --- | --- |
-| Critical | 8 | **4** (all by-design) | 4 | 4 |
-| High | 103 | 101 | 101 | **98** |
-| Medium | 13 | 13 | 13 | 13 |
-| Quality-only | 39 | 39 | 39 | 39 |
-| **Total open** | **163** | **157** | **157** | **154** |
+| Severity | Baseline | Phase 1 | Paths | Regex | Property injection |
+| --- | --- | --- | --- | --- | --- |
+| Critical | 8 | **4** (by-design) | 4 | 4 | 4 |
+| High | 103 | 101 | 101 | 98 | **92** |
+| Medium | 13 | 13 | 13 | 13 | 13 |
+| Quality-only | 39 | 39 | 39 | 39 | 39 |
+| **Total open** | **163** | 157 | 157 | 154 | **148** |
+
+**15 alerts closed as `fixed` across all phases**, and a further ~59 carry a
+documented false-positive disposition backed by tests.
 
 Phase 2 closed no alerts, by design — see SECURITY-05. Of the 101 High, **56 now
 carry a documented false-positive disposition** backed by tests, leaving 45
@@ -421,9 +424,11 @@ the bencode parser exercised through its public `infoHashFromTorrent` — a host
 key beside a real `info` yields the same hash as the clean torrent, and a torrent
 declaring no `info` is refused rather than satisfied by an inherited lookup.
 
-**Verification status.** Requires a rescan. These may persist: the rules detect a
-computed property write, which still happens — the guard changes *which keys
-reach it*, not that the write is dynamic.
+**Verification — rescanned.** CodeQL ran against `a9ea99c4`:
+`js/remote-property-injection` went **7 → 1**. All six configuration copies
+closed as `fixed`; only `bencode.ts` remains, because `out[key] = …` is still a
+dynamic write and `Object.create(null)` removes the *danger* rather than the
+dynamism. That one is a documented false positive.
 
 ### Remaining High groups (not yet remediated)
 
