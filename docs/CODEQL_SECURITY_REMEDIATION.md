@@ -703,6 +703,44 @@ to fix, and independent of the application code.
 
 ---
 
+## CVE-2026-59873 — the vulnerability npm brought with it
+
+Not a CodeQL finding. Found by verifying that the workflow hardening had not
+broken `security.yml`, which had been red on every recent run.
+
+**What it was.** Trivy blocked the backend image on `tar` 7.5.11 —
+*node-tar: Denial of Service via a crafted gzip bomb* — fixed in 7.5.19. Directly
+relevant to an application that handles archives.
+
+**Where it came from, and why nothing else could see it.** `tar` is not in this
+repository's lockfile and not on disk in any workspace: `npm ls tar` is empty,
+and re-resolving the image's dependency set produces no `tar` at all. It arrives
+inside **npm itself** — `node:22-bookworm-slim` ships npm 10.9.8, which bundles
+tar 7.5.11 at `/usr/local/lib/node_modules/npm/node_modules/tar`. Confirmed by
+running the base image directly.
+
+That is why it survives every audit of our own dependencies. `npm audit` and
+Dependabot read the manifest; this is in the toolchain, visible only to something
+that looks at the image. The container scan was the only gate that could have
+caught it, and it did.
+
+**The fix.** `npm install -g npm@10.9.9` in both stages of the backend
+Dockerfile — a patch bump on the version already there, carrying tar 7.5.22.
+Pinned rather than floated to `@10`, because this project builds reproducibly and
+the Trivy gate is what catches the next one, so pinning costs nothing.
+
+Removing npm from the runtime image would be stronger, and was rejected: the
+entrypoint is `npx prisma migrate deploy`, so it would mean changing how
+migrations are applied at boot — and those run at container start, where a
+failure crash-loops the backend. That is not a change to make inside a CVE fix.
+
+The frontend image is unaffected: its runtime stage is `nginx-unprivileged:alpine`
+and ships no npm or node at all.
+
+**Verified by building and scanning, not by reasoning.** The patched image
+reports npm 10.9.9 and tar 7.5.22, and the exact gate CI runs — Trivy,
+`--severity CRITICAL --ignore-unfixed --exit-code 1` — returns **0**.
+
 ## Remaining risks
 
 - **Four `js/request-forgery` alerts remain open by design** (#11, #12, #139,
@@ -718,15 +756,8 @@ to fix, and independent of the application code.
   next release, because it currently makes the "fresh build + boot" gate the only
   one actually enforcing anything.
 
-- **`security.yml`'s `container-scan` blocks on a real, fixable CRITICAL.**
-  `CVE-2026-59873` — `tar` 7.5.11 → 7.5.19, "node-tar: Denial of Service via
-  crafted gzip bomb" — reported against the built backend image. The gate is
-  working exactly as designed; the vulnerability is genuine and directly relevant
-  to an application that handles archives. It is **not** in the repository's
-  lockfile, so it enters during the image build, and no open Dependabot PR
-  addresses it. Pre-existing and unrelated to this remediation (it fails
-  identically on commits before it), but it is the reason that workflow is red
-  and it deserves its own fix.
+- ~~`security.yml`'s `container-scan` blocks on a real, fixable CRITICAL.~~
+  **Fixed** — see CVE-2026-59873 below.
 
 - **`npm run lint` does not run.** ESLint finds no configuration file anywhere in
   the repository, so the lint gate — including CI's `npm run lint --workspaces

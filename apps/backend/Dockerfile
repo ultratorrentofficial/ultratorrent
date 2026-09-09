@@ -27,6 +27,8 @@ COPY apps/backend/package.json apps/backend/
 # npm may keep some workspace deps NESTED (e.g. otplib under apps/backend/
 # node_modules) instead of hoisting to root. mkdir guarantees the dirs exist so
 # the runtime COPYs below never fail regardless of npm's hoisting decision.
+# Same patched npm as the runtime stage — the builder unpacks tarballs with it.
+RUN npm install -g npm@10.9.9
 RUN npm install && mkdir -p apps/backend/node_modules packages/shared/node_modules
 
 # Copy sources and build shared + backend (incl. prisma client).
@@ -70,6 +72,24 @@ WORKDIR /app
 # probe service degrades to a no-op rather than failing the boot.
 RUN apt-get update && apt-get install -y --no-install-recommends openssl mediainfo \
   && rm -rf /var/lib/apt/lists/*
+
+# npm's OWN bundled tar, patched.
+#
+# `node:22-bookworm-slim` ships npm 10.9.8, which bundles tar 7.5.11 —
+# CVE-2026-59873, a denial of service via a crafted gzip bomb. It is not one of
+# this project's dependencies (the lockfile has no `tar` at all); it arrives
+# inside npm itself, which is why it survives every audit of our own tree and is
+# only visible to an image scan. `security.yml`'s Trivy gate blocks on it.
+#
+# 10.9.9 is a patch bump on the version already here and carries tar 7.5.22.
+# Pinned rather than floated to `@10` because this project builds reproducibly —
+# and the Trivy gate is what catches the next one, so pinning costs nothing.
+#
+# The runtime image needs npm because the entrypoint runs `npx prisma migrate
+# deploy`; removing npm entirely would mean changing how migrations are applied
+# at boot, which is not a change to make inside a CVE fix.
+RUN npm install -g npm@10.9.9 && npm cache clean --force
+
 
 # Optional: bake the audio-based subtitle-sync stack (ffmpeg + ffsubsync).
 # OFF by default — it pulls ~400 MB of ffmpeg + a Python toolchain, and Subtitle
