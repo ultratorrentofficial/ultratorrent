@@ -8,6 +8,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -337,9 +338,12 @@ func emit(p *plan.Plan, asJSON bool, output string) error {
 		if err != nil {
 			return err
 		}
-		if err := p.WriteJSON(f); err != nil {
-			f.Close()
-			return err
+		if werr := p.WriteJSON(f); werr != nil {
+			// Same treatment as the config writer's failure path: the write error
+			// is the one that matters and stays first, but a close error on the
+			// way out is joined rather than dropped. `errors.Join` ignores a nil,
+			// so the message is unchanged when the close succeeds.
+			return errors.Join(werr, f.Close())
 		}
 		/*
 		 * Closed explicitly, and its error returned.
