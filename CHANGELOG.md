@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.90.12] - 2026-09-11
+
+### Fixed
+- Security: update socket.io-parser (4.2.7), multer (2.3.0), nodemailer (9.1.1), sharp (0.35.4) and react-router-dom (6.30.6) to close Dependabot advisories, including a pre-authentication memory exhaustion in the realtime socket parser and a single-request crash in multipart upload parsing
+
 ## [0.90.11] - 2026-09-11
 
 ### Fixed
