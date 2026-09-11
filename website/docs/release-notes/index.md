@@ -12,13 +12,42 @@ keywords: [release notes, changelog, versions, what's new, upgrade]
 This page is generated from `CHANGELOG.md` at build time. **Do not edit it by hand** — change the changelog and rebuild.
 :::
 
-Every released version, newest first. This page shows the **25 most recent** of **211** releases; the complete history lives in [CHANGELOG.md](https://github.com/ultratorrentofficial/ultratorrent/blob/main/CHANGELOG.md).
+Every released version, newest first. This page shows the **25 most recent** of **213** releases; the complete history lives in [CHANGELOG.md](https://github.com/ultratorrentofficial/ultratorrent/blob/main/CHANGELOG.md).
 
 Versions are [semantic](https://semver.org/): a **minor** bump means new capability, a **patch** means fixes only. Upgrading is covered in [Upgrading](/install/upgrading).
 
-## 0.90.9 — 2026-09-08
+## 0.90.11 — 2026-09-11
 
 _Latest release._
+
+### Fixed
+
+- Release a parked torrent once it finishes downloading. The revival test required a connected seed or active download throughput, and both are structurally zero for a completed torrent, so one that completed while parked was re-parked on every probe forever - and because the scheduler skips parked torrents, its seeding policy and age deadline were never evaluated again.
+- Resolve the remaining CodeQL quality findings: a test double that did not match the API it stood in for, two untested probe failure paths, and a discarded close error that could report a truncated plan as written
+- Media Discovery: the Monitored view is now sorted soonest release first and grouped under month headings, so upcoming premieres read chronologically
+
+Tagged [`v0.90.11`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.90.11).
+
+## 0.90.10 — 2026-09-09
+
+### Fixed
+
+- Media Discovery no longer adds unreleased shows to missing-episode tracking, which was searching indexers for episodes that had not aired
+- Provider endpoints are validated at a shared trust boundary, redirects refused, and public unsubscribe parameters type-checked at the request boundary
+- Storage capability probing refuses a root it cannot locate, so a blank storage profile path can no longer create and recursively delete a directory in the working directory
+- A generated acquisition rung no longer treats a provider-supplied show title as a regular expression, and title canonicalisation is bounded against pathological input
+- A hostile key in a torrent file or a provider configuration can no longer replace the prototype of the object it is copied into
+- A file replaced between the safety check and the read is now refused rather than served, and artwork thumbnails stream from the same file they were measured from
+- Provider HTML is reduced to text correctly: entity decoding no longer re-creates the tags that stripping removed, and a subtitle cue can no longer take quadratic time to render
+- A local subtitle file is now size-bounded like a downloaded one, so an oversized file in the library cannot be read whole into memory
+- CI actions are pinned to commit SHAs and the workflow token is limited to read access
+- The backend image ships a patched npm, fixing CVE-2026-59873 in the tar library npm bundles
+- The lint gate runs for the first time: ESLint is installed and configured, and the findings it surfaced are fixed
+- Fix React hook dependencies: a nullish empty-array fallback no longer defeats every downstream memo, and four hooks now list what they close over
+
+Tagged [`v0.90.10`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.90.10).
+
+## 0.90.9 — 2026-09-08
 
 ### Fixed
 
@@ -315,24 +344,6 @@ Tagged [`v0.85.6`](https://github.com/ultratorrentofficial/ultratorrent/releases
 - fix(renamer): climb the whole container chain, not three levels of it
 
 Tagged [`v0.85.5`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.85.5).
-
-## 0.85.4 — 2026-08-20
-
-### Fixed
-
-- Fetching artwork for a season downloads that season's cover, not the series poster
-- A TV rename asks the library for the show's title and year before the metadata provider, so a provider outage cannot fork a show into a second folder
-- Duplicate show detection works again — a :id route was swallowing shows/duplicates
-
-Tagged [`v0.85.4`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.85.4).
-
-## 0.85.3 — 2026-08-19
-
-### Fixed
-
-- The show poster an operator selects is the one the library shows, and a show's identity can be corrected by searching rather than typing an id
-
-Tagged [`v0.85.3`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.85.3).
 
 ## Older releases
 
