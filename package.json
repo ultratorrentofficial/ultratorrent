@@ -31,7 +31,7 @@
     "docs:serve": "npm --prefix website run serve"
   },
   "overrides": {
-    "multer": "^2.2.0"
+    "multer": "^2.3.0"
   },
   "engines": {
     "node": ">=20.0.0"
