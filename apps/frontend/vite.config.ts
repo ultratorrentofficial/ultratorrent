@@ -41,6 +41,10 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: true,
     chunkSizeWarningLimit: 900,
+    // Keep the ~500 flag-icons SVGs as separate, lazy-loaded files rather than
+    // base64-inlining the small ones into the CSS chunk: only the flags a page
+    // actually renders are then fetched. Everything else keeps Vite's default.
+    assetsInlineLimit: (filePath: string) => (/flag-icons[\\/].*\.svg$/.test(filePath) ? false : undefined),
     rollupOptions: {
       output: {
         manualChunks: {

@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
+import { CountryFlag } from './CountryFlag';
 
 function watchTime(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -25,12 +26,15 @@ function Widget({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Bars({ items, max }: { items: { label: string; plays: number }[]; max: number }) {
+function Bars({ items, max }: { items: { label: string; plays: number; countryCode?: string | null }[]; max: number }) {
   return (
     <div className="space-y-2">
       {items.map((it) => (
         <div key={it.label} className="flex items-center gap-3 text-sm">
-          <span className="w-32 shrink-0 truncate text-muted-foreground">{it.label}</span>
+          <span className="flex w-32 shrink-0 items-center gap-1.5 truncate text-muted-foreground">
+            {it.countryCode && <CountryFlag code={it.countryCode} />}
+            <span className="truncate">{it.label}</span>
+          </span>
           <Progress value={max > 0 ? it.plays / max : 0} className="flex-1" />
           <span className="w-10 shrink-0 text-right tabular-nums text-muted-foreground">{it.plays}</span>
         </div>
@@ -143,7 +147,7 @@ export function ReportsPage() {
                   {geo.data.countries.items.length ? (
                     <Bars
                       max={Math.max(...geo.data.countries.items.map((c) => c.plays))}
-                      items={geo.data.countries.items.map((c) => ({ label: c.country, plays: c.plays }))}
+                      items={geo.data.countries.items.map((c) => ({ label: c.country, plays: c.plays, countryCode: c.countryCode }))}
                     />
                   ) : (
                     <p className="text-sm text-muted-foreground">{t('reports.empty')}</p>
@@ -157,7 +161,7 @@ export function ReportsPage() {
                   {geo.data.cities.items.length ? (
                     <Bars
                       max={Math.max(...geo.data.cities.items.map((c) => c.plays))}
-                      items={geo.data.cities.items.map((c) => ({ label: [c.city, c.countryCode].filter(Boolean).join(', '), plays: c.plays }))}
+                      items={geo.data.cities.items.map((c) => ({ label: [c.city, c.countryCode].filter(Boolean).join(', '), plays: c.plays, countryCode: c.countryCode }))}
                     />
                   ) : (
                     <p className="text-sm text-muted-foreground">{t('reports.empty')}</p>

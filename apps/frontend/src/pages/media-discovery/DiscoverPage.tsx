@@ -19,6 +19,7 @@ import { formatMonthYear } from '@/lib/format';
 import { describeAir, groupByReleaseMonth, nextRelease } from './airtime';
 import { BulkRemoveDialog } from './BulkRemoveDialog';
 import { RemoveDiscoveryDialog } from './RemoveDiscoveryDialog';
+import { ExternalLinks } from './ExternalLinks';
 
 /*
  * 24 rather than 60: three columns at xl, so every page fills its rows exactly,
@@ -260,6 +261,14 @@ function DiscoveryCard({
               <span>· {t(`seriesStatus.${item.seriesStatus}`, { defaultValue: item.seriesStatus })}</span>
             )}
           </div>
+
+          {/*
+            * Direct links to the source databases, so a reviewer can open the
+            * full record (cast, reviews, episode list) and decide in one hop
+            * rather than searching for the title by hand. Only the providers this
+            * item actually carries an id for are shown.
+            */}
+          <ExternalLinks item={item} />
 
           {/*
             * The synopsis, for a title somebody has to make a decision about.

@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import type { GeoResult } from '@/lib/api';
+import { CountryFlag } from './CountryFlag';
 
 /**
  * A viewer's address and where it resolves to.
@@ -25,7 +26,6 @@ export function IpLocation({ ip, geo }: { ip: string | null; geo: GeoResult | nu
 
   const loc = geo?.location ?? null;
   const place = loc ? [loc.city, loc.region, loc.country].filter(Boolean).join(', ') : null;
-  const flag = loc?.countryCode ? flagEmoji(loc.countryCode) : null;
 
   if (!place) {
     // Public but unplaced, or no database — the address alone.
@@ -34,23 +34,11 @@ export function IpLocation({ ip, geo }: { ip: string | null; geo: GeoResult | nu
 
   return (
     <span className="inline-flex flex-col leading-tight">
-      <span className="flex items-center gap-1">
-        {flag && <span aria-hidden>{flag}</span>}
+      <span className="flex items-center gap-1.5">
+        <CountryFlag code={loc?.countryCode} />
         <span>{place}</span>
       </span>
       <span className="font-mono text-[10px] tabular-nums text-muted-foreground">{addr}</span>
     </span>
   );
-}
-
-/**
- * A country flag from an ISO-3166 alpha-2 code, via regional-indicator symbols.
- * Returns null for anything that is not two ASCII letters, so a bad code renders
- * nothing rather than tofu.
- */
-function flagEmoji(countryCode: string): string | null {
-  const cc = countryCode.trim().toUpperCase();
-  if (!/^[A-Z]{2}$/.test(cc)) return null;
-  const base = 0x1f1e6; // regional indicator 'A'
-  return String.fromCodePoint(base + (cc.charCodeAt(0) - 65), base + (cc.charCodeAt(1) - 65));
 }

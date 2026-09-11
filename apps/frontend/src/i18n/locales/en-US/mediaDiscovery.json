@@ -52,7 +52,8 @@
     "releases": "{{type}} {{when}}",
     "sources": "via {{list}}",
     "onWatchlist": "On watchlist",
-    "hasRule": "Rule generated"
+    "hasRule": "Rule generated",
+    "viewOn": "View on {{provider}}"
   },
   "identity": {
     "ambiguous": "Ambiguous identity",
