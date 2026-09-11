@@ -47,7 +47,7 @@
     "@nestjs/schedule": "^4.1.1",
     "@nestjs/swagger": "^7.4.2",
     "@nestjs/throttler": "^6.2.1",
-    "@nestjs/websockets": "^10.4.4",
+    "@nestjs/websockets": "^11.1.28",
     "@prisma/client": "^5.20.0",
     "@ultratorrent/shared": "*",
     "argon2": "^0.41.1",
