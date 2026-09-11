@@ -305,6 +305,20 @@ export function ContextActionBar({
             sourceAction: confirmMode === 'files' ? sourceAction : undefined,
           });
           setConfirmMode(null);
+          /*
+           * Clear the selection the moment the delete is dispatched, not when
+           * the job later settles. `bulk.mutate` has already captured the ids,
+           * so this changes nothing about what is deleted — but a destructive
+           * delete runs as a background job, and until now the selection was
+           * only cleared from the job-progress dialog's settle callback. When
+           * that callback did not run, the next delete dialog inherited this
+           * selection's count: a live library saw a fresh ~39-item selection
+           * prompt for the previous "104", turning the type-the-count safeguard
+           * into a number the operator had learned to distrust. Clearing here
+           * makes the count on the next dialog always describe the next
+           * selection.
+           */
+          onClear();
         }}
       />
       {contextMenu && onCloseContextMenu && (

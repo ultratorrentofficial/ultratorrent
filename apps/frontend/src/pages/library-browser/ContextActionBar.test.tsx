@@ -32,6 +32,7 @@ const apiSpy = vi.hoisted(() => ({
   jobDetail: vi.fn(),
   renamePreview: vi.fn(),
   listLibraries: vi.fn(),
+  deleteFilesPreview: vi.fn(),
 }));
 vi.mock('@/lib/api', () => ({
   api: {
@@ -42,6 +43,7 @@ vi.mock('@/lib/api', () => ({
       listLibraries: apiSpy.listLibraries,
       preview: apiSpy.renamePreview,
       apply: vi.fn(),
+      deleteFilesPreview: apiSpy.deleteFilesPreview,
     },
     contextActions: { catalog: apiSpy.catalog },
     jobs: { detail: apiSpy.jobDetail },
@@ -80,6 +82,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   apiSpy.catalog.mockResolvedValue(catalogOf(CATALOG));
   apiSpy.bulkItems.mockResolvedValue({ jobId: 'j1', accepted: 2, missing: [] });
+  apiSpy.deleteFilesPreview.mockResolvedValue({ torrents: [] });
   apiSpy.scanLibrary.mockResolvedValue({ jobId: 'scan-1' });
   apiSpy.jobDetail.mockResolvedValue({ id: 'j1', status: 'completed', progressPercent: 100, resultSummary: { completed: 2 } });
   apiSpy.listLibraries.mockResolvedValue([
@@ -164,6 +167,51 @@ describe('ContextActionBar — running an action', () => {
     renderBar(['a', 'b']);
     fireEvent.click(await screen.findByText('Refresh metadata'));
     await waitFor(() => expect(toastSpy.error).toHaveBeenCalled());
+  });
+});
+
+describe('ContextActionBar — a destructive delete cannot leave a stale count', () => {
+  const DELETE_CATALOG = [
+    ...CATALOG,
+    action({ id: 'media.item.deleteFiles', group: 'maintenance', destructive: true, order: 60 }),
+  ];
+
+  /*
+   * The bug this pins. A "delete files" runs as a background job, and the
+   * selection used to be cleared only when the job-progress dialog settled.
+   * When that callback did not run, the NEXT delete dialog inherited the old
+   * selection's count — a live library saw a fresh ~39-item selection still
+   * prompting for the previous "104". The type-the-count safeguard only works
+   * if the count always describes the current selection, so the selection is
+   * cleared the instant the delete is dispatched, not when the job finishes.
+   */
+  it('clears the selection when the delete is dispatched, before the job settles', async () => {
+    apiSpy.catalog.mockResolvedValue(catalogOf(DELETE_CATALOG));
+    // A job id means the work is detached: onSuccess defers to the progress
+    // dialog and never clears the selection itself, so if the dispatch did not
+    // clear it, nothing would until the job settled.
+    apiSpy.bulkItems.mockResolvedValue({ jobId: 'del-1', accepted: 104, missing: [] });
+    // The job never reaches a terminal state here, so the progress dialog's
+    // settle callback — the OLD clearing path — never fires. This is exactly
+    // the case the bug lived in, and it is what makes the assertion below prove
+    // the clear happens at dispatch rather than on settle.
+    apiSpy.jobDetail.mockResolvedValue({ id: 'del-1', status: 'running', progressPercent: 10 });
+    const { onClear } = renderBar(Array.from({ length: 104 }, (_, i) => `m${i}`));
+
+    fireEvent.click(await screen.findByText('Delete files…'));
+    // The confirm dialog asks for the selection's own count.
+    fireEvent.change(await screen.findByLabelText('Type 104 to confirm'), {
+      target: { value: '104' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Delete files' }));
+
+    await waitFor(() => expect(apiSpy.bulkItems).toHaveBeenCalledTimes(1));
+    const [operation, ids] = apiSpy.bulkItems.mock.calls[0];
+    expect(operation).toBe('delete-files');
+    expect(ids).toHaveLength(104);
+    // The dispatch captured the ids, so clearing now changes nothing about what
+    // is deleted — and it is what stops the next dialog inheriting this count.
+    expect(onClear).toHaveBeenCalled();
   });
 });
 
