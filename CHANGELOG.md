@@ -45,6 +45,14 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.91.0] - 2026-09-11
+
+### Added
+- Media Server Analytics: show each play's IP address in Watch History and Live Activity, and add offline IP geolocation (MaxMind GeoLite2) with a Reports > Locations tab charting top viewing countries, cities and ISPs. Lookups run against local .mmdb files so no viewer IP leaves the host; private/LAN addresses show as Local and everything degrades gracefully when no database is present.
+
+### Fixed
+- Media Server Analytics: add an optional geoipupdate sidecar (profile 'geoip') that keeps the MaxMind GeoLite2 City/ASN databases current automatically, downloading only changed editions into the shared volume on a schedule. The backend reloads a refreshed database with no restart and still makes no outbound call itself; enable it with a MaxMind account id and license key.
+
 ## [0.90.15] - 2026-09-11
 
 ### Fixed
