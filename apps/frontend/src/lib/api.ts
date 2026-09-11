@@ -5466,6 +5466,20 @@ export const api = {
     },
   },
 
+  geoip: {
+    config(): Promise<GeoIpConfig> {
+      return request<GeoIpConfig>('/geoip/config');
+    },
+    updateConfig(patch: GeoIpConfigPatch): Promise<GeoIpConfig> {
+      return request<GeoIpConfig>('/geoip/config', { method: 'PATCH', body: patch });
+    },
+    status(): Promise<GeoIpStatus> {
+      return request<GeoIpStatus>('/geoip/status');
+    },
+    updateNow(): Promise<GeoIpUpdateResult> {
+      return request<GeoIpUpdateResult>('/geoip/update', { method: 'POST' });
+    },
+  },
   mediaServerAnalytics: {
     dashboard(): Promise<MediaServerDashboard> {
       return request<MediaServerDashboard>('/media-server-analytics/dashboard');
@@ -6171,6 +6185,49 @@ export interface MediaServerRecentlyAddedItem {
   /** The library it landed in; null if the item has none. */
   libraryName: string | null;
   poster: MediaArtworkRef | null;
+}
+
+/** GeoIP downloader config (licence key redacted on read). Mirrors the backend. */
+export interface GeoIpConfig {
+  accountId: string | null;
+  licenseKey: string | null;
+  hasLicenseKey: boolean;
+  autoUpdate: boolean;
+  updateIntervalHours: number;
+  editions: string[];
+}
+
+export interface GeoIpConfigPatch {
+  accountId?: string | null;
+  licenseKey?: string | null;
+  autoUpdate?: boolean;
+  updateIntervalHours?: number;
+  editions?: string[];
+}
+
+export interface GeoIpDbInfo {
+  path: string;
+  present: boolean;
+  sizeBytes: number | null;
+  modifiedAt: string | null;
+  buildEpoch: number | null;
+  databaseType: string | null;
+}
+
+export interface GeoIpUpdateResult {
+  ranAt: string;
+  ok: boolean;
+  editions: Array<{ edition: string; ok: boolean; bytes?: number; buildEpoch?: number | null; error?: string }>;
+}
+
+export interface GeoIpStatus {
+  configured: boolean;
+  autoUpdate: boolean;
+  updateIntervalHours: number;
+  editions: string[];
+  databases: { city: GeoIpDbInfo; asn: GeoIpDbInfo };
+  lastRun: GeoIpUpdateResult | null;
+  updating: boolean;
 }
 
 /** One resolved viewer location — attached to an IP, never stored. Mirrors the backend `GeoResult`. */

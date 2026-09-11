@@ -279,6 +279,7 @@ export const NAV_CONTRIBUTIONS: NavContribution[] = [
       { id: 'msa-users', to: '/media-server-analytics/users', label: 'Server Users', icon: Users, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW_USERS, module: 'media_server_analytics', descriptionKey: 'Server Users' },
       { id: 'msa-newsletters', to: '/media-server-analytics/newsletters', label: 'Newsletters', icon: Mail, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS, module: 'media_server_analytics', descriptionKey: 'Newsletters' },
       { id: 'msa-import', to: '/media-server-analytics/import', label: 'Import Analytics', icon: DownloadCloud, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_MANAGE_IMPORTS, module: 'media_server_analytics', descriptionKey: 'Import Analytics' },
+      { id: 'msa-geoip', to: '/media-server-analytics/geolocation', label: 'IP Geolocation', icon: Globe, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_MANAGE_SETTINGS, module: 'media_server_analytics', descriptionKey: 'IP Geolocation' },
       { id: 'msa-connections', to: '/media-server-analytics/connections', label: 'Server Connections', icon: Server, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW, module: 'media_server_analytics', descriptionKey: 'Server Connections' },
     ],
   } },

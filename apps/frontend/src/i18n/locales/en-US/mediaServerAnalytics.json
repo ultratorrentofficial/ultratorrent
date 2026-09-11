@@ -540,5 +540,37 @@
   "ip": {
     "local": "Local",
     "label": "IP / Location"
+  },
+  "geoip": {
+    "title": "IP Geolocation",
+    "subtitle": "Resolve viewer IP addresses to locations, entirely offline, using MaxMind GeoLite2 databases.",
+    "loadError": "Could not load the geolocation settings",
+    "saved": "Geolocation settings saved",
+    "saveError": "Could not save the settings",
+    "accountId": "MaxMind account ID",
+    "licenseKey": "MaxMind license key",
+    "licenseKeyPlaceholder": "Enter a license key",
+    "credHint": "A free MaxMind account provides both. Sign up at",
+    "editions": "Databases to keep updated",
+    "editionCity": "— country / city / coordinates",
+    "editionAsn": "— ISP / network (optional)",
+    "autoUpdate": "Update automatically",
+    "every": "every",
+    "hours": "hours",
+    "saving": "Saving…",
+    "save": "Save settings",
+    "databases": "Databases",
+    "needCreds": "Enter your MaxMind account ID and license key to enable downloads.",
+    "updating": "Updating…",
+    "updateNow": "Update now",
+    "updateDone": "Databases updated",
+    "updatePartial": "Some databases could not be updated",
+    "updateError": "Update failed",
+    "installed": "Installed",
+    "notInstalled": "Not installed",
+    "built": "Built",
+    "size": "Size",
+    "updatedAt": "Updated",
+    "lastRun": "Last update {{when}}"
   }
 }

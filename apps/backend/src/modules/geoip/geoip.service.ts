@@ -34,6 +34,17 @@ export interface GeoResult {
   asn: number | null;
 }
 
+/** One database's on-disk status, for the settings screen. */
+export interface GeoDbInfo {
+  path: string;
+  present: boolean;
+  sizeBytes: number | null;
+  modifiedAt: string | null;
+  /** Unix seconds MaxMind stamped as the build date, when readable. */
+  buildEpoch: number | null;
+  databaseType: string | null;
+}
+
 /**
  * Offline IP geolocation against a MaxMind GeoLite2-City database.
  *
@@ -62,6 +73,64 @@ export class GeoIpService implements OnModuleDestroy {
   /** True when a database is loaded and lookups will be attempted. */
   get available(): boolean {
     return this.reader !== null;
+  }
+
+  /** Where the City database is read from — the downloader writes exactly here. */
+  get cityDbPath(): string {
+    return this.dbPath;
+  }
+
+  /** Where the ASN database is read from. */
+  get asnDbPath(): string {
+    return this.asnPath;
+  }
+
+  /**
+   * Force a reload on the next lookup. The downloader calls this after writing a
+   * fresh file so a refresh is picked up immediately rather than on the next
+   * mtime check.
+   */
+  invalidate(): void {
+    this.loadedMtimeMs = 0;
+    this.asnLoadedMtimeMs = 0;
+  }
+
+  /**
+   * Per-database status for the settings screen: whether the file is present,
+   * its size and mtime, and the build date MaxMind stamped into it. Best-effort
+   * — a missing file reports `present: false` and nothing throws.
+   */
+  async databaseInfo(): Promise<{ city: GeoDbInfo; asn: GeoDbInfo }> {
+    return {
+      city: await this.oneDbInfo(this.dbPath, 'city'),
+      asn: await this.oneDbInfo(this.asnPath, 'asn'),
+    };
+  }
+
+  private async oneDbInfo(dbPath: string, kind: 'city' | 'asn'): Promise<GeoDbInfo> {
+    let sizeBytes: number | null = null;
+    let modifiedAt: string | null = null;
+    try {
+      const st = await fs.stat(dbPath);
+      sizeBytes = st.size;
+      modifiedAt = st.mtime.toISOString();
+    } catch {
+      return { path: dbPath, present: false, sizeBytes: null, modifiedAt: null, buildEpoch: null, databaseType: null };
+    }
+    let buildEpoch: number | null = null;
+    let databaseType: string | null = null;
+    try {
+      const { open } = await import('maxmind');
+      const reader = kind === 'city' ? await open<CityResponse>(dbPath) : await open<AsnResponse>(dbPath);
+      const meta = (reader as unknown as { metadata?: { buildEpoch?: number | bigint; databaseType?: string } }).metadata;
+      if (meta) {
+        buildEpoch = meta.buildEpoch != null ? Number(meta.buildEpoch) : null;
+        databaseType = meta.databaseType ?? null;
+      }
+    } catch {
+      /* a present-but-unreadable file still reports its stat */
+    }
+    return { path: dbPath, present: true, sizeBytes, modifiedAt, buildEpoch, databaseType };
   }
 
   /**

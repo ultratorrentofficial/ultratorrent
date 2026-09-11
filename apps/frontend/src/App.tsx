@@ -76,6 +76,7 @@ import { LiveActivityPage } from '@/pages/media-server-analytics/LiveActivityPag
 import { WatchHistoryPage } from '@/pages/media-server-analytics/WatchHistoryPage';
 import { MediaServerUsersPage } from '@/pages/media-server-analytics/MediaServerUsersPage';
 import { ReportsPage } from '@/pages/media-server-analytics/ReportsPage';
+import { GeoIpSettingsPage } from '@/pages/media-server-analytics/GeoIpSettingsPage';
 import { RecentlyAddedPage } from '@/pages/media-server-analytics/RecentlyAddedPage';
 import { ImportAnalyticsPage } from '@/pages/media-server-analytics/ImportAnalyticsPage';
 import { NewslettersPage } from '@/pages/media-server-analytics/NewslettersPage';
@@ -525,6 +526,14 @@ export function App() {
                         element={
                           <ModuleRoute moduleId="media_server_analytics">
                             <ReportsPage />
+                          </ModuleRoute>
+                        }
+                      />
+                      <Route
+                        path="/media-server-analytics/geolocation"
+                        element={
+                          <ModuleRoute moduleId="media_server_analytics">
+                            <GeoIpSettingsPage />
                           </ModuleRoute>
                         }
                       />

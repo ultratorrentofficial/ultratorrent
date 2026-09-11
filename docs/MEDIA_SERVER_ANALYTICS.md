@@ -233,44 +233,30 @@ Two free databases are used, both from a free MaxMind account:
 Create a free account at <https://www.maxmind.com/en/geolite2/signup>, then note
 your **Account ID** and generate a **licence key**.
 
-### Keeping them current — the `geoipupdate` sidecar (recommended)
+### Setup — in the UI
 
-MaxMind refreshes GeoLite2 **twice a week**, so the databases are kept current by
-a bundled, profile-gated sidecar rather than by hand. It is
-[MaxMind's own updater](https://github.com/maxmind/geoipupdate); it runs on a
-loop, downloads only what changed into the shared `geoip` volume, and the backend
-reloads a refreshed file on its next lookup with **no restart**. **The backend
-never talks to MaxMind — only this sidecar does**, so the offline guarantee holds:
-no viewer IP ever leaves the host.
+Media Server Analytics has an **IP Geolocation** page (under its menu) that works
+just like the local IMDb dataset admin:
 
-It also performs the **first** download, so there is no manual provisioning step.
+1. Enter your MaxMind **Account ID** and **licence key**. The key is encrypted at
+   rest and never shown again (a saved key reads as `••••••••`).
+2. Choose the editions to keep current (City is required for locations; ASN adds
+   the ISP chart), and optionally turn on **automatic updates** with an interval.
+3. Click **Update now** for the first download. The status panel then shows each
+   database's build date, size and when it was last refreshed.
 
-1. Put your credentials in the host `.env` (next to the compose file):
-
-   ```ini
-   GEOIP_ACCOUNT_ID=1234567
-   GEOIP_LICENSE_KEY=your-license-key
-   # optional overrides:
-   # GEOIP_EDITION_IDS=GeoLite2-City GeoLite2-ASN
-   # GEOIP_UPDATE_FREQUENCY=72     # hours between checks
-   ```
-
-2. Add `geoip` to the host's `COMPOSE_PROFILES` (alongside any others already
-   set, e.g. `qbittorrent,prowlarr,geoip`) so the service starts with the stack,
-   then bring it up:
-
-   ```bash
-   docker compose --profile geoip up -d geoipupdate
-   ```
-
-The first run populates `GeoLite2-City.mmdb` and `GeoLite2-ASN.mmdb` in the volume
-within a few seconds; every 72 hours after that it checks for a newer edition.
+The backend downloads the databases into the `/data/geoip` volume, verifies each
+archive's checksum, installs the `.mmdb`, and reloads it immediately — no restart.
+With automatic updates on, it refreshes on your interval (MaxMind publishes new
+data about twice a week). **This download is the only outbound call the feature
+makes, and it fetches a public database with your own licence — no viewer IP is
+ever sent anywhere; lookups stay entirely offline.**
 
 ### Manual alternative
 
-If you would rather not run the sidecar, download `GeoLite2-City.mmdb` and
-`GeoLite2-ASN.mmdb` (the `.mmdb`, not the CSV) and copy them into the volume the
-backend reads:
+If you would rather not store a licence key, download `GeoLite2-City.mmdb` and
+`GeoLite2-ASN.mmdb` (the `.mmdb`, not the CSV) yourself and copy them into the
+volume the backend reads:
 
 ```bash
 docker cp GeoLite2-City.mmdb ultratorrent-core-backend-1:/data/geoip/

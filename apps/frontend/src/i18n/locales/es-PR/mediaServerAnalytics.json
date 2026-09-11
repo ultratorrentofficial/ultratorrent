@@ -540,5 +540,37 @@
   "ip": {
     "local": "Local",
     "label": "IP / Ubicación"
+  },
+  "geoip": {
+    "title": "Geolocalización de IP",
+    "subtitle": "Resuelve las direcciones IP de los espectadores a ubicaciones, totalmente sin conexión, con bases de datos MaxMind GeoLite2.",
+    "loadError": "No se pudo cargar la configuración de geolocalización",
+    "saved": "Configuración de geolocalización guardada",
+    "saveError": "No se pudo guardar la configuración",
+    "accountId": "ID de cuenta de MaxMind",
+    "licenseKey": "Clave de licencia de MaxMind",
+    "licenseKeyPlaceholder": "Ingresa una clave de licencia",
+    "credHint": "Una cuenta gratuita de MaxMind proporciona ambas. Regístrate en",
+    "editions": "Bases de datos a mantener actualizadas",
+    "editionCity": "— país / ciudad / coordenadas",
+    "editionAsn": "— ISP / red (opcional)",
+    "autoUpdate": "Actualizar automáticamente",
+    "every": "cada",
+    "hours": "horas",
+    "saving": "Guardando…",
+    "save": "Guardar configuración",
+    "databases": "Bases de datos",
+    "needCreds": "Ingresa tu ID de cuenta y clave de licencia de MaxMind para habilitar las descargas.",
+    "updating": "Actualizando…",
+    "updateNow": "Actualizar ahora",
+    "updateDone": "Bases de datos actualizadas",
+    "updatePartial": "Algunas bases de datos no se pudieron actualizar",
+    "updateError": "Error al actualizar",
+    "installed": "Instalada",
+    "notInstalled": "No instalada",
+    "built": "Compilada",
+    "size": "Tamaño",
+    "updatedAt": "Actualizada",
+    "lastRun": "Última actualización {{when}}"
   }
 }
