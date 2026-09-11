@@ -45,13 +45,49 @@ describe('MediaServerAnalyticsService.watchHistory — friendly names', () => {
     expect(items[0].userName).toBe('Eric Pastrana');
   });
 
-  it('leaves the snapshot alone when no display name is set for that viewer', async () => {
+  it('keeps the snapshot when no user record matches the row', async () => {
     const prisma = makePrisma(
       [{ connectionId: 'c1', providerUserId: '9', userName: 'akafunma' }],
       [{ connectionId: 'c1', providerUserId: '1', userName: 'dennis.ayala', displayName: 'Dennis Ayala' }],
     );
     const { items } = await svc(prisma).watchHistory();
     expect(items[0].userName).toBe('akafunma');
+  });
+
+  /*
+   * The bug the operator kept reporting. Live Plex monitoring stored the login
+   * handle (`jonathanxir`) while the same person's Tautulli-imported record —
+   * with no connection — holds the real name (`Jonathan Medina`). They share a
+   * providerUserId, which is the only link, so a live row must reach the legacy
+   * record by that id even though the two live in different connection buckets.
+   */
+  it('bridges a live handle to the pre-connection record by provider id', async () => {
+    const prisma = makePrisma(
+      [{ connectionId: 'c1', providerUserId: '24891625', userName: 'jonathanxir' }],
+      [{ connectionId: null, providerUserId: '24891625', userName: 'Jonathan Medina', displayName: null }],
+    );
+    const { items } = await svc(prisma).watchHistory();
+    expect(items[0].userName).toBe('Jonathan Medina');
+  });
+
+  it("prefers the legacy record's display name over its userName on the bridge", async () => {
+    const prisma = makePrisma(
+      [{ connectionId: 'c1', providerUserId: '571526792', userName: 'akafunma' }],
+      [{ connectionId: null, providerUserId: '571526792', userName: 'akafunma', displayName: 'Astrid Masa' }],
+    );
+    const { items } = await svc(prisma).watchHistory();
+    expect(items[0].userName).toBe('Astrid Masa');
+  });
+
+  it('keeps the snapshot when the matched record has no better name', async () => {
+    // A Jellyfin viewer with no display name set: the record's userName equals
+    // the row's, so there is nothing to change.
+    const prisma = makePrisma(
+      [{ connectionId: 'c2', providerUserId: 'a44428', userName: 'dennis.ayala' }],
+      [{ connectionId: 'c2', providerUserId: 'a44428', userName: 'dennis.ayala', displayName: null }],
+    );
+    const { items } = await svc(prisma).watchHistory();
+    expect(items[0].userName).toBe('dennis.ayala');
   });
 
   it('never borrows a display name across connections', async () => {
