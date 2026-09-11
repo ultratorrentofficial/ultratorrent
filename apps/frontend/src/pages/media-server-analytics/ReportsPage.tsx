@@ -47,6 +47,7 @@ export function ReportsPage() {
   const users = useQuery({ queryKey: ['msa', 'report', 'users'], queryFn: () => api.mediaServerAnalytics.reportUsers(), enabled: tab === 'users' });
   const libraries = useQuery({ queryKey: ['msa', 'report', 'libraries'], queryFn: () => api.mediaServerAnalytics.reportLibraries(), enabled: tab === 'libraries' });
   const playback = useQuery({ queryKey: ['msa', 'report', 'playback'], queryFn: () => api.mediaServerAnalytics.reportPlayback(), enabled: tab === 'playback' });
+  const geo = useQuery({ queryKey: ['msa', 'report', 'locations'], queryFn: () => api.mediaServerAnalytics.geoBreakdown(10), enabled: tab === 'locations' });
 
   return (
     <div className="space-y-6">
@@ -61,6 +62,7 @@ export function ReportsPage() {
           <TabsTrigger value="users">{t('reports.tab.users')}</TabsTrigger>
           <TabsTrigger value="libraries">{t('reports.tab.libraries')}</TabsTrigger>
           <TabsTrigger value="playback">{t('reports.tab.playback')}</TabsTrigger>
+          <TabsTrigger value="locations">{t('reports.tab.locations')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="usage">
@@ -123,6 +125,66 @@ export function ReportsPage() {
                 <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">{t('reports.col.type')}</h3>
                 <Bars max={Math.max(...playback.data.byType.map((x) => x.plays))} items={playback.data.byType.map((x) => ({ label: x.type, plays: x.plays }))} />
               </div>
+            </div>
+          )}
+        </TabsContent>
+        <TabsContent value="locations">
+          {geo.isLoading ? <CenteredSpinner /> : geo.isError || !geo.data ? (
+            <ErrorState title={t('reports.loadError')} onRetry={() => void geo.refetch()} />
+          ) : !geo.data.geoAvailable ? (
+            <EmptyState title={t('reports.locations.noDatabase')} description={t('reports.locations.noDatabaseHint')} />
+          ) : geo.data.countries.items.length === 0 && geo.data.localPlays === 0 ? (
+            <EmptyState title={t('reports.empty')} />
+          ) : (
+            <div className="space-y-6">
+              <div className="grid gap-6 sm:grid-cols-2">
+                <div>
+                  <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">{t('reports.locations.topCountries')}</h3>
+                  {geo.data.countries.items.length ? (
+                    <Bars
+                      max={Math.max(...geo.data.countries.items.map((c) => c.plays))}
+                      items={geo.data.countries.items.map((c) => ({ label: c.country, plays: c.plays }))}
+                    />
+                  ) : (
+                    <p className="text-sm text-muted-foreground">{t('reports.empty')}</p>
+                  )}
+                  {geo.data.countries.otherPlays > 0 && (
+                    <p className="mt-2 text-xs text-muted-foreground">{t('reports.locations.other', { count: geo.data.countries.otherPlays })}</p>
+                  )}
+                </div>
+                <div>
+                  <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">{t('reports.locations.topCities')}</h3>
+                  {geo.data.cities.items.length ? (
+                    <Bars
+                      max={Math.max(...geo.data.cities.items.map((c) => c.plays))}
+                      items={geo.data.cities.items.map((c) => ({ label: [c.city, c.countryCode].filter(Boolean).join(', '), plays: c.plays }))}
+                    />
+                  ) : (
+                    <p className="text-sm text-muted-foreground">{t('reports.empty')}</p>
+                  )}
+                </div>
+              </div>
+              <div>
+                <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">{t('reports.locations.topIsps')}</h3>
+                {geo.data.ispAvailable && geo.data.isps.items.length ? (
+                  <>
+                    <Bars
+                      max={Math.max(...geo.data.isps.items.map((i) => i.plays))}
+                      items={geo.data.isps.items.map((i) => ({ label: i.isp, plays: i.plays }))}
+                    />
+                    {geo.data.isps.otherPlays > 0 && (
+                      <p className="mt-2 text-xs text-muted-foreground">{t('reports.locations.other', { count: geo.data.isps.otherPlays })}</p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">{t('reports.locations.noIspDatabase')}</p>
+                )}
+              </div>
+              {(geo.data.localPlays > 0 || geo.data.unknownLocationPlays > 0) && (
+                <p className="text-xs text-muted-foreground">
+                  {t('reports.locations.footnote', { local: geo.data.localPlays, unknown: geo.data.unknownLocationPlays })}
+                </p>
+              )}
             </div>
           )}
         </TabsContent>

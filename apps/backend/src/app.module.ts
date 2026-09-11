@@ -41,6 +41,7 @@ import { IndexersModule } from './modules/indexers/indexers.module';
 import { ProwlarrIntegrationModule } from './modules/integrations/prowlarr/prowlarr.module';
 import { MediaAcquisitionModule } from './modules/media-acquisition/media-acquisition.module';
 import { MediaServerAnalyticsModule } from './modules/media-server-analytics/media-server-analytics.module';
+import { GeoIpModule } from './modules/geoip/geoip.module';
 import { MediaDiscoveryModule } from './modules/media-discovery/media-discovery.module';
 import { SubtitleIntelligenceModule } from './modules/subtitle-intelligence/subtitle-intelligence.module';
 import { OperationsModule } from './modules/operations/operations.module';
@@ -91,6 +92,7 @@ import { JobsModule } from './modules/jobs/jobs.module';
     IndexersModule,
     ProwlarrIntegrationModule,
     MediaAcquisitionModule,
+    GeoIpModule,
     MediaServerAnalyticsModule,
     MediaDiscoveryModule,
     SubtitleIntelligenceModule,

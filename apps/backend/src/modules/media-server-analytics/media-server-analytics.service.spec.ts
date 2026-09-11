@@ -24,8 +24,11 @@ describe('MediaServerAnalyticsService.watchHistory — friendly names', () => {
     },
   });
 
+  // The geoip reader is not under test here; a stub that resolves nothing keeps
+  // watchHistory's geo pass a no-op so the friendly-name assertions stand alone.
+  const geoStub = { lookupMany: async () => new Map() };
   const svc = (prisma: unknown) =>
-    new MediaServerAnalyticsService(prisma as never, {} as never);
+    new MediaServerAnalyticsService(prisma as never, {} as never, geoStub as never);
 
   it('replaces the stored handle with the display name, matched by providerUserId', async () => {
     const prisma = makePrisma(
@@ -127,5 +130,99 @@ describe('MediaServerAnalyticsService.watchHistory — friendly names', () => {
     const prisma = makePrisma([], []);
     await svc(prisma).watchHistory();
     expect(prisma.mediaServerUser.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('MediaServerAnalyticsService.geoBreakdown', () => {
+  const geo = (over: Partial<import('../geoip/geoip.service').GeoResult> & { ip: string }) => ({
+    kind: 'public' as const,
+    location: null,
+    isp: null,
+    asn: null,
+    ...over,
+  });
+
+  const build = (
+    groups: Array<{ ipAddress: string | null; count: number }>,
+    resolved: Record<string, ReturnType<typeof geo>>,
+  ) => {
+    const prisma = {
+      mediaServerWatchHistory: {
+        groupBy: jest.fn().mockResolvedValue(
+          groups.map((g) => ({ ipAddress: g.ipAddress, _count: { _all: g.count } })),
+        ),
+      },
+    };
+    const geoip = {
+      available: true,
+      lookupMany: async (ips: Array<string | null | undefined>) => {
+        const m = new Map<string, unknown>();
+        for (const ip of ips) {
+          const a = (ip ?? '').trim();
+          if (a && resolved[a]) m.set(a, resolved[a]);
+        }
+        return m;
+      },
+    };
+    return new MediaServerAnalyticsService(prisma as never, {} as never, geoip as never);
+  };
+
+  it('ranks countries and ISPs by play count and totals every play', async () => {
+    const svc = build(
+      [
+        { ipAddress: '8.8.8.8', count: 10 },
+        { ipAddress: '8.8.4.4', count: 4 },
+        { ipAddress: '1.1.1.1', count: 7 },
+      ],
+      {
+        '8.8.8.8': geo({ ip: '8.8.8.8', location: { countryCode: 'US', country: 'United States', region: 'CA', city: 'Mountain View', latitude: null, longitude: null }, isp: 'GOOGLE' }),
+        '8.8.4.4': geo({ ip: '8.8.4.4', location: { countryCode: 'US', country: 'United States', region: 'CA', city: 'Mountain View', latitude: null, longitude: null }, isp: 'GOOGLE' }),
+        '1.1.1.1': geo({ ip: '1.1.1.1', location: { countryCode: 'AU', country: 'Australia', region: null, city: 'Sydney', latitude: null, longitude: null }, isp: 'CLOUDFLARE' }),
+      },
+    );
+    const r = await svc.geoBreakdown();
+    expect(r.totalPlays).toBe(21);
+    expect(r.countries.items.map((c) => [c.country, c.plays])).toEqual([
+      ['United States', 14],
+      ['Australia', 7],
+    ]);
+    expect(r.isps.items.map((i) => [i.isp, i.plays])).toEqual([
+      ['GOOGLE', 14],
+      ['CLOUDFLARE', 7],
+    ]);
+    expect(r.ispAvailable).toBe(true);
+  });
+
+  it('keeps Local and unplaced plays as their own buckets', async () => {
+    const svc = build(
+      [
+        { ipAddress: '192.168.1.5', count: 5 },
+        { ipAddress: '203.0.113.9', count: 3 },
+        { ipAddress: null, count: 2 },
+      ],
+      {
+        '192.168.1.5': geo({ ip: '192.168.1.5', kind: 'private' }),
+        '203.0.113.9': geo({ ip: '203.0.113.9', kind: 'public', location: null }),
+      },
+    );
+    const r = await svc.geoBreakdown();
+    expect(r.totalPlays).toBe(10);
+    expect(r.localPlays).toBe(5);
+    // 203.0.113.9 (public, unplaced) + the null-ip group both count as unknown-location.
+    expect(r.unknownLocationPlays).toBe(5);
+    expect(r.countries.items).toEqual([]);
+  });
+
+  it('folds the long tail past the limit into an Other bucket', async () => {
+    const groups = Array.from({ length: 5 }, (_, i) => ({ ipAddress: `9.9.9.${i}`, count: 5 - i }));
+    const resolved: Record<string, ReturnType<typeof geo>> = {};
+    for (let i = 0; i < 5; i += 1) {
+      resolved[`9.9.9.${i}`] = geo({ ip: `9.9.9.${i}`, location: { countryCode: `C${i}`, country: `Country ${i}`, region: null, city: null, latitude: null, longitude: null }, isp: `ISP ${i}` });
+    }
+    const svc = build(groups, resolved);
+    const r = await svc.geoBreakdown('2');
+    expect(r.countries.items).toHaveLength(2);
+    expect(r.countries.items.map((c) => c.plays)).toEqual([5, 4]);
+    expect(r.countries.otherPlays).toBe(3 + 2 + 1);
   });
 });

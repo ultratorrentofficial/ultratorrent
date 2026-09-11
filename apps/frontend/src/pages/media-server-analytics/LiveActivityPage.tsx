@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { RefreshCw, Radio, Users, Activity, Cpu, MonitorPlay } from 'lucide-react';
 import { MediaServerIcon } from '@/components/media-servers/MediaServerIcon';
 import { api, type MediaServerLiveSession } from '@/lib/api';
+import { IpLocation } from './IpLocation';
 import { wsClient } from '@/lib/ws';
 import { useRealtime } from '@/realtime/RealtimeContext';
 import { Card, CardContent } from '@/components/ui/card';
@@ -224,6 +225,11 @@ function SessionCard({
               {viewer && <span className="font-medium text-foreground/80">{viewer}</span>}
               {s.device && <span>· {s.device}</span>}
               {s.libraryName && <span>· {s.libraryName}</span>}
+              {s.ipAddress && (
+                <span className="inline-flex items-center gap-1">
+                  · <IpLocation ip={s.ipAddress} geo={s.geo} />
+                </span>
+              )}
               {server && (
                 <span
                   className="inline-flex items-center gap-1.5 rounded bg-white/[0.10] px-2 py-1 text-xs font-semibold text-foreground"

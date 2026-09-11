@@ -72,6 +72,10 @@ services:
       JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
       JWT_REFRESH_TTL_DAYS: ${JWT_REFRESH_TTL_DAYS:-30}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
+      # Offline IP geolocation (Media Server Analytics). Point these at the
+      # GeoLite2 databases mounted below; unset/missing files degrade to no geo.
+      GEOIP_DB_PATH: ${GEOIP_DB_PATH:-/data/geoip/GeoLite2-City.mmdb}
+      GEOIP_ASN_DB_PATH: ${GEOIP_ASN_DB_PATH:-/data/geoip/GeoLite2-ASN.mmdb}
       FILE_MANAGER_ROOTS: ${FILE_MANAGER_ROOTS:-/downloads}
       # Comma-separated hosts/IPs/CIDRs whose torrent URLs may resolve to
       # private/internal addresses (e.g. a self-hosted indexer that returns
@@ -88,6 +92,10 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}
     volumes:
       - downloads:/downloads
+      # GeoLite2 databases for IP geolocation in Media Server Analytics. The
+      # operator provisions the .mmdb files into this volume (see
+      # docs/MEDIA_SERVER_ANALYTICS.md); absent, geolocation simply no-ops.
+      - geoip:/data/geoip
     # Not published to the host by default — the frontend reaches it over the
     # internal Docker network. To expose the API directly, add a mapping, e.g.
     # `ports: ["4000:4000"]` (or a free host port).
@@ -237,6 +245,7 @@ volumes:
   postgres_data:
   redis_data:
   downloads:
+  geoip:
   caddy_data:
   prowlarr_config:
   qbittorrent_config:

@@ -124,7 +124,8 @@
       "usage": "Uso",
       "users": "Usuarios",
       "libraries": "Bibliotecas",
-      "playback": "Reproducción"
+      "playback": "Reproducción",
+      "locations": "Ubicaciones"
     },
     "usage": {
       "plays": "Reproducciones totales",
@@ -140,7 +141,17 @@
       "method": "Método",
       "type": "Tipo"
     },
-    "empty": "Aún no hay analíticas — la reproducción se captura al usar tus servidores."
+    "empty": "Aún no hay analíticas — la reproducción se captura al usar tus servidores.",
+    "locations": {
+      "topCountries": "Países principales",
+      "topCities": "Ciudades principales",
+      "topIsps": "ISP principales",
+      "other": "+{{count}} más",
+      "footnote": "Reproducciones locales (LAN): {{local}} · Sin ubicar: {{unknown}}",
+      "noDatabase": "Sin base de datos de geolocalización",
+      "noDatabaseHint": "Agrega una base GeoLite2-City para resolver ubicaciones.",
+      "noIspDatabase": "Agrega una base GeoLite2-ASN para ver los ISP."
+    }
   },
   "recentlyAdded": {
     "title": "Agregado recientemente",
@@ -525,5 +536,9 @@
     "noEmail": "sin correo",
     "noServer": "ya no está conectado",
     "localNote": "Los nombres amigables se guardan en UltraTorrent y nunca se escriben en el servidor de medios. Plex informa un nombre visible solo si el titular de la cuenta lo configuró; Jellyfin y Emby no tienen campo de nombre amigable, así que el nombre puesto aquí es el único que esos usuarios mostrarán."
+  },
+  "ip": {
+    "local": "Local",
+    "label": "IP / Ubicación"
   }
 }

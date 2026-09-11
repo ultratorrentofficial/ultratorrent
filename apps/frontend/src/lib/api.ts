@@ -5545,6 +5545,10 @@ export const api = {
     reportResolutions(filter?: MediaAnalyticsFilter): Promise<MediaServerResolutionStat[]> {
       return request<MediaServerResolutionStat[]>(`/media-server-analytics/reports/resolutions${analyticsQuery(filter)}`);
     },
+    geoBreakdown(limit?: number): Promise<MediaServerGeoBreakdown> {
+      const q = typeof limit === 'number' ? `?limit=${limit}` : '';
+      return request<MediaServerGeoBreakdown>(`/media-server-analytics/geo-breakdown${q}`);
+    },
     /** The individual plays behind one clicked chart slice. */
     reportPlays(
       filter: MediaAnalyticsFilter | undefined,
@@ -6169,6 +6173,39 @@ export interface MediaServerRecentlyAddedItem {
   poster: MediaArtworkRef | null;
 }
 
+/** One resolved viewer location — attached to an IP, never stored. Mirrors the backend `GeoResult`. */
+export interface GeoResult {
+  ip: string;
+  /** 'private' = a LAN address (shown as Local); 'public' = looked up; 'unknown' = unplaceable or no database. */
+  kind: 'private' | 'public' | 'unknown';
+  location: {
+    countryCode: string | null;
+    country: string | null;
+    region: string | null;
+    city: string | null;
+    latitude: number | null;
+    longitude: number | null;
+  } | null;
+  /** The ISP / autonomous-system organization, when the ASN database is loaded. */
+  isp: string | null;
+  asn: number | null;
+}
+
+/** Top viewing locations and ISPs, resolved offline from play IP addresses. */
+export interface MediaServerGeoBreakdown {
+  totalPlays: number;
+  /** False when no ASN database is loaded — hide the ISP chart. */
+  ispAvailable: boolean;
+  /** False when no city database is loaded — locations cannot be resolved. */
+  geoAvailable: boolean;
+  countries: { items: Array<{ key: string; country: string; countryCode: string | null; plays: number }>; otherPlays: number };
+  cities: { items: Array<{ key: string; city: string; region: string | null; country: string | null; countryCode: string | null; plays: number }>; otherPlays: number };
+  isps: { items: Array<{ key: string; isp: string; plays: number }>; otherPlays: number };
+  localPlays: number;
+  unknownLocationPlays: number;
+  unknownIspPlays: number;
+}
+
 export interface MediaServerLiveSession {
   id: string;
   connectionId: string;
@@ -6189,10 +6226,14 @@ export interface MediaServerLiveSession {
   resolution: string | null;
   container: string | null;
   bitrateKbps: number | null;
+  /** The address the viewer is streaming from; a LAN ip for local playback. */
+  ipAddress: string | null;
+  /** Offline-resolved location for `ipAddress`; null when local or unresolved. */
+  geo: GeoResult | null;
   /**
    * Whether the session has resolvable artwork. The provider-internal path is
    * deliberately NOT sent — artwork comes from the authenticated proxy by
-   * session id, and `ipAddress` is not sent at all.
+   * session id.
    */
   hasArtwork: boolean;
   showTitle: string | null;
@@ -6219,6 +6260,10 @@ export interface MediaServerWatchHistoryRow {
   percentComplete: number | null;
   playbackMethod: string | null;
   importSource: string | null;
+  /** The address this play came from; present on live and imported rows alike. */
+  ipAddress: string | null;
+  /** Offline-resolved location for `ipAddress`; null when local or unresolved. */
+  geo: GeoResult | null;
 }
 
 /** Which slice of a chart was clicked — the drill-down filter. */

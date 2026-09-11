@@ -70,7 +70,7 @@ describe('session continuity', () => {
       publish: jest.fn((e: any) => { published.push(e); return { published: true }; }),
     };
 
-    const svc = new MediaServerSessionService(prisma, integrations, realtime, registry, bus);
+    const svc = new MediaServerSessionService(prisma, integrations, realtime, registry, bus, { lookupMany: async () => new Map() } as never);
     return {
       svc, store, history, published,
       setSessions: (next: any[]) => { sessions = next; },

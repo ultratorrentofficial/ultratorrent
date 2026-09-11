@@ -39,6 +39,7 @@ function build(sessions: Array<Record<string, unknown>>, accounts = ACCOUNTS) {
   };
   const svc = new MediaServerSessionService(
     prisma as never, {} as never, {} as never, {} as never, {} as never,
+    { lookupMany: async () => new Map() } as never,
   );
   return { svc, prisma, counts };
 }
@@ -117,11 +118,11 @@ describe('liveActivity viewer names', () => {
     expect(counts.users).toBe(1);
   });
 
-  it('still withholds the viewer IP', async () => {
-    // The listing maps field by field precisely to guard this; adding a field
-    // to that map is exactly when it could be undone.
+  it('surfaces the viewer IP now that the operator asked to see it', async () => {
+    // The field-by-field map still guards against leaking NEW columns, but the
+    // IP is deliberately part of the projection.
     const { svc } = build([session({ ipAddress: '10.0.0.5' })]);
     const [row] = await svc.liveActivity();
-    expect(JSON.stringify(row)).not.toContain('10.0.0.5');
+    expect((row as unknown as Record<string, unknown>).ipAddress).toBe('10.0.0.5');
   });
 });

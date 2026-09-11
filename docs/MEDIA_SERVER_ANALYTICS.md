@@ -207,3 +207,44 @@ connection management, and Dashboard + Connections pages. Later phases:
   Recently Added, Reports, Import, Newsletters.
 - **Automation triggers/actions** — still to come: the automation catalog
   registers no `media_server.*` trigger or action yet.
+
+## IP address and geolocation
+
+Every play records the address the viewer streamed from — Plex reports it as
+`Player.address`, Jellyfin as `RemoteEndPoint` — and the Tautulli import carried
+the historical ones. It is shown in **Watch History** and **Live Activity**, and
+the **Reports → Locations** tab charts the top viewing countries, cities and
+ISPs.
+
+Geolocation is **offline**. Lookups run against MaxMind GeoLite2 database files on
+the host; **no viewer IP address ever leaves your network**, and nothing is
+called over the internet to resolve one. A LAN/loopback address has no public
+geography and is shown as **Local**.
+
+### Provisioning the databases
+
+Two free databases are used, both requiring a free MaxMind account:
+
+- **GeoLite2-City** — country / region / city (and the map coordinates). Drives
+  the location column and the country/city charts.
+- **GeoLite2-ASN** — the network operator (ISP). Drives the ISP chart; optional —
+  without it, locations still resolve and the ISP chart shows a hint instead.
+
+1. Create a free account at <https://www.maxmind.com/en/geolite2/signup> and
+   generate a licence key.
+2. Download `GeoLite2-City.mmdb` and `GeoLite2-ASN.mmdb` (the `.mmdb`, not the
+   CSV).
+3. Copy them into the backend's `geoip` volume, which is mounted at
+   `/data/geoip`:
+
+   ```bash
+   docker cp GeoLite2-City.mmdb ultratorrent-core-backend-1:/data/geoip/
+   docker cp GeoLite2-ASN.mmdb  ultratorrent-core-backend-1:/data/geoip/
+   ```
+
+The backend picks the files up on the next lookup — no restart needed — and
+reloads them automatically when you replace them on MaxMind's monthly refresh.
+The paths are overridable with `GEOIP_DB_PATH` and `GEOIP_ASN_DB_PATH`.
+
+Everything degrades gracefully: with no database present, IP addresses still show
+(without a location), the Locations tab explains what to add, and nothing errors.

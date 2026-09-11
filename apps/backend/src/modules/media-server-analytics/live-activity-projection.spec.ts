@@ -1,10 +1,11 @@
 import { MediaServerSessionService } from './media-server-session.service';
 
 /**
- * `liveActivity()` used to be a bare `findMany()`, which put every column on the
- * wire — including `ipAddress`, measured as populated on a live install. The
- * frontend type happened not to declare it, but a TypeScript type is not a
- * security boundary. These pin the projection.
+ * `liveActivity()` uses an explicit `select` rather than a bare `findMany()`, so
+ * a new column is never put on the wire by accident. `ipAddress` IS now selected
+ * and surfaced on purpose — the operator asked to see where a viewer streams
+ * from, and this endpoint is analytics-permissioned — with its offline-resolved
+ * location attached. These pin that projection.
  */
 function build(rows: any[]) {
   const prisma: any = {
@@ -14,6 +15,7 @@ function build(rows: any[]) {
   };
   const svc = new MediaServerSessionService(
     prisma, {} as any, {} as any, {} as any, { publish: jest.fn(() => ({ published: true })) } as any,
+    { lookupMany: async () => new Map() } as any,
   );
   return { svc, prisma };
 }
@@ -34,16 +36,19 @@ describe('liveActivity projection', () => {
     await svc.liveActivity();
     const args = prisma.mediaServerSession.findMany.mock.calls[0][0];
     expect(args.select).toBeDefined();
-    expect(args.select.ipAddress).toBeUndefined();
+    // artPath is still projected to a boolean, never sent raw.
+    expect(args.select.artPath).toBe(true);
   });
 
-  it('never puts ipAddress on the wire', async () => {
-    // Even if the row carries one, the projection must not surface it.
+  it('surfaces ipAddress and its resolved location', async () => {
+    // The operator asked to see the viewer's address; a private one resolves to
+    // no geography (the frontend renders that as "Local").
     const { svc } = build([row({ ipAddress: '10.220.35.77' })]);
     const out = await svc.liveActivity();
-    expect(JSON.stringify(out)).not.toContain('10.220.35.77');
-    // The type no longer declares it either — this pins the RUNTIME shape.
-    expect((out[0] as unknown as Record<string, unknown>).ipAddress).toBeUndefined();
+    const first = out[0] as unknown as Record<string, unknown>;
+    expect(first.ipAddress).toBe('10.220.35.77');
+    // A no-op geoip stub attaches null; the point is the field is present.
+    expect('geo' in first).toBe(true);
   });
 
   it('replaces the provider art path with a boolean', async () => {

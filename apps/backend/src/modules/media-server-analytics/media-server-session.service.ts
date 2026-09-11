@@ -6,6 +6,7 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { ModuleRegistryService } from '../module-registry/module-registry.service';
 import { MediaServerIntegrationService } from '../media/media-server-integration.service';
+import { GeoIpService, type GeoResult } from '../geoip/geoip.service';
 import type { ProviderSession } from '../media/media-server-provider';
 import { DomainEventBus } from '../domain-events/domain-event-bus.service';
 import { isNewViewing, viewingKey } from './viewing-identity';
@@ -51,6 +52,10 @@ export interface LiveSessionView {
   resolution: string | null;
   container: string | null;
   bitrateKbps: number | null;
+  /** The address the viewer streamed from — a LAN ip for local playback. */
+  ipAddress: string | null;
+  /** Offline-resolved location for `ipAddress`; null when unresolved or local. */
+  geo: GeoResult | null;
   startedAt: Date;
   updatedAt: Date;
   hasArtwork: boolean;
@@ -76,16 +81,17 @@ export class MediaServerSessionService {
     private readonly realtime: RealtimeGateway,
     private readonly registry: ModuleRegistryService,
     private readonly bus: DomainEventBus,
+    private readonly geoip: GeoIpService,
   ) {}
 
   /**
    * Live activity — the current reconciled session snapshot, projected.
    *
-   * An explicit `select`, not a bare `findMany()`. The previous version returned
-   * every column, which put **`ipAddress` on the wire** for every session; the
-   * frontend type happened not to declare it, but a TypeScript type is not a
-   * security boundary. Nothing renders a viewer's IP, so nothing should receive
-   * it.
+   * An explicit `select`, not a bare `findMany()`, so a new column is never put
+   * on the wire by accident. `ipAddress` IS selected and returned on purpose —
+   * the operator asked to see where a viewer is streaming from, and this
+   * endpoint is analytics-permissioned — and it carries its offline-resolved
+   * location alongside.
    *
    * `artPath` is likewise withheld: it is a provider-internal path, and the
    * client fetches artwork through the authenticated proxy by session id. A
@@ -103,11 +109,15 @@ export class MediaServerSessionService {
         mediaType: true, libraryName: true, device: true, client: true,
         playbackState: true, progressPercent: true, playbackMethod: true,
         videoCodec: true, audioCodec: true, resolution: true, container: true,
-        bitrateKbps: true, artPath: true, startedAt: true, updatedAt: true,
+        bitrateKbps: true, artPath: true, ipAddress: true, startedAt: true, updatedAt: true,
       },
       }),
       this.knownViewers(),
     ]);
+    // Resolve every distinct address once, offline. The IP is now shown to the
+    // operator (this endpoint is analytics-permissioned), so it is deliberately
+    // on the wire — with its location attached where the database can place it.
+    const geo = await this.geoip.lookupMany(rows.map((r) => r.ipAddress));
     // Mapped field by field rather than spread. A spread would pass through
     // whatever the query happened to return, making this correct only for as
     // long as the `select` above stays correct — defence in depth is cheap here
@@ -138,6 +148,8 @@ export class MediaServerSessionService {
       resolution: r.resolution,
       container: r.container,
       bitrateKbps: r.bitrateKbps,
+      ipAddress: r.ipAddress,
+      geo: r.ipAddress ? geo.get(r.ipAddress.trim()) ?? null : null,
       startedAt: r.startedAt,
       updatedAt: r.updatedAt,
       hasArtwork: !!r.artPath,

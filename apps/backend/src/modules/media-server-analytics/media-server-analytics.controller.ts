@@ -110,6 +110,13 @@ export class MediaServerAnalyticsController {
     return this.service.watchHistory(page, pageSize);
   }
 
+  /** Top viewing locations and ISPs, resolved offline from play IP addresses. */
+  @Get('geo-breakdown')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_REPORTS)
+  geoBreakdown(@Query('limit') limit?: string) {
+    return this.service.geoBreakdown(limit);
+  }
+
   // --- reports + users + recently added -----------------------------------
   @Get('reports/usage')
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_REPORTS)

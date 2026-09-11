@@ -4,6 +4,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Clapperboard, Monitor, Tv, Users } from 'lucide-react';
 import { api, type MediaServerWatchHistoryRow } from '@/lib/api';
 import { formatDateTime, formatRelativeTime } from '@/lib/format';
+import { IpLocation } from './IpLocation';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
 import { Pagination } from '@/components/ui/pagination';
 import { Badge, type BadgeVariant } from '@/components/ui/badge';
@@ -160,6 +161,7 @@ export function WatchHistoryPage() {
                   <th className="px-3 py-2 font-medium">{t('watchHistory.col.completion')}</th>
                   <th className="px-3 py-2 font-medium">{t('watchHistory.col.method')}</th>
                   <th className="hidden px-3 py-2 font-medium lg:table-cell">{t('watchHistory.col.device')}</th>
+                  <th className="hidden px-3 py-2 font-medium md:table-cell">{t('ip.label')}</th>
                   <th className="px-3 py-2 text-right font-medium">{t('watchHistory.col.watched')}</th>
                   <th className="px-3 py-2 text-right font-medium">{t('watchHistory.col.when')}</th>
                 </tr>
@@ -270,6 +272,10 @@ function Row({
         <span className="block truncate text-xs text-muted-foreground">
           {[h.device, h.client].filter(Boolean).join(' · ') || '—'}
         </span>
+      </td>
+
+      <td className="hidden px-3 py-2 text-xs md:table-cell">
+        <IpLocation ip={h.ipAddress} geo={h.geo} />
       </td>
 
       <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{duration(h.watchedSeconds)}</td>

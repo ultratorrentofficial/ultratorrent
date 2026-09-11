@@ -124,7 +124,8 @@
       "usage": "Usage",
       "users": "Users",
       "libraries": "Libraries",
-      "playback": "Playback"
+      "playback": "Playback",
+      "locations": "Locations"
     },
     "usage": {
       "plays": "Total plays",
@@ -140,7 +141,17 @@
       "method": "Method",
       "type": "Type"
     },
-    "empty": "No analytics yet — playback is captured as your servers are used."
+    "empty": "No analytics yet — playback is captured as your servers are used.",
+    "locations": {
+      "topCountries": "Top countries",
+      "topCities": "Top cities",
+      "topIsps": "Top ISPs",
+      "other": "+{{count}} more",
+      "footnote": "Local (LAN) plays: {{local}} · Unplaced: {{unknown}}",
+      "noDatabase": "No geolocation database",
+      "noDatabaseHint": "Add a GeoLite2-City database to resolve viewing locations.",
+      "noIspDatabase": "Add a GeoLite2-ASN database to see ISPs."
+    }
   },
   "recentlyAdded": {
     "title": "Recently Added",
@@ -525,5 +536,9 @@
     "noEmail": "no email",
     "noServer": "no longer connected",
     "localNote": "Friendly names are stored in UltraTorrent and are never written back to the media server. Plex reports a display name only when the account holder set one; Jellyfin and Emby have no friendly-name field at all, so a name set here is the only one those users will ever show."
+  },
+  "ip": {
+    "local": "Local",
+    "label": "IP / Location"
   }
 }
