@@ -45,6 +45,12 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.90.13] - 2026-09-11
+
+### Fixed
+- Library browser: a bulk 'delete files' now clears the selection the moment it is dispatched, not when the background job settles. When that settle callback did not run, the next delete dialog inherited the previous selection's count, so a fresh smaller selection still prompted for the earlier larger number and the type-the-count safeguard stopped describing what would be deleted.
+- Media Server Analytics: the Watch History table now shows each viewer's operator-set friendly name instead of the raw login handle the media server reported. The friendly name (MediaServerUser.displayName) is resolved per page and matched within a connection by provider user id, falling back to the stored handle.
+
 ## [0.90.12] - 2026-09-11
 
 ### Fixed
