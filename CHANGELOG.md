@@ -45,6 +45,12 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.92.1] - 2026-09-11
+
+### Fixed
+- Media Server Analytics: render country flags as bundled SVGs (they now show on Windows too) and add them to the Reports top-countries/cities charts
+- Media Discovery cards now link out to IMDb, TMDB and TVmaze (whichever ids the item carries) so a reviewer can open the full record before deciding
+
 ## [0.92.0] - 2026-09-11
 
 ### Added
