@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.90.14] - 2026-09-11
+
+### Fixed
+- Media Server Analytics: resolve friendly names for Watch History rows imported before connection tracking (no connectionId) too — the majority of a live server's history. The first pass keyed strictly on a non-null connection, leaving that bulk showing raw handles; null-connection rows now share one legacy bucket matched among themselves and never conflated with a real connection.
+
 ## [0.90.13] - 2026-09-11
 
 ### Fixed
