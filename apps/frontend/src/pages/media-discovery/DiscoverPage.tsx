@@ -15,7 +15,8 @@ import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedbac
 import { useToast } from '@/components/ui/toast';
 import { Pagination } from '@/components/ui/pagination';
 import { Checkbox } from '@/components/ui/checkbox';
-import { describeAir, nextRelease } from './airtime';
+import { formatMonthYear } from '@/lib/format';
+import { describeAir, groupByReleaseMonth, nextRelease } from './airtime';
 import { BulkRemoveDialog } from './BulkRemoveDialog';
 import { RemoveDiscoveryDialog } from './RemoveDiscoveryDialog';
 
@@ -35,21 +36,28 @@ const INBOX_PAGE_SIZE = 24;
  * itself — not behind a detail view somebody has to think to open.
  */
 
-/** The views the tabs offer, each a filter over the same endpoint. */
+/**
+ * The views the tabs offer, each a filter over the same endpoint.
+ *
+ * `sort: 'release'` orders a view soonest-release-first and files it under
+ * month headings. Monitored is the one that needs it: every title there is
+ * waiting to premiere, and the question it answers is what arrives when — which
+ * "most recently seen by a provider" does not.
+ */
 const VIEWS = [
-  { id: 'all', status: undefined, decision: undefined },
-  { id: 'monitored', status: 'monitored', decision: undefined },
-  { id: 'needsReview', status: 'needs_review', decision: undefined },
+  { id: 'all', status: undefined, decision: undefined, sort: undefined },
+  { id: 'monitored', status: 'monitored', decision: undefined, sort: 'release' },
+  { id: 'needsReview', status: 'needs_review', decision: undefined, sort: undefined },
   /*
    * Titles already represented here. Their own view rather than a line in the
    * review queue: they need nobody, and burying them among things that DO need
    * somebody is how a review queue stops being read.
    */
-  { id: 'existing', status: 'exists', decision: undefined },
+  { id: 'existing', status: 'exists', decision: undefined, sort: undefined },
   /* Series that already premiered — a person decides, so they need finding. */
-  { id: 'pastRelease', status: 'past_release', decision: undefined },
-  { id: 'notified', status: 'notified', decision: undefined },
-  { id: 'ignored', status: 'ignored', decision: undefined },
+  { id: 'pastRelease', status: 'past_release', decision: undefined, sort: undefined },
+  { id: 'notified', status: 'notified', decision: undefined, sort: undefined },
+  { id: 'ignored', status: 'ignored', decision: undefined, sort: undefined },
 ] as const;
 
 type ViewId = (typeof VIEWS)[number]['id'];
@@ -359,6 +367,7 @@ export function DiscoverPage() {
         decision: selected.decision,
         mediaType: mediaType || undefined,
         search: search || undefined,
+        sort: selected.sort,
         page,
         pageSize: INBOX_PAGE_SIZE,
       }),
@@ -404,6 +413,23 @@ export function DiscoverPage() {
   });
 
   const anyEnabled = (providers.data ?? []).some((p) => p.enabled);
+
+  const renderCard = (item: DiscoveredMediaItem) => (
+    <DiscoveryCard
+      key={item.id}
+      item={item}
+      onRemove={() => setRemoving(item)}
+      selected={selectedIds.has(item.id)}
+      onToggle={() =>
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          if (next.has(item.id)) next.delete(item.id);
+          else next.add(item.id);
+          return next;
+        })
+      }
+    />
+  );
 
   return (
     <div className="space-y-4">
@@ -534,24 +560,26 @@ export function DiscoverPage() {
               </>
             )}
           </div>
-          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-            {inbox.data.items.map((item) => (
-              <DiscoveryCard
-                key={item.id}
-                item={item}
-                onRemove={() => setRemoving(item)}
-                selected={selectedIds.has(item.id)}
-                onToggle={() =>
-                  setSelectedIds((prev) => {
-                    const next = new Set(prev);
-                    if (next.has(item.id)) next.delete(item.id);
-                    else next.add(item.id);
-                    return next;
-                  })
-                }
-              />
-            ))}
-          </div>
+          {selected.sort === 'release' ? (
+            /*
+             * Under month headings, soonest first. The server has already put
+             * the page in release order; this only draws where one month ends.
+             * The heading uses the same date the card prints, so a card never
+             * sits under a month its own date contradicts.
+             */
+            <div className="space-y-4">
+              {groupByReleaseMonth(inbox.data.items, (item) => nextRelease(item.releaseDates)).map((group) => (
+                <section key={group.key ?? 'undated'} className="space-y-2">
+                  <h2 className="border-b border-white/10 pb-1 text-sm font-semibold first-letter:uppercase">
+                    {group.key ? formatMonthYear(group.key) : t('inbox.monthUndated')}
+                  </h2>
+                  <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">{group.items.map(renderCard)}</div>
+                </section>
+              ))}
+            </div>
+          ) : (
+            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">{inbox.data.items.map(renderCard)}</div>
+          )}
           <Pagination
             page={page}
             pageSize={INBOX_PAGE_SIZE}

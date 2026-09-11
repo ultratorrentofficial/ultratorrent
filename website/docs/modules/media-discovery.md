@@ -262,6 +262,8 @@ A monitored title leaves this list for good once it grabs its first release — 
 
 **Needs review is not notify.** One says "you might want this"; the other says "we nearly did something and stopped." They are triaged differently, which is why they are separate.
 
+**Monitored reads chronologically.** The Monitored view is sorted soonest release first and grouped under month headings — *September 2026*, *October 2026* — so you can see what is premiering when. Titles without an announced date come last. The month is taken from the same date shown on the card, in your own time zone. The other views stay newest-discovery first.
+
 ![Discovery inbox](/img/screenshots/media-discovery-inbox.png)
 
 ## What it tells you

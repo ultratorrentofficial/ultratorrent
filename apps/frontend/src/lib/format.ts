@@ -194,6 +194,46 @@ export function formatCalendarDate(dateOnly: string | null | undefined): string 
 }
 
 /**
+ * The calendar month an instant falls in for the user, as `YYYY-MM`.
+ *
+ * In the display zone, like every other date here: 01:00 UTC on 1 November is
+ * still 31 October in Puerto Rico. Null for an unparseable value.
+ */
+export function calendarMonthOf(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return null;
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', withZone({ year: 'numeric', month: '2-digit' })).formatToParts(at);
+    const year = parts.find((p) => p.type === 'year')?.value;
+    const month = parts.find((p) => p.type === 'month')?.value;
+    if (year && month) return `${year}-${month}`;
+  } catch {
+    /* an unusable zone falls back to the UTC month below */
+  }
+  return at.toISOString().slice(0, 7);
+}
+
+/**
+ * A `YYYY-MM` month as the user reads it — "September 2026".
+ *
+ * Formatted in UTC on purpose: the key already IS a calendar month, and
+ * converting its first instant would turn September into August for anyone
+ * west of UTC.
+ */
+export function formatMonthYear(month: string): string {
+  const m = /^(\d{4})-(\d{2})$/.exec(month);
+  if (!m) return month;
+  const at = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, 1));
+  if (Number.isNaN(at.getTime())) return month;
+  try {
+    return at.toLocaleDateString(undefined, { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  } catch {
+    return month;
+  }
+}
+
+/**
  * Clock time only, in the user's zone.
  *
  * `withSeconds` is for live charts, whose x-axis ticks are seconds apart and

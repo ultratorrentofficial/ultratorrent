@@ -8,7 +8,7 @@ import { RequirePermissions } from '../../common/decorators/permissions.decorato
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { reqAuditContext } from '../../common/request-audit-context';
-import { paginate, parsePage } from '../../common/pagination';
+import { pageOf, paginate, parsePage } from '../../common/pagination';
 import { DiscoveryProviderRegistry } from './discovery-provider-registry.service';
 import { DiscoverySyncService } from './discovery-sync.service';
 import { DiscoveryPreviewService, type PreviewableTemplate } from './discovery-preview.service';
@@ -17,12 +17,38 @@ import { DiscoveryTemplateService, type DiscoveryTemplateInput } from './discove
 import { AcquisitionTemplateService, type AcquisitionTemplateInput } from './acquisition-template.service';
 import { DiscoveryRemovalService, type RemovalScope } from './discovery-removal.service';
 import { DiscoveryReconciliationService } from './discovery-reconciliation.service';
+import { pageByRelease } from './discovery-release-order';
 
 /** Validated rather than trusted: an unknown scope must never fall through. */
 const REMOVAL_SCOPES: RemovalScope[] = ['catalog', 'monitoring', 'library'];
 const TORRENT_ACTIONS = ['keep', 'stop', 'stop_and_delete'] as const;
 /** A page of the inbox is 24; this leaves room for a select-all across a few. */
 const MAX_BULK_REMOVE = 200;
+
+/**
+ * What an inbox card is rendered from, beyond the row itself.
+ *
+ * Shared by both orderings so a chronological page cannot quietly render
+ * thinner cards than the default one.
+ */
+const INBOX_INCLUDE = {
+  releaseDates: { orderBy: { date: 'asc' as const } },
+  /*
+   * The most recent evaluation, so a title with no decision can still say
+   * why.
+   *
+   * A template that finds a title out of scope records the evaluation and
+   * deliberately leaves `DiscoveredMedia` untouched — which is right, but
+   * left the card reading "Not evaluated" for 472 of 596 titles that had
+   * every one been evaluated. That sends somebody looking for a sweep
+   * that never ran instead of the filter that rejected it.
+   */
+  evaluations: {
+    orderBy: { createdAt: 'desc' as const },
+    take: 1,
+    select: { reason: true, decision: true, templateId: true, createdAt: true },
+  },
+};
 
 /**
  * Where each provider's credential lives, for a provider that is not registered.
@@ -188,6 +214,8 @@ export class MediaDiscoveryController {
     @Query('search') search?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
+    /** `release` for soonest-release-first; anything else keeps the default. */
+    @Query('sort') sort?: string,
   ) {
     const where = {
       ...(status ? { discoveryStatus: status } : {}),
@@ -195,31 +223,29 @@ export class MediaDiscoveryController {
       ...(mediaType ? { mediaType } : {}),
       ...(search ? { title: { contains: search, mode: 'insensitive' as const } } : {}),
     };
+    const params = parsePage(page, pageSize);
+    if (sort === 'release') {
+      /*
+       * Soonest release first. Reads the filtered set in its lightest form to
+       * order it — bounded by the catalogue (under 900 titles on the largest
+       * install) — with the same `where` as the default ordering, so the two
+       * can never disagree about which titles a filter matches.
+       */
+      const { rows, total } = await pageByRelease(
+        () =>
+          this.prisma.discoveredMedia.findMany({
+            where,
+            select: { id: true, title: true, releaseDates: { select: { date: true, airsAt: true } } },
+          }),
+        (ids) => this.prisma.discoveredMedia.findMany({ where: { id: { in: ids } }, include: INBOX_INCLUDE }),
+        params,
+      );
+      return pageOf(rows, total, params);
+    }
     return paginate(
       this.prisma.discoveredMedia,
-      {
-        where,
-        orderBy: [{ lastSeenAt: 'desc' }],
-        include: {
-          releaseDates: { orderBy: { date: 'asc' } },
-          /*
-           * The most recent evaluation, so a title with no decision can still say
-           * why.
-           *
-           * A template that finds a title out of scope records the evaluation and
-           * deliberately leaves `DiscoveredMedia` untouched — which is right, but
-           * left the card reading "Not evaluated" for 472 of 596 titles that had
-           * every one been evaluated. That sends somebody looking for a sweep
-           * that never ran instead of the filter that rejected it.
-           */
-          evaluations: {
-            orderBy: { createdAt: 'desc' },
-            take: 1,
-            select: { reason: true, decision: true, templateId: true, createdAt: true },
-          },
-        },
-      },
-      parsePage(page, pageSize),
+      { where, orderBy: [{ lastSeenAt: 'desc' }], include: INBOX_INCLUDE },
+      params,
     );
   }
 

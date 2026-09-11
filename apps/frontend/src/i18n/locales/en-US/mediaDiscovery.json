@@ -62,7 +62,8 @@
     "count": "Showing {{shown}} of {{total}}",
     "emptyTitle": "Nothing discovered yet",
     "emptyDescription": "Enable a provider and refresh the catalogues, or widen the filters above.",
-    "error": "Could not load discoveries"
+    "error": "Could not load discoveries",
+    "monthUndated": "Release date not announced"
   },
   "tabs": {
     "inbox": "Inbox",

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { setDisplayTimezone } from '@/lib/format';
-import { describeAir, nextRelease } from './airtime';
+import { formatMonthYear } from '@/lib/format';
+import { describeAir, groupByReleaseMonth, nextRelease, releaseMonthKey } from './airtime';
 
 /**
  * Two kinds of date, and only one may be converted.
@@ -107,5 +108,104 @@ describe('nothing to say', () => {
 
   it('returns null when the release has neither a date nor an instant', () => {
     expect(describeAir({ releaseType: 'unknown', date: null })).toBeNull();
+  });
+});
+
+describe('the month a release is filed under', () => {
+  it('reads a calendar date straight off the date', () => {
+    expect(releaseMonthKey({ releaseType: 'series_premiere', date: '2026-09-20' })).toBe('2026-09');
+  });
+
+  /*
+   * Never converted. Midnight UTC on 1 October is 30 September in Puerto Rico,
+   * and a date-only premiere must not slide into the previous month for it.
+   */
+  it('does not shift a calendar date across a month boundary for a viewer west of UTC', () => {
+    setDisplayTimezone('America/Puerto_Rico');
+    expect(releaseMonthKey({ releaseType: 'series_premiere', date: '2026-10-01' })).toBe('2026-10');
+  });
+
+  /*
+   * 9pm Eastern on 31 October is stamped 01:00 UTC on 1 November. The card prints
+   * the 31st, so the heading above it must say October.
+   */
+  it('places an instant in the viewer month, matching the date on the card', () => {
+    const halloween = { releaseType: 'episode_air', date: '2026-10-31', airsAt: '2026-11-01T01:00:00.000Z' };
+    setDisplayTimezone('America/Puerto_Rico');
+    expect(releaseMonthKey(halloween)).toBe('2026-10');
+    setDisplayTimezone('UTC');
+    expect(releaseMonthKey(halloween)).toBe('2026-11');
+  });
+
+  it('has no month for a release with no date', () => {
+    expect(releaseMonthKey({ releaseType: 'unknown', date: null })).toBeNull();
+    expect(releaseMonthKey(null)).toBeNull();
+  });
+
+  /*
+   * The key is already a calendar month. Formatting its first instant in the
+   * viewer's zone would print August for September anywhere west of UTC.
+   */
+  it('names the month with its year, without sliding it back a month west of UTC', () => {
+    setDisplayTimezone('America/Puerto_Rico');
+    const label = formatMonthYear('2026-09');
+    expect(label).toContain('2026');
+    // "September" / "septiembre" — never August, which is what a converted instant prints here.
+    expect(label).toMatch(/sep/i);
+    expect(formatMonthYear('not-a-month')).toBe('not-a-month');
+  });
+});
+
+describe('grouping titles by release month', () => {
+  const show = (title: string, date: string | null, airsAt?: string) => ({
+    title,
+    release: date || airsAt ? { releaseType: 'series_premiere', date, airsAt } : null,
+  });
+  const group = (items: ReturnType<typeof show>[]) =>
+    groupByReleaseMonth(items, (i) => i.release).map((g) => [g.key, g.items.map((i) => i.title)]);
+
+  it('files each title under its month, keeping the order it arrived in', () => {
+    expect(
+      group([
+        show('Neagley', '2026-09-16'),
+        show('Youth', '2026-09-20'),
+        show('War', '2026-10-01'),
+        show('Dig', '2026-11-23'),
+      ]),
+    ).toEqual([
+      ['2026-09', ['Neagley', 'Youth']],
+      ['2026-10', ['War']],
+      ['2026-11', ['Dig']],
+    ]);
+  });
+
+  /*
+   * The server orders by instant; the heading is a local month. A 9pm premiere on
+   * 31 October sorts AFTER a date-only 1 November — and must still be shown
+   * under one October heading placed before November, not as Nov / Oct / Nov.
+   */
+  it('keeps one heading per month, in calendar order, when instants and dates interleave', () => {
+    setDisplayTimezone('America/Puerto_Rico');
+    expect(
+      group([
+        show('Early November', '2026-11-01'),
+        show('Halloween Night', '2026-10-31', '2026-11-01T01:00:00.000Z'),
+        show('Mid November', '2026-11-12'),
+      ]),
+    ).toEqual([
+      ['2026-10', ['Halloween Night']],
+      ['2026-11', ['Early November', 'Mid November']],
+    ]);
+  });
+
+  it('puts titles with no announced date last', () => {
+    expect(group([show('Unannounced', null), show('Carrie', '2026-10-07')])).toEqual([
+      ['2026-10', ['Carrie']],
+      [null, ['Unannounced']],
+    ]);
+  });
+
+  it('returns no groups for no titles', () => {
+    expect(groupByReleaseMonth([], () => null)).toEqual([]);
   });
 });

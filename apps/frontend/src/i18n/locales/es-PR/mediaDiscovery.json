@@ -62,7 +62,8 @@
     "count": "Mostrando {{shown}} de {{total}}",
     "emptyTitle": "Aún no se ha descubierto nada",
     "emptyDescription": "Activa un proveedor y actualiza los catálogos, o amplía los filtros de arriba.",
-    "error": "No se pudieron cargar los descubrimientos"
+    "error": "No se pudieron cargar los descubrimientos",
+    "monthUndated": "Fecha de estreno sin anunciar"
   },
   "tabs": {
     "inbox": "Bandeja",

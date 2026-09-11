@@ -1,4 +1,4 @@
-import { formatCalendarDate, formatDateTime, formatRelativeTime } from '@/lib/format';
+import { calendarMonthOf, formatCalendarDate, formatDateTime, formatRelativeTime } from '@/lib/format';
 
 /**
  * Turning a release date into something a person reads.
@@ -70,4 +70,61 @@ export function describeAir(release: ReleaseDateLike | null | undefined): AirInf
     };
   }
   return null;
+}
+
+/**
+ * The calendar month a release falls in, as `YYYY-MM`.
+ *
+ * Follows the same two-kinds-of-date rule as {@link describeAir}, and for the
+ * same reason. An instant is placed in the viewer's own zone: a 9pm Eastern
+ * premiere on 31 October is stamped 01:00 UTC on 1 November, and filing it under
+ * November would contradict the date printed on its own card. A calendar date is
+ * already the network's local day, so its month is read straight off it.
+ */
+export function releaseMonthKey(release: ReleaseDateLike | null | undefined): string | null {
+  if (!release) return null;
+  if (release.airsAt) return calendarMonthOf(release.airsAt);
+  const m = release.date ? /^(\d{4})-(\d{2})/.exec(release.date) : null;
+  return m ? `${m[1]}-${m[2]}` : null;
+}
+
+export interface ReleaseMonthGroup<T> {
+  /** `YYYY-MM`, or null for titles with no dated release. */
+  key: string | null;
+  items: T[];
+}
+
+/**
+ * Items filed under the month of their next release, in the order given.
+ *
+ * The server does the ordering — a page is a slice of it, so the order has to
+ * be decided where every title is visible. This only draws the boundaries.
+ *
+ * Groups are merged by month rather than cut at every change, and the months
+ * are then put in calendar order. The server orders by instant and the heading
+ * is a LOCAL month, so a 9pm premiere on 31 October (01:00 UTC, 1 November) sorts
+ * after a date-only release on 1 November; cutting on change would print
+ * November, October, November. Within a month the server's order stands.
+ * Undated titles always come last: an unannounced date is not "soon".
+ */
+export function groupByReleaseMonth<T>(
+  items: readonly T[],
+  releaseOf: (item: T) => ReleaseDateLike | null,
+): ReleaseMonthGroup<T>[] {
+  const groups = new Map<string | null, T[]>();
+  for (const item of items) {
+    const key = releaseMonthKey(releaseOf(item));
+    const bucket = groups.get(key);
+    if (bucket) bucket.push(item);
+    else groups.set(key, [item]);
+  }
+  const dated = [...groups]
+    .filter((entry): entry is [string, T[]] => entry[0] !== null)
+    // `YYYY-MM` sorts correctly as text.
+    .sort(([a], [b]) => a.localeCompare(b));
+  const undated = groups.get(null);
+  return [
+    ...dated.map(([key, grouped]) => ({ key, items: grouped })),
+    ...(undated ? [{ key: null, items: undated }] : []),
+  ];
 }

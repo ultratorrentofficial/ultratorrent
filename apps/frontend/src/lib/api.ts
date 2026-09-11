@@ -5196,6 +5196,8 @@ export const api = {
       search?: string;
       page?: number;
       pageSize?: number;
+      /** `release` orders soonest release first; omitted keeps most-recently-seen. */
+      sort?: 'release';
     } = {}): Promise<DiscoveredMediaPage> {
       return request<DiscoveredMediaPage>('/media-discovery/inbox', { query: params });
     },

@@ -115,6 +115,19 @@ reason sit on the card rather than behind a detail view.
 "we nearly did something and stopped." They are triaged differently, which is why
 they are separate.
 
+**Monitored is in release order, under month headings.** Every title there is
+waiting to premiere, so the list answers *what arrives when*: soonest first, filed
+under the month of the release date printed on its card, with titles that have no
+announced date last. The other views keep their default order — most recently
+reported by a provider first — because *what is new* is the question they answer.
+
+The ordering is done by the API (`GET /inbox?sort=release`), not the page, because
+the inbox is paginated and only the server sees every title. It uses the card's
+own date — the earliest dated release, its exact air time when the provider gave
+one — so a card never sits under a month its date contradicts. The heading month
+is the viewer's local month: a 9pm Eastern premiere on 31 October is stamped
+01:00 UTC on 1 November and is still filed under October.
+
 A title with an **ambiguous identity** is called out in amber. That means two
 different works share a title and year — TMDB carries three separate 2026 films
 called *The Odyssey* — and the engine refused to guess. No template setting can
