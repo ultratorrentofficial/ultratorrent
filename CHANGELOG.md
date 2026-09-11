@@ -45,6 +45,13 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.90.11] - 2026-09-11
+
+### Fixed
+- Release a parked torrent once it finishes downloading. The revival test required a connected seed or active download throughput, and both are structurally zero for a completed torrent, so one that completed while parked was re-parked on every probe forever - and because the scheduler skips parked torrents, its seeding policy and age deadline were never evaluated again.
+- Resolve the remaining CodeQL quality findings: a test double that did not match the API it stood in for, two untested probe failure paths, and a discarded close error that could report a truncated plan as written
+- Media Discovery: the Monitored view is now sorted soonest release first and grouped under month headings, so upcoming premieres read chronologically
+
 ## [0.90.10] - 2026-09-09
 
 ### Fixed
