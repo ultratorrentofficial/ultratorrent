@@ -241,6 +241,34 @@ services:
       - caddy_data:/data
     networks: [internal]
 
+  # Keeps the MaxMind GeoLite2 databases current for Media Server Analytics'
+  # IP geolocation. Off unless the `geoip` profile is enabled AND the two
+  # credentials below are set. MaxMind's official updater: it downloads the
+  # editions into the shared `geoip` volume every GEOIPUPDATE_FREQUENCY hours,
+  # pulling only what changed, and the backend reloads a refreshed file on its
+  # next lookup with no restart. The backend itself never makes this call — the
+  # whole point of local lookups is that no viewer IP leaves the host, and only
+  # this updater talks to MaxMind. It also performs the FIRST download, so with
+  # the profile on there is no manual database provisioning step at all.
+  geoipupdate:
+    image: ghcr.io/maxmind/geoipupdate:v7
+    profiles: ["geoip"]
+    restart: unless-stopped
+    environment:
+      GEOIPUPDATE_ACCOUNT_ID: ${GEOIP_ACCOUNT_ID:-}
+      GEOIPUPDATE_LICENSE_KEY: ${GEOIP_LICENSE_KEY:-}
+      # City drives the location charts; ASN adds the ISP chart. Country is
+      # implied by City, so it is not listed separately.
+      GEOIPUPDATE_EDITION_IDS: ${GEOIP_EDITION_IDS:-GeoLite2-City GeoLite2-ASN}
+      # Hours between checks. A loop, not a one-shot, so the container stays up
+      # and refreshes on MaxMind's twice-weekly cadence without a host cron.
+      GEOIPUPDATE_FREQUENCY: ${GEOIP_UPDATE_FREQUENCY:-72}
+      # Write where the backend reads (GEOIP_DB_PATH / GEOIP_ASN_DB_PATH).
+      GEOIPUPDATE_DB_DIR: /data/geoip
+    volumes:
+      - geoip:/data/geoip
+    networks: [internal]
+
 volumes:
   postgres_data:
   redis_data:

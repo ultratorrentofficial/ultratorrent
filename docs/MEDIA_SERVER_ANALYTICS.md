@@ -221,30 +221,65 @@ the host; **no viewer IP address ever leaves your network**, and nothing is
 called over the internet to resolve one. A LAN/loopback address has no public
 geography and is shown as **Local**.
 
-### Provisioning the databases
+### The databases
 
-Two free databases are used, both requiring a free MaxMind account:
+Two free databases are used, both from a free MaxMind account:
 
 - **GeoLite2-City** — country / region / city (and the map coordinates). Drives
   the location column and the country/city charts.
 - **GeoLite2-ASN** — the network operator (ISP). Drives the ISP chart; optional —
   without it, locations still resolve and the ISP chart shows a hint instead.
 
-1. Create a free account at <https://www.maxmind.com/en/geolite2/signup> and
-   generate a licence key.
-2. Download `GeoLite2-City.mmdb` and `GeoLite2-ASN.mmdb` (the `.mmdb`, not the
-   CSV).
-3. Copy them into the backend's `geoip` volume, which is mounted at
-   `/data/geoip`:
+Create a free account at <https://www.maxmind.com/en/geolite2/signup>, then note
+your **Account ID** and generate a **licence key**.
 
-   ```bash
-   docker cp GeoLite2-City.mmdb ultratorrent-core-backend-1:/data/geoip/
-   docker cp GeoLite2-ASN.mmdb  ultratorrent-core-backend-1:/data/geoip/
+### Keeping them current — the `geoipupdate` sidecar (recommended)
+
+MaxMind refreshes GeoLite2 **twice a week**, so the databases are kept current by
+a bundled, profile-gated sidecar rather than by hand. It is
+[MaxMind's own updater](https://github.com/maxmind/geoipupdate); it runs on a
+loop, downloads only what changed into the shared `geoip` volume, and the backend
+reloads a refreshed file on its next lookup with **no restart**. **The backend
+never talks to MaxMind — only this sidecar does**, so the offline guarantee holds:
+no viewer IP ever leaves the host.
+
+It also performs the **first** download, so there is no manual provisioning step.
+
+1. Put your credentials in the host `.env` (next to the compose file):
+
+   ```ini
+   GEOIP_ACCOUNT_ID=1234567
+   GEOIP_LICENSE_KEY=your-license-key
+   # optional overrides:
+   # GEOIP_EDITION_IDS=GeoLite2-City GeoLite2-ASN
+   # GEOIP_UPDATE_FREQUENCY=72     # hours between checks
    ```
 
-The backend picks the files up on the next lookup — no restart needed — and
-reloads them automatically when you replace them on MaxMind's monthly refresh.
-The paths are overridable with `GEOIP_DB_PATH` and `GEOIP_ASN_DB_PATH`.
+2. Add `geoip` to the host's `COMPOSE_PROFILES` (alongside any others already
+   set, e.g. `qbittorrent,prowlarr,geoip`) so the service starts with the stack,
+   then bring it up:
+
+   ```bash
+   docker compose --profile geoip up -d geoipupdate
+   ```
+
+The first run populates `GeoLite2-City.mmdb` and `GeoLite2-ASN.mmdb` in the volume
+within a few seconds; every 72 hours after that it checks for a newer edition.
+
+### Manual alternative
+
+If you would rather not run the sidecar, download `GeoLite2-City.mmdb` and
+`GeoLite2-ASN.mmdb` (the `.mmdb`, not the CSV) and copy them into the volume the
+backend reads:
+
+```bash
+docker cp GeoLite2-City.mmdb ultratorrent-core-backend-1:/data/geoip/
+docker cp GeoLite2-ASN.mmdb  ultratorrent-core-backend-1:/data/geoip/
+```
+
+You are then responsible for refreshing them on MaxMind's schedule. The backend
+reloads whenever a file is replaced. The read paths are overridable with
+`GEOIP_DB_PATH` and `GEOIP_ASN_DB_PATH`.
 
 Everything degrades gracefully: with no database present, IP addresses still show
 (without a location), the Locations tab explains what to add, and nothing errors.
