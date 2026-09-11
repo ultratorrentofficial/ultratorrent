@@ -13,7 +13,7 @@ import { MediaServerAnalyticsService } from './media-server-analytics.service';
 describe('MediaServerAnalyticsService.watchHistory — friendly names', () => {
   const makePrisma = (
     rows: Array<{ connectionId: string | null; providerUserId: string | null; userName: string | null }>,
-    users: Array<{ connectionId: string; providerUserId: string | null; userName: string; displayName: string | null }>,
+    users: Array<{ connectionId: string | null; providerUserId: string | null; userName: string; displayName: string | null }>,
   ) => ({
     mediaServerWatchHistory: {
       count: jest.fn().mockResolvedValue(rows.length),
@@ -62,6 +62,29 @@ describe('MediaServerAnalyticsService.watchHistory — friendly names', () => {
     );
     const { items } = await svc(prisma).watchHistory();
     expect(items[0].userName).toBe('guest');
+  });
+
+  /*
+   * The majority of a live server's history predates connection tracking and
+   * carries no connectionId. These share one legacy bucket with the users that
+   * also have none, and must resolve — this was the half the first fix missed.
+   */
+  it('resolves rows and users that both carry no connection', async () => {
+    const prisma = makePrisma(
+      [{ connectionId: null, providerUserId: '571526792', userName: 'akafunma' }],
+      [{ connectionId: null, providerUserId: '571526792', userName: 'akafunma', displayName: 'Astrid Masa' }],
+    );
+    const { items } = await svc(prisma).watchHistory();
+    expect(items[0].userName).toBe('Astrid Masa');
+  });
+
+  it('does not let the null legacy bucket borrow from a real connection', async () => {
+    const prisma = makePrisma(
+      [{ connectionId: null, providerUserId: '1', userName: 'ghost' }],
+      [{ connectionId: 'c1', providerUserId: '1', userName: 'dennis.ayala', displayName: 'Dennis Ayala' }],
+    );
+    const { items } = await svc(prisma).watchHistory();
+    expect(items[0].userName).toBe('ghost');
   });
 
   it('does not query users when the page is empty', async () => {
