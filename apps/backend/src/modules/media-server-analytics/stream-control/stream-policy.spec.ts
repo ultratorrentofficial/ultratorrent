@@ -133,6 +133,31 @@ describe('StreamPolicyService link/unlink', () => {
   });
 });
 
+describe('StreamPolicyService.syncSubjectsFromKnownUsers', () => {
+  it('seeds a canonical subject for each known viewer, so the roster is not empty', async () => {
+    const subjects: any[] = [];
+    let seq = 0;
+    const prisma = {
+      mediaServerUser: {
+        findMany: async () => [
+          { connectionId: 'plex1', providerUserId: '100', userName: 'john', displayName: 'John' },
+          { connectionId: 'jf1', providerUserId: 'JF', userName: 'mary', displayName: null },
+          { connectionId: 'gone', providerUserId: '999', userName: 'ghost', displayName: null }, // connection removed → skipped
+        ],
+      },
+      mediaServerIntegration: { findMany: async () => [{ id: 'plex1', kind: 'plex' }, { id: 'jf1', kind: 'jellyfin' }] },
+      mediaAnalyticsUser: {
+        findUnique: async ({ where }: any) => subjects.find((s) => s.kind === where.kind_providerUserId.kind && s.providerUserId === where.kind_providerUserId.providerUserId) ?? null,
+        create: async ({ data }: any) => { const r = { id: `s${++seq}`, ...data }; subjects.push(r); return r; },
+        update: async ({ where, data }: any) => { const r = subjects.find((s) => s.id === where.id)!; Object.assign(r, data); return r; },
+      },
+    };
+    const svc = new StreamPolicyService(prisma as never, {} as never);
+    await svc.syncSubjectsFromKnownUsers();
+    expect(subjects.map((s) => `${s.kind}:${s.providerUserId}`).sort()).toEqual(['jellyfin:JF', 'plex:100']);
+  });
+});
+
 describe('StreamControlSettingsService.read defaults & clamping', () => {
   const build = (stored: Record<string, unknown> | undefined) =>
     new StreamControlSettingsService({ get: async () => stored, set: async () => undefined } as never);

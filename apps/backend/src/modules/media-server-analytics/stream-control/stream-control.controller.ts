@@ -51,6 +51,10 @@ export class StreamControlController {
   @Get('policies')
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_READ)
   async policies() {
+    // Seed the roster from known viewers so it is populated even before anyone
+    // streams under enforcement (otherwise the page can only ever show whoever
+    // was caught mid-stream, and stays empty on a fresh setup).
+    await this.policy.syncSubjectsFromKnownUsers();
     const [subjects, status] = await Promise.all([this.policy.listSubjects(), this.enforcement.status()]);
     const live = new Map(status.subjects.map((s) => [s.mediaAnalyticsUserId, s]));
     return subjects.map((subj) => ({

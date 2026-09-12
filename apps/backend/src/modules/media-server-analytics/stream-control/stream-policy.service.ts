@@ -125,6 +125,29 @@ export class StreamPolicyService {
     return this.prisma.mediaAnalyticsUser.findMany({ include: { policy: true }, orderBy: [{ displayName: 'asc' }, { providerUserId: 'asc' }] });
   }
 
+  /**
+   * Seed canonical subjects from the viewers analytics already knows, so an admin
+   * can set a limit for anyone the server has seen — not only whoever happens to
+   * be streaming while enforcement runs. Each `MediaServerUser` with a provider id
+   * on a live connection maps to a subject by `(connection kind, providerUserId)`;
+   * `resolveSubject` is idempotent, so this is safe to run on every roster read.
+   */
+  async syncSubjectsFromKnownUsers(): Promise<void> {
+    const [users, conns] = await Promise.all([
+      this.prisma.mediaServerUser.findMany({
+        where: { providerUserId: { not: null }, connectionId: { not: null } },
+        select: { connectionId: true, providerUserId: true, userName: true, displayName: true },
+      }),
+      this.prisma.mediaServerIntegration.findMany({ select: { id: true, kind: true } }),
+    ]);
+    if (users.length === 0) return;
+    const kindByConn = new Map(conns.map((c) => [c.id, c.kind]));
+    for (const u of users) {
+      const kind = kindByConn.get(u.connectionId as string);
+      if (kind) await this.resolveSubject(kind, u.providerUserId, u.displayName ?? u.userName);
+    }
+  }
+
   subject(userId: string) {
     return this.prisma.mediaAnalyticsUser.findUnique({ where: { id: userId }, include: { policy: true } });
   }
