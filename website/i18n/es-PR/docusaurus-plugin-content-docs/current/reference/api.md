@@ -18,7 +18,7 @@ Esta página se genera desde `los decoradores @Controller / @Get / @RequirePermi
 Cada endpoint de abajo se leyó de los controladores mismos, incluyendo el **permiso
 exacto** que exige su guard.
 
-- **520 endpoints** en **28 controladores**
+- **522 endpoints** en **28 controladores**
 - URL base: `http://<host>:<port>/api`
 
 ## Autenticación
@@ -568,6 +568,8 @@ From `StreamControlController`.
 | `GET` | `/api/media-server-analytics/stream-control/settings` | `MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_READ` | `getSettings` |
 | `PATCH` | `/api/media-server-analytics/stream-control/settings` | `MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_MANAGE` | `updateSettings` |
 | `GET` | `/api/media-server-analytics/stream-control/policies` | `MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_READ` | `policies` |
+| `GET` | `/api/media-server-analytics/stream-control/candidates` | `MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_READ` | `candidates` |
+| `POST` | `/api/media-server-analytics/stream-control/policies` | `MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_MANAGE` | `addPolicy` |
 | `POST` | `/api/media-server-analytics/stream-control/link` | `MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_MANAGE` | `link` |
 | `POST` | `/api/media-server-analytics/stream-control/policies/:mediaUserId/unlink` | `MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_MANAGE` | `unlink` |
 | `GET` | `/api/media-server-analytics/stream-control/policies/:mediaUserId` | `MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_READ` | `getPolicy` |

@@ -12,7 +12,7 @@ keywords: [release notes, changelog, versions, what's new, upgrade]
 Esta página se genera desde `CHANGELOG.md` al compilar. **No la edites a mano** — cambia el changelog y vuelve a compilar.
 :::
 
-Cada versión publicada, la más reciente primero. Esta página muestra las **25 más recientes** de **221** versiones; el historial completo está en [CHANGELOG.md](https://github.com/ultratorrentofficial/ultratorrent/blob/main/CHANGELOG.md).
+Cada versión publicada, la más reciente primero. Esta página muestra las **25 más recientes** de **223** versiones; el historial completo está en [CHANGELOG.md](https://github.com/ultratorrentofficial/ultratorrent/blob/main/CHANGELOG.md).
 
 Las versiones son [semánticas](https://semver.org/): un salto **minor** significa capacidad nueva, un **patch** significa solo correcciones. La actualización se cubre en [Actualizar](/install/upgrading).
 
@@ -20,9 +20,25 @@ Las versiones son [semánticas](https://semver.org/): un salto **minor** signifi
 Las entradas del changelog se escriben en inglés en el momento del lanzamiento y se publican tal cual. Los encabezados y la estructura de esta página están traducidos; el texto de cada entrada no lo está.
 :::
 
-## 0.92.2 — 2026-09-12
+## 0.92.4 — 2026-09-12
 
 _Última versión._
+
+### Corregido
+
+- Stream Limits: the list now holds only viewers an admin has deliberately configured (override, exemption, or link), with an Add user picker to grant one — not every viewer at the global default. Also show the ISP/organisation next to a viewer's IP address (it was resolved but never displayed)
+
+Etiquetada [`v0.92.4`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.92.4).
+
+## 0.92.3 — 2026-09-12
+
+### Corregido
+
+- Stream Limits: seed the per-user roster from viewers analytics already knows, so it is populated (and editable) even before anyone streams under enforcement — the page was empty on a fresh setup
+
+Etiquetada [`v0.92.3`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.92.3).
+
+## 0.92.2 — 2026-09-12
 
 ### Corregido
 
@@ -266,29 +282,6 @@ Etiquetada [`v0.89.0`](https://github.com/ultratorrentofficial/ultratorrent/rele
 - Playback notifications name the media server when more than one is connected
 
 Etiquetada [`v0.88.0`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.88.0).
-
-## 0.87.0 — 2026-08-31
-
-### Nuevo
-
-- Public URL settings, series NFO generation, and friendly names for media-server users — released as a minor for the new capability in v0.86.2
-
-Etiquetada [`v0.87.0`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.87.0).
-
-## 0.86.2 — 2026-08-31
-
-### Corregido
-
-- The SMTP settings test is recorded in the newsletter activity view, and a failed one reports the SMTP reason instead of a generic error
-- Watch History shows completion, playback cost and device; the newsletter footer links the docs and repo
-- Newsletter recipients can unsubscribe themselves through a signed link
-- Settings gains a public URL, with live DNS, reachability and certificate checks
-- Episode NFOs no longer carry the series id, which made scrapers merge every episode into one
-- UltraTorrent writes tvshow.nfo for series, which previously had no NFO of their own
-- Set a friendly name for media-server users, so account handles become readable names
-- Server Users page: set a friendly name and email for users from any connected media server
-
-Etiquetada [`v0.86.2`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.86.2).
 
 ## Versiones anteriores
 
