@@ -6527,6 +6527,8 @@ export interface StreamControlStatus {
 export interface StreamEnforcementEvent {
   id: string;
   mediaAnalyticsUserId: string | null;
+  /** Resolved subject display name (falls back to the provider user id). */
+  displayName: string | null;
   mediaServerId: string;
   provider: string;
   providerUserId: string | null;

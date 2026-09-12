@@ -674,7 +674,8 @@
       "colResult": "Result",
       "pageInfo": "Page {{page}} · {{total}} events",
       "prev": "Previous",
-      "next": "Next"
+      "next": "Next",
+      "colUser": "User"
     },
     "link": {
       "linked": "Linked",

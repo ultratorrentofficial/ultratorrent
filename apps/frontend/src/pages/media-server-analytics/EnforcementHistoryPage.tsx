@@ -65,6 +65,7 @@ export function EnforcementHistoryPage() {
                 <thead className="border-b border-white/10 text-left uppercase text-muted-foreground">
                   <tr>
                     <th className="px-3 py-2">{t('streamControl.history.colTime')}</th>
+                    <th className="px-3 py-2">{t('streamControl.history.colUser')}</th>
                     <th className="px-3 py-2">{t('streamControl.history.colProvider')}</th>
                     <th className="px-3 py-2">{t('streamControl.history.colMedia')}</th>
                     <th className="px-3 py-2">{t('streamControl.history.colClient')}</th>
@@ -77,6 +78,7 @@ export function EnforcementHistoryPage() {
                   {(q.data?.items ?? []).map((e: StreamEnforcementEvent) => (
                     <tr key={e.id} className="border-b border-white/5">
                       <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">{formatDateTime(e.detectedAt)}</td>
+                      <td className="whitespace-nowrap px-3 py-2 font-medium">{e.displayName ?? '—'}</td>
                       <td className="px-3 py-2">{e.provider}</td>
                       <td className="px-3 py-2">{e.mediaTitle ?? '—'}</td>
                       <td className="px-3 py-2 text-muted-foreground">{[e.client, e.device].filter(Boolean).join(' / ') || '—'}</td>

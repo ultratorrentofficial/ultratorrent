@@ -164,10 +164,25 @@ export class StreamControlController {
         ...(q.to ? { lte: new Date(q.to) } : {}),
       };
     }
-    const [items, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       this.prisma.mediaStreamEnforcementEvent.findMany({ where, orderBy: { detectedAt: 'desc' }, skip: (page - 1) * take, take }),
       this.prisma.mediaStreamEnforcementEvent.count({ where }),
     ]);
+    // The event stores the subject's id, not a name. Resolve the canonical
+    // display name so the history shows WHO was enforced (falling back to the raw
+    // provider user id when there is no linked subject).
+    const userIds = [...new Set(rows.map((r) => r.mediaAnalyticsUserId).filter((id): id is string => Boolean(id)))];
+    const users = userIds.length
+      ? await this.prisma.mediaAnalyticsUser.findMany({
+          where: { id: { in: userIds } },
+          select: { id: true, displayName: true, providerUserId: true },
+        })
+      : [];
+    const nameById = new Map(users.map((u) => [u.id, u.displayName ?? u.providerUserId]));
+    const items = rows.map((r) => ({
+      ...r,
+      displayName: (r.mediaAnalyticsUserId ? nameById.get(r.mediaAnalyticsUserId) : null) ?? r.providerUserId ?? null,
+    }));
     return { items, total, page, pageSize: take };
   }
 }
