@@ -386,11 +386,13 @@ function NavRow({
     'group relative flex items-center gap-3 rounded-lg text-sm font-medium transition-all',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
     collapsed ? 'justify-center px-0 py-2.5' : 'px-3 py-2.5',
-    !collapsed && depth > 0 && 'ml-3 pl-6',
     isActive
       ? 'bg-primary/15 text-foreground shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.25)]'
       : 'text-muted-foreground hover:bg-white/5 hover:text-foreground',
   );
+  // Indent scales with nesting depth so a third-level page reads as under its
+  // section (e.g. Stream Limits under Stream Control under Media Server Analytics).
+  const indentStyle = !collapsed && depth > 0 ? { paddingLeft: 12 + depth * 16 } : undefined;
   const badgeEl = badge ? <NavBadgePill badge={badge} collapsed={collapsed} /> : null;
   const iconEl = (
     <Icon
@@ -410,6 +412,7 @@ function NavRow({
         onClick={() => onOpenCommand?.()}
         title={collapsed ? label : undefined}
         aria-label={label}
+        style={indentStyle}
         className={cn(classes, 'w-full text-left')}
       >
         {iconEl}
@@ -431,6 +434,7 @@ function NavRow({
         onClick={onNavigate}
         title={collapsed ? label : undefined}
         aria-label={label}
+        style={indentStyle}
         className={classes}
       >
         {iconEl}
@@ -448,6 +452,7 @@ function NavRow({
       title={collapsed ? label : undefined}
       aria-label={label}
       aria-current={isActive ? 'page' : undefined}
+      style={indentStyle}
       className={classes}
     >
       {iconEl}
@@ -458,20 +463,27 @@ function NavRow({
   );
 }
 
-/** A parent row with a collapsible sub-menu (chevron toggles children). */
+/**
+ * A parent row with a collapsible sub-menu (chevron toggles children). Recursive:
+ * a child that itself has children renders as a nested collapsible, so a section
+ * under a section (e.g. Stream Control / Household under Media Server Analytics)
+ * shows its own pages. Auto-expands whenever a descendant is the active route.
+ */
 function NavParent({
   item,
   collapsed,
-  expanded,
-  onToggle,
+  depth = 0,
+  expandedItems,
+  onToggleItem,
   badges,
   onNavigate,
   onOpenCommand,
 }: {
   item: NavItem;
   collapsed?: boolean;
-  expanded: boolean;
-  onToggle: () => void;
+  depth?: number;
+  expandedItems: Set<string>;
+  onToggleItem: (id: string) => void;
   badges?: Record<string, NavBadge>;
   onNavigate?: () => void;
   onOpenCommand?: () => void;
@@ -481,12 +493,15 @@ function NavParent({
   const { t: tShell } = useTranslation('shell');
   const branchActive = isBranchActive(item, location.pathname, location.search);
   const selfActive = isItemActive(item, location.pathname, location.search);
+  const childActive = (item.children ?? []).some((c) => isBranchActive(c, location.pathname, location.search));
+  // Open when the user toggled it, or a descendant is the active route.
+  const expanded = expandedItems.has(item.id) || childActive;
   const label = tNav(t, 'items', item.label);
   const Icon = item.icon;
 
   // In the icon rail, just show the parent as a link to its landing route.
   if (collapsed) {
-    return <NavRow item={item} collapsed onNavigate={onNavigate} onOpenCommand={onOpenCommand} />;
+    return <NavRow item={item} collapsed depth={depth} onNavigate={onNavigate} onOpenCommand={onOpenCommand} />;
   }
 
   return (
@@ -504,14 +519,15 @@ function NavParent({
           to={item.to ?? '#'}
           onClick={onNavigate}
           aria-current={selfActive ? 'page' : undefined}
+          style={depth > 0 ? { paddingLeft: 12 + depth * 16 } : undefined}
           className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <Icon className={cn('h-[18px] w-[18px] shrink-0', selfActive || branchActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground')} />
+          <Icon className={cn('shrink-0', depth > 0 ? 'h-4 w-4' : 'h-[18px] w-[18px]', selfActive || branchActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground')} />
           <span className="truncate">{label}</span>
         </Link>
         <button
           type="button"
-          onClick={onToggle}
+          onClick={() => onToggleItem(item.id)}
           aria-expanded={expanded}
           aria-label={expanded ? tShell('nav.collapseItem', { name: label }) : tShell('nav.expandItem', { name: label })}
           className="mr-1 shrink-0 rounded-md p-1.5 text-muted-foreground/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -521,9 +537,22 @@ function NavParent({
       </div>
       {expanded && (
         <div className="flex flex-col gap-0.5">
-          {(item.children ?? []).map((child) => (
-            <NavRow key={child.id} item={child} depth={1} badge={badges?.[child.id]} onNavigate={onNavigate} onOpenCommand={onOpenCommand} />
-          ))}
+          {(item.children ?? []).map((child) =>
+            (child.children?.length ?? 0) > 0 ? (
+              <NavParent
+                key={child.id}
+                item={child}
+                depth={depth + 1}
+                expandedItems={expandedItems}
+                onToggleItem={onToggleItem}
+                badges={badges}
+                onNavigate={onNavigate}
+                onOpenCommand={onOpenCommand}
+              />
+            ) : (
+              <NavRow key={child.id} item={child} depth={depth + 1} badge={badges?.[child.id]} onNavigate={onNavigate} onOpenCommand={onOpenCommand} />
+            ),
+          )}
         </div>
       )}
     </div>
@@ -565,15 +594,13 @@ function NavGroupBlock({
 
   const renderItem = (item: NavItem) => {
     if (item.children && item.children.length > 0) {
-      const itemActive = item.children.some((c) => isBranchActive(c, location.pathname, location.search)) ||
-        isItemActive(item, location.pathname, location.search);
       return (
         <NavParent
           key={item.id}
           item={item}
           collapsed={collapsed}
-          expanded={expandedItems.has(item.id) || itemActive}
-          onToggle={() => onToggleItem(item.id)}
+          expandedItems={expandedItems}
+          onToggleItem={onToggleItem}
           badges={badges}
           onNavigate={onNavigate}
           onOpenCommand={onOpenCommand}
