@@ -17,7 +17,7 @@ just named sets of them. Both the backend route guards (`@RequirePermissions`) a
 frontend capability checks read this same catalogue, so what you see here is exactly what
 is enforced.
 
-- **170 permissions** across **30 domains**
+- **174 permissions** across **30 domains**
 - **5 built-in roles**
 
 ## How to read this
@@ -31,11 +31,11 @@ is enforced.
 
 | Role | Permissions held |
 | --- | --- |
-| `SUPER_ADMIN` | 170 of 170 |
-| `ADMINISTRATOR` | 167 of 170 |
-| `POWER_USER` | 85 of 170 |
-| `USER` | 25 of 170 |
-| `READ_ONLY` | 16 of 170 |
+| `SUPER_ADMIN` | 174 of 174 |
+| `ADMINISTRATOR` | 171 of 174 |
+| `POWER_USER` | 85 of 174 |
+| `USER` | 25 of 174 |
+| `READ_ONLY` | 16 of 174 |
 
 ## `apikeys`
 
@@ -237,6 +237,10 @@ is enforced.
 | `media_server_analytics.run_imports` | `MEDIA_SERVER_ANALYTICS_RUN_IMPORTS` | ✅ | ✅ | — | — | — |
 | `media_server_analytics.manage_settings` | `MEDIA_SERVER_ANALYTICS_MANAGE_SETTINGS` | ✅ | ✅ | — | — | — |
 | `media_server_analytics.admin` | `MEDIA_SERVER_ANALYTICS_ADMIN` | ✅ | ✅ | — | — | — |
+| `media_server_analytics.sessions.terminate` | `MEDIA_SERVER_ANALYTICS_SESSIONS_TERMINATE` | ✅ | ✅ | — | — | — |
+| `media_server_analytics.stream_limits.read` | `MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_READ` | ✅ | ✅ | — | — | — |
+| `media_server_analytics.stream_limits.manage` | `MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_MANAGE` | ✅ | ✅ | — | — | — |
+| `media_server_analytics.enforcement.read` | `MEDIA_SERVER_ANALYTICS_ENFORCEMENT_READ` | ✅ | ✅ | — | — | — |
 
 ## `modules`
 

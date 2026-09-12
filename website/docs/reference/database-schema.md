@@ -13,7 +13,7 @@ This page is generated from `apps/backend/prisma/schema.prisma` at build time. *
 :::
 
 UltraTorrent stores everything in **PostgreSQL**, managed by **Prisma**. There are
-**139 models**. A single ER diagram of all of them would be unreadable, so they are
+**142 models**. A single ER diagram of all of them would be unreadable, so they are
 grouped by domain below.
 
 :::tip Never hand-edit the database
@@ -419,7 +419,7 @@ Table: `indexers`
 
 ## Media Manager
 
-_39 models._
+_42 models._
 
 ```mermaid
 erDiagram
@@ -459,6 +459,8 @@ erDiagram
   MediaDuplicateResolution }o--|| MediaDuplicateGroup : "group"
   MediaDuplicateResolution ||--o{ MediaDuplicateResolutionAction : "actions"
   MediaDuplicateResolutionAction }o--|| MediaDuplicateResolution : "resolution"
+  MediaAnalyticsUser }o--|| MediaStreamPolicy : "policy"
+  MediaStreamPolicy }o--|| MediaAnalyticsUser : "user"
   MediaAnalyticsImportSource ||--o{ MediaAnalyticsImportJob : "jobs"
   MediaAnalyticsImportJob }o--|| MediaAnalyticsImportSource : "source"
   MediaNfoFile }o--|| MediaItem : "item"
@@ -901,6 +903,64 @@ Table: `media_duplicate_resolution_actions`
 | `metadata` | `Json?` |
 | `createdAt` | `DateTime` |
 | `updatedAt` | `DateTime` |
+
+### `MediaAnalyticsUser`
+
+Table: `media_analytics_users`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `kind` | `String` |
+| `providerUserId` | `String` |
+| `displayName` | `String?` |
+| `exemptFromLimits` | `Boolean` |
+| `groupId` | `String?` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+
+### `MediaStreamPolicy`
+
+Table: `media_stream_policies`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `mediaAnalyticsUserId` | `String?` |
+| `mediaServerId` | `String?` |
+| `maxConcurrentStreams` | `Int?` |
+| `enforcementAction` | `String?` |
+| `gracePeriodSeconds` | `Int?` |
+| `countPaused` | `Boolean?` |
+| `scope` | `String?` |
+| `enabled` | `Boolean` |
+| `createdAt` | `DateTime` |
+| `updatedAt` | `DateTime` |
+
+### `MediaStreamEnforcementEvent`
+
+Table: `media_stream_enforcement_events`
+
+| Column | Type |
+| --- | --- |
+| `id` | `String` |
+| `mediaAnalyticsUserId` | `String?` |
+| `mediaServerId` | `String` |
+| `provider` | `String` |
+| `providerUserId` | `String?` |
+| `providerSessionId` | `String` |
+| `mediaTitle` | `String?` |
+| `client` | `String?` |
+| `device` | `String?` |
+| `ipAddress` | `String?` |
+| `configuredLimit` | `Int` |
+| `observedStreams` | `Int` |
+| `action` | `String` |
+| `result` | `String` |
+| `reason` | `String?` |
+| `errorMessage` | `String?` |
+| `detectedAt` | `DateTime` |
+| `enforcedAt` | `DateTime?` |
 
 ### `MediaAnalyticsImportSource`
 

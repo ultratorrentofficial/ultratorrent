@@ -17,7 +17,7 @@ simplemente conjuntos con nombre de esos permisos. Tanto los guards de ruta del 
 de capacidades del frontend leen este mismo catálogo, así que lo que ves aquí es
 exactamente lo que se aplica.
 
-- **170 permisos** en **30 dominios**
+- **174 permisos** en **30 dominios**
 - **5 roles integrados**
 
 ## Cómo leer esto
@@ -31,11 +31,11 @@ exactamente lo que se aplica.
 
 | Rol | Permisos que tiene |
 | --- | --- |
-| `SUPER_ADMIN` | 170 of 170 |
-| `ADMINISTRATOR` | 167 of 170 |
-| `POWER_USER` | 85 of 170 |
-| `USER` | 25 of 170 |
-| `READ_ONLY` | 16 of 170 |
+| `SUPER_ADMIN` | 174 of 174 |
+| `ADMINISTRATOR` | 171 of 174 |
+| `POWER_USER` | 85 of 174 |
+| `USER` | 25 of 174 |
+| `READ_ONLY` | 16 of 174 |
 
 ## `apikeys`
 
@@ -237,6 +237,10 @@ exactamente lo que se aplica.
 | `media_server_analytics.run_imports` | `MEDIA_SERVER_ANALYTICS_RUN_IMPORTS` | ✅ | ✅ | — | — | — |
 | `media_server_analytics.manage_settings` | `MEDIA_SERVER_ANALYTICS_MANAGE_SETTINGS` | ✅ | ✅ | — | — | — |
 | `media_server_analytics.admin` | `MEDIA_SERVER_ANALYTICS_ADMIN` | ✅ | ✅ | — | — | — |
+| `media_server_analytics.sessions.terminate` | `MEDIA_SERVER_ANALYTICS_SESSIONS_TERMINATE` | ✅ | ✅ | — | — | — |
+| `media_server_analytics.stream_limits.read` | `MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_READ` | ✅ | ✅ | — | — | — |
+| `media_server_analytics.stream_limits.manage` | `MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_MANAGE` | ✅ | ✅ | — | — | — |
+| `media_server_analytics.enforcement.read` | `MEDIA_SERVER_ANALYTICS_ENFORCEMENT_READ` | ✅ | ✅ | — | — | — |
 
 ## `modules`
 

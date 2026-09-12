@@ -12,13 +12,85 @@ keywords: [release notes, changelog, versions, what's new, upgrade]
 This page is generated from `CHANGELOG.md` at build time. **Do not edit it by hand** — change the changelog and rebuild.
 :::
 
-Every released version, newest first. This page shows the **25 most recent** of **213** releases; the complete history lives in [CHANGELOG.md](https://github.com/ultratorrentofficial/ultratorrent/blob/main/CHANGELOG.md).
+Every released version, newest first. This page shows the **25 most recent** of **221** releases; the complete history lives in [CHANGELOG.md](https://github.com/ultratorrentofficial/ultratorrent/blob/main/CHANGELOG.md).
 
 Versions are [semantic](https://semver.org/): a **minor** bump means new capability, a **patch** means fixes only. Upgrading is covered in [Upgrading](/install/upgrading).
 
-## 0.90.11 — 2026-09-11
+## 0.92.2 — 2026-09-12
 
 _Latest release._
+
+### Fixed
+
+- Concurrent Stream Control (Phase 1): providers can now stop a playing session (Plex/Jellyfin/Emby; Kodi is monitor-only), and admins with the new sessions.terminate permission get a Terminate stream action in Live Activity
+- Concurrent Stream Control (Phase 2): per-user and global concurrent-stream limits with an enforcement engine that terminates the excess (newest/oldest) after a grace period, cross-server counting within a product, a Redis-backed single-flight lock (in-process fallback), plus Stream Limits, Stream Control settings, and Enforcement History admin pages
+- Concurrent Stream Control (Phase 3): admins can link a person's separate media-server accounts (e.g. Plex + Jellyfin) so their streams count together against one limit — an explicit action only, never inferred; the group's policy is the most restrictive of its members
+
+Tagged [`v0.92.2`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.92.2).
+
+## 0.92.1 — 2026-09-11
+
+### Fixed
+
+- Media Server Analytics: render country flags as bundled SVGs (they now show on Windows too) and add them to the Reports top-countries/cities charts
+- Media Discovery cards now link out to IMDb, TMDB and TVmaze (whichever ids the item carries) so a reviewer can open the full record before deciding
+
+Tagged [`v0.92.1`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.92.1).
+
+## 0.92.0 — 2026-09-11
+
+### New
+
+- Media Server Analytics: add an in-app IP Geolocation admin (like the local IMDb dataset manager) — a config area for MaxMind account id and license key (encrypted), a built-in database downloader/updater with status, and scheduled auto-refresh. Replaces the compose geoipupdate sidecar; the backend downloads the GeoLite2 databases itself, verifies them, and reloads with no restart, while IP lookups stay fully offline.
+
+Tagged [`v0.92.0`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.92.0).
+
+## 0.91.0 — 2026-09-11
+
+### New
+
+- Media Server Analytics: show each play's IP address in Watch History and Live Activity, and add offline IP geolocation (MaxMind GeoLite2) with a Reports > Locations tab charting top viewing countries, cities and ISPs. Lookups run against local .mmdb files so no viewer IP leaves the host; private/LAN addresses show as Local and everything degrades gracefully when no database is present.
+
+### Fixed
+
+- Media Server Analytics: add an optional geoipupdate sidecar (profile 'geoip') that keeps the MaxMind GeoLite2 City/ASN databases current automatically, downloading only changed editions into the shared volume on a schedule. The backend reloads a refreshed database with no restart and still makes no outbound call itself; enable it with a MaxMind account id and license key.
+
+Tagged [`v0.91.0`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.91.0).
+
+## 0.90.15 — 2026-09-11
+
+### Fixed
+
+- Media Server Analytics: Watch History now shows the friendly name for live-monitored viewers too. Live Plex monitoring stores a login handle while the same account's Tautulli-imported record holds the real name, linked only by provider user id; the resolver now bridges a live row to that imported record by id and shows its displayName or userName.
+
+Tagged [`v0.90.15`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.90.15).
+
+## 0.90.14 — 2026-09-11
+
+### Fixed
+
+- Media Server Analytics: resolve friendly names for Watch History rows imported before connection tracking (no connectionId) too — the majority of a live server's history. The first pass keyed strictly on a non-null connection, leaving that bulk showing raw handles; null-connection rows now share one legacy bucket matched among themselves and never conflated with a real connection.
+
+Tagged [`v0.90.14`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.90.14).
+
+## 0.90.13 — 2026-09-11
+
+### Fixed
+
+- Library browser: a bulk 'delete files' now clears the selection the moment it is dispatched, not when the background job settles. When that settle callback did not run, the next delete dialog inherited the previous selection's count, so a fresh smaller selection still prompted for the earlier larger number and the type-the-count safeguard stopped describing what would be deleted.
+- Media Server Analytics: the Watch History table now shows each viewer's operator-set friendly name instead of the raw login handle the media server reported. The friendly name (MediaServerUser.displayName) is resolved per page and matched within a connection by provider user id, falling back to the stored handle.
+
+Tagged [`v0.90.13`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.90.13).
+
+## 0.90.12 — 2026-09-11
+
+### Fixed
+
+- Security: update socket.io-parser (4.2.7), multer (2.3.0), nodemailer (9.1.1), sharp (0.35.4) and react-router-dom (6.30.6) to close Dependabot advisories, including a pre-authentication memory exhaustion in the realtime socket parser and a single-request crash in multipart upload parsing
+
+Tagged [`v0.90.12`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.90.12).
+
+## 0.90.11 — 2026-09-11
 
 ### Fixed
 
@@ -213,137 +285,6 @@ Tagged [`v0.87.0`](https://github.com/ultratorrentofficial/ultratorrent/releases
 - Server Users page: set a friendly name and email for users from any connected media server
 
 Tagged [`v0.86.2`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.86.2).
-
-## 0.86.1 — 2026-08-27
-
-### Fixed
-
-- Email settings gain a TLS certificate name for relays whose certificate does not carry the SMTP host, newsletter test sends are recorded in the activity view, and a failed test reports the SMTP reason instead of a generic error
-
-Tagged [`v0.86.1`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.86.1).
-
-## 0.86.0 — 2026-08-27
-
-### New
-
-- A global bandwidth ceiling in settings, which the Activity Scheduler overrides only on engines it governs
-- Settings gains a global bandwidth ceiling with per-engine status, in both locales
-- Job lists show when a job started and finished, including jobs that failed
-- Newsletters record generation and delivery events, reviewable in the newsletter area
-
-### Fixed
-
-- The scheduler review table identifies torrents by name, and a removal no longer renders as a raw key labelled "would stop seeding"
-- Seed conditions on size, uploaded, label and category are actually evaluated — the facts were declared and offered but never fed — and a rule reading something nothing measures now names that field instead of blaming seed duration
-- The global bandwidth ceiling reaches engines added after it was saved
-- The bandwidth ceiling is named and documented as per-engine, and the settings page multiplies it out — two engines at 25000 kbps is 50000 kbps, not 25000
-- File manager: a second FILE_MANAGER_ROOTS entry is reachable again. Browse paths were rebased onto the first root, so a folder living only in another root 500'd with ENOENT and a name present in both silently served the first root's copy. With several roots paths are now absolute (single-root deployments are unchanged), and / lists the roots themselves. Trash and quarantine now store a path relative to the root they recorded rather than the client-facing one, so restores round-trip whatever the root count.
-- Bandwidth precedence is decided from the plan, so a library-scoped policy is recognised — and the scheduler stops writing unlimited to engines no policy mentions
-- Renamer: a video is no longer planned as a sidecar of itself. When the source parsed to no content type (a bare season folder rather than a release name), the sidecar pass classified against the batch kind and re-planned every video, producing a duplicate rename that failed ENOENT after the primary had already moved the file — reporting failures on a run that had actually succeeded.
-- A newsletter send that reached nobody no longer records itself as successfully sent, and the newsletter activity feed is reachable instead of answering 404
-
-Tagged [`v0.86.0`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.86.0).
-
-## 0.85.10 — 2026-08-25
-
-### Fixed
-
-- Installer Phase 4: generate .env, an override only when needed, and installer state — preserving existing secrets on re-run
-- Installer Phase 5: pre-seed the bundled qBittorrent's credentials so no temporary password is ever issued
-- Installer Phase 6: prepare the host media directories before deploying, since a missing bind device fails the container at start with an unhelpful error
-- Installer Phase 7: seed Prowlarr's API key, generate the bundled proxy's Caddyfile, and keep Prowlarr's unauthenticated Web UI off the host network by default
-- Installer Phase 8 (partial): the Compose deployment executor, unit-tested and wired into nothing pending an integration test against a real daemon
-- full UltraTorrent Console documentation, in en-US and es-PR, with captured screenshots
-- console: realign the contract mirror, fix ANSI column maths, meter colour, and fit the screen
-- console screenshots use invented names — no real title, site or path in published docs
-- console: utconsole is translated — embedded en-US and es-PR catalogs, locale detection, and an L key that switches language live
-- installer Phase 1: deployment audit and gap analysis
-- installer Phase 2: typed InstallationPlan, validation and dry-run
-- installer Phase 3: read-only host detection and the system check
-- Windows installer Phase 1: audit the port before writing Windows code
-- The failed-jobs alert reports today's failures instead of an all-time count that could never clear
-- Windows installer Phase 2: shared installer core separated from the Linux executor, with a platform seam, a target-aware plan and Windows path rules
-- utconsole is translated — embedded en-US and es-PR catalogs with locale detection, so the console speaks the same two languages as the documentation
-- Installer Phase 8: install now deploys — a default command runner, a plan that records its repository, an always-explicit Compose project, and diagnosis with secrets redacted
-- A failed deployment reports the reason rather than Compose's progress chatter, and shows the failing service's logs
-- The installer's help documents --repo and no longer says deployment is unimplemented
-- A container killed with SIGKILL is explained rather than reported as a bare exit code
-- install --dry-run previews the storage layout instead of silently skipping it
-- Re-running the installer over its own running stack is no longer refused as a port conflict
-- Deploying seeds the first administrator and verifies that signing in actually works
-- Turning on Prowlarr for an existing installation no longer fails on a missing config directory
-- Deploying removes services the plan no longer includes, so a changed engine does not leave the old one running
-- An external torrent engine can now be configured, and the installer says how to connect it
-- The installer installs Docker when it says it will, instead of promising and failing later
-- Publishing Prowlarr's Web UI now warns that it has no authentication
-- Deploying skips the image build when the images already match the checkout
-- The web UI keeps working after a redeployment, and the installer checks the door users actually use
-- The installer connects Prowlarr and FlareSolverr automatically instead of leaving it to the operator
-- The console's first-run message names the command that actually signs you in
-- The installer ships the terminal console and installs it where a reboot cannot remove it
-- Point the update channel, newsletter credit and HTTP user agents at the renamed repository (ultratorrentofficial/ultratorrent), and document the installer and where the software actually comes from
-- On QNAP the console stays on PATH after a reboot, without disturbing an existing autorun.sh
-- Scheduler activation counts the torrents it would REMOVE, not only the ones it would pause — a removal-based seed policy previously showed 0/0 on the consent screen and then deleted torrents on the first sweep
-
-Tagged [`v0.85.10`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.85.10).
-
-## 0.85.9 — 2026-08-22
-
-### Fixed
-
-- an operations snapshot reads the torrents the poller already fetched instead of asking the engines again
-- UltraTorrent Console: a read-only terminal client, built and shipped as a static binary
-- the console streams live events over the operations channel
-- the console renders as a pane grid instead of a stacked column
-
-Tagged [`v0.85.9`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.85.9).
-
-## 0.85.8 — 2026-08-22
-
-### Fixed
-
-- Recent activity names the media it is reporting on
-- A summarized activity entry expands to show the events behind it
-- A superseded release loses its library copy, not just its torrent
-- IMDb alternate-title import honours the preferred region and language settings, so title.akas no longer re-inflates to 42M rows on every scheduled import
-- The UltraTorrent Console's operations endpoints and event bridge are wired and reachable
-- The in-app documentation link points at docs.ultratorrent.co instead of the old GitHub Pages URL
-- console.view is declared by a module manifest, so it exists on a deployed install
-
-Tagged [`v0.85.8`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.85.8).
-
-## 0.85.7 — 2026-08-22
-
-### Fixed
-
-- A purge that cannot verify seeding raises an alert instead of skipping silently
-
-Tagged [`v0.85.7`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.85.7).
-
-## 0.85.6 — 2026-08-21
-
-### Fixed
-
-- Degraded account revalidation is now reported and auditable, and can be made fail-closed
-- A cleanup policy bounded by a library condition is no longer called unscoped, and the warning distinguishes examining from acting
-- Cleanup plan approve, reject and execute use app modals instead of browser dialogs
-- Every Media Purge confirmation is an app modal, and restore asks about overwriting with a checkbox instead of a second confirm
-- Trash retention of zero days purges immediately instead of keeping files forever
-- An expired quarantine item is purged after a grace window instead of sitting on disk forever
-- The trash listing agrees with the sweep at zero retention
-- Media Purge never removes media a live torrent is still seeding, and skips rather than guesses when the engine cannot be asked
-
-Tagged [`v0.85.6`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.85.6).
-
-## 0.85.5 — 2026-08-20
-
-### Fixed
-
-- Every controller is checked for parameterised routes that capture literal ones declared below them
-- A file-manager write destination is checked against its real path, so a symlink inside a root cannot lead out of it
-- fix(renamer): climb the whole container chain, not three levels of it
-
-Tagged [`v0.85.5`](https://github.com/ultratorrentofficial/ultratorrent/releases/tag/v0.85.5).
 
 ## Older releases
 

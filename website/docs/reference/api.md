@@ -18,7 +18,7 @@ This page is generated from `the @Controller / @Get / @RequirePermissions decora
 Every endpoint below was read from the controllers themselves, including the **exact
 permission** its guard enforces.
 
-- **503 endpoints** across **26 controllers**
+- **520 endpoints** across **28 controllers**
 - Base URL: `http://<host>:<port>/api`
 
 ## Authentication
@@ -199,6 +199,17 @@ From `FilesController`.
 | `POST` | `/api/files/trash/restore` | `FILES_DELETE` | `restore` |
 | `POST` | `/api/files/trash/purge` | `FILES_DELETE` | `purge` |
 | `POST` | `/api/files/trash/empty` | `FILES_DELETE` | `empty` |
+
+## `/geoip`
+
+From `GeoIpController`.
+
+| Method | Path | Permission | Handler |
+| --- | --- | --- | --- |
+| `GET` | `/api/geoip/config` | `MEDIA_SERVER_ANALYTICS_MANAGE_SETTINGS` | `config` |
+| `PATCH` | `/api/geoip/config` | `MEDIA_SERVER_ANALYTICS_MANAGE_SETTINGS` | `updateConfig` |
+| `GET` | `/api/geoip/status` | `MEDIA_SERVER_ANALYTICS_VIEW_REPORTS` | `status` |
+| `POST` | `/api/geoip/update` | `MEDIA_SERVER_ANALYTICS_MANAGE_SETTINGS` | `update` |
 
 ## `/indexers`
 
@@ -469,9 +480,11 @@ From `MediaServerAnalyticsController`.
 | `GET` | `/api/media-server-analytics/dashboard` | `MEDIA_SERVER_ANALYTICS_VIEW` | `dashboard` |
 | `GET` | `/api/media-server-analytics/live` | `MEDIA_SERVER_ANALYTICS_VIEW_LIVE_ACTIVITY` | `live` |
 | `POST` | `/api/media-server-analytics/live/poll` | `MEDIA_SERVER_ANALYTICS_MANAGE_CONNECTIONS` | `pollLive` |
+| `POST` | `/api/media-server-analytics/sessions/:id/terminate` | `MEDIA_SERVER_ANALYTICS_SESSIONS_TERMINATE` | `terminateSession` |
 | `GET` | `/api/media-server-analytics/live/:id/artwork` | `MEDIA_SERVER_ANALYTICS_VIEW_LIVE_ACTIVITY` | `liveArtwork` |
 | `GET` | `/api/media-server-analytics/notifications/:notificationId/artwork` | `MEDIA_SERVER_ANALYTICS_VIEW_LIVE_ACTIVITY` | `notificationArtwork` |
 | `GET` | `/api/media-server-analytics/watch-history` | `MEDIA_SERVER_ANALYTICS_VIEW_HISTORY` | `watchHistory` |
+| `GET` | `/api/media-server-analytics/geo-breakdown` | `MEDIA_SERVER_ANALYTICS_VIEW_REPORTS` | `geoBreakdown` |
 | `GET` | `/api/media-server-analytics/reports/usage` | `MEDIA_SERVER_ANALYTICS_VIEW_REPORTS` | `reportUsage` |
 | `GET` | `/api/media-server-analytics/reports/users` | `MEDIA_SERVER_ANALYTICS_VIEW_REPORTS` | `reportUsers` |
 | `GET` | `/api/media-server-analytics/reports/libraries` | `MEDIA_SERVER_ANALYTICS_VIEW_REPORTS` | `reportLibraries` |
@@ -545,6 +558,24 @@ From `NewsletterUnsubscribeController`.
 | --- | --- | --- | --- |
 | `GET` | `/api/media-server-analytics/nl-unsubscribe` | — | `confirm` |
 | `POST` | `/api/media-server-analytics/nl-unsubscribe` | — | `act` |
+
+## `/media-server-analytics/stream-control`
+
+From `StreamControlController`.
+
+| Method | Path | Permission | Handler |
+| --- | --- | --- | --- |
+| `GET` | `/api/media-server-analytics/stream-control/settings` | `MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_READ` | `getSettings` |
+| `PATCH` | `/api/media-server-analytics/stream-control/settings` | `MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_MANAGE` | `updateSettings` |
+| `GET` | `/api/media-server-analytics/stream-control/policies` | `MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_READ` | `policies` |
+| `POST` | `/api/media-server-analytics/stream-control/link` | `MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_MANAGE` | `link` |
+| `POST` | `/api/media-server-analytics/stream-control/policies/:mediaUserId/unlink` | `MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_MANAGE` | `unlink` |
+| `GET` | `/api/media-server-analytics/stream-control/policies/:mediaUserId` | `MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_READ` | `getPolicy` |
+| `PUT` | `/api/media-server-analytics/stream-control/policies/:mediaUserId` | `MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_MANAGE` | `putPolicy` |
+| `PATCH` | `/api/media-server-analytics/stream-control/policies/:mediaUserId/exempt` | `MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_MANAGE` | `setExempt` |
+| `DELETE` | `/api/media-server-analytics/stream-control/policies/:mediaUserId` | `MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_MANAGE` | `deletePolicy` |
+| `GET` | `/api/media-server-analytics/stream-control/status` | `MEDIA_SERVER_ANALYTICS_ENFORCEMENT_READ` | `status` |
+| `GET` | `/api/media-server-analytics/stream-control/events` | `MEDIA_SERVER_ANALYTICS_ENFORCEMENT_READ` | `events` |
 
 ## `/media/cleanup`
 

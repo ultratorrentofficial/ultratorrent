@@ -12,7 +12,7 @@ keywords: [media server analytics, plex, jellyfin, emby, kodi, tautulli, watch h
 
 You have a media server. People watch things on it. **Media Server Analytics** turns that into information: who is watching what right now, what they watched last month, which libraries actually get used, and which of your carefully-curated 4K files nobody has ever opened.
 
-It also sends **newsletters** — a scheduled email digest of what has been added recently — and can **import your historical analytics from Tautulli**, so switching does not mean losing years of history.
+It shows **where** each viewer is streaming from (offline IP geolocation) and lets you **control concurrent streams** — cap how many a viewer may run at once and stop the excess automatically, or terminate any stream by hand. It also sends **newsletters** — a scheduled email digest of what has been added recently — and can **import your historical analytics from Tautulli**, so switching does not mean losing years of history.
 
 It is a **core** module (id `media_server_analytics`, permissions `media_server_analytics.*`).
 
@@ -39,14 +39,14 @@ Connections, encrypted secrets, and the Plex/Jellyfin/Emby/Kodi provider layer a
 
 **Connection** — one media server. You may have **unlimited** connections, including several of the same type ("Plex Home" + "Plex Remote"). Each stores a name, type, base URL, encrypted token, enabled/default flags, health status, version, platform, capabilities, and notes.
 
-**Capability** — what a given provider can actually do. Each declares its own set: `libraries`, `recentlyAdded`, `sessions`, `watchHistory`, `refresh`.
+**Capability** — what a given provider can actually do. Each declares its own set: `libraries`, `recentlyAdded`, `sessions`, `watchHistory`, `refresh`, `terminateSessions`.
 
 | Provider | Auth | Notes |
 |----------|------|-------|
 | Plex | `X-Plex-Token` | Full capability set. |
 | Jellyfin | `X-Emby-Token` | Full capability set. |
 | Emby | `X-Emby-Token` | Full capability set. |
-| **Kodi** | JSON-RPC (optional basic auth) | **A client, not a server.** No section list, no sessions. It declares those capabilities `false`. |
+| **Kodi** | JSON-RPC (optional basic auth) | **A client, not a server.** No section list, no sessions, no termination. It declares those capabilities `false` and is monitor-only. |
 
 :::tip Unsupported is not the same as broken
 A capability a provider genuinely cannot serve returns a **clean typed result** (`{ supported: false }`), not a generic failure. Analytics degrades gracefully per server — a Kodi connection simply contributes no live sessions, rather than breaking the Live Activity page.
@@ -131,6 +131,32 @@ Media servers report accounts by internal id, which makes a report unreadable. *
 
 The mapping is per server account, so the same human on two servers is two entries — see the rule above.
 
+### IP address & geolocation
+
+Every play records the address the viewer streamed from (Plex `Player.address`, Jellyfin/Emby `RemoteEndPoint`, and Tautulli-imported history). **Live Activity** and **Watch History** show it, and **Analytics Reports → Locations** charts top countries, cities and ISPs.
+
+Resolution is **fully offline** — no viewer IP ever leaves your server. It uses MaxMind's GeoLite2 databases, managed in-app under **IP Geolocation**: enter your (free) MaxMind Account ID + licence key, and UltraTorrent downloads, verifies (sha256) and refreshes the City and ASN databases on a schedule or on demand. LAN/private addresses show as **Local**; country flags render as bundled SVGs so they appear on every platform, not just those with emoji flags.
+
+### Concurrent Stream Control
+
+Cap how many streams a viewer may run at once, and stop the excess automatically — provider-agnostically.
+
+**Manual termination.** Any admin with `sessions.terminate` gets a **Terminate stream** action on each Live Activity card (Plex/Jellyfin/Emby). Kodi cannot stop playback, so it shows **"Monitoring only"**. The viewer sees a message where their client supports it — Plex's stop *reason*, or a Jellyfin/Emby on-screen message.
+
+**Automatic limits.** Turn enforcement on under **Stream Control** — it is **off by default, so nothing is ever terminated until you enable it**. Set a global default and per-user overrides under **Stream Limits**:
+
+- **Limit** — unlimited, or 1–100 simultaneous streams. Mark a viewer **exempt** to bypass limits entirely (preferred over an arbitrary huge number).
+- **When exceeded** — terminate the **newest** stream, the **oldest**, or just **warn** / **log**.
+- **Grace period** — a few seconds' tolerance, so a client reconnecting or handing off between devices is not killed for a momentary overlap.
+- **Count paused** — whether paused streams count toward the limit (and when a long-paused one stops counting).
+- **Scope** — count across all servers combined, or per server.
+
+Over the limit past the grace period, UltraTorrent stops exactly the excess (newest or oldest by start time) and tells the viewer **"Playback stopped by UltraTorrent — this account allows a maximum of _N_ simultaneous streams."** Every decision is recorded in **Enforcement History** (a filterable table, separate from the audit log); every configuration change is audited.
+
+**Counting across servers.** One Plex account seen on several Plex servers counts as one person automatically (Plex ids are global to plex.tv). Jellyfin and Emby ids are per-server, so they stay separate — until you **link** them: on **Stream Limits**, select two or more accounts and **Link** to count one person's Plex *and* Jellyfin streams together. Accounts are **never** linked automatically by a matching name or email (see the merge rule above); a linked group uses the most restrictive of its members' limits.
+
+**Safety.** Enforcement never acts when it is disabled, the viewer is unlimited or exempt, the provider cannot terminate, the server's health is uncertain, the session data is stale, or the identity cannot be resolved — it records the reason and leaves playback alone. A Redis lock (with an in-process fallback for single-instance setups) keeps enforcement single-flight, and every kill re-checks that the stream is still active and still over the limit first.
+
 ### Newsletters
 
 The newsletter is an original dark "media digest" email built from tables and inline styles (for broad email-client support), with a 720 px container and an amber accent.
@@ -183,7 +209,7 @@ Phase 1 imports **watch history**. Users, libraries, playback/device/transcode s
 
 ### Permissions
 
-`media_server_analytics.` + `view`, `manage_connections`, `manage_mappings`, `view_live_activity`, `view_users`, `view_history`, `view_reports`, `export`, `manage_newsletters`, `send_newsletters`, `manage_imports`, `run_imports`, `manage_settings`, `admin`.
+`media_server_analytics.` + `view`, `manage_connections`, `manage_mappings`, `view_live_activity`, `view_users`, `view_history`, `view_reports`, `export`, `manage_newsletters`, `send_newsletters`, `manage_imports`, `run_imports`, `manage_settings`, `admin`, `sessions.terminate` (stop a live session), `stream_limits.read` / `stream_limits.manage` (view / edit concurrent-stream limits), `enforcement.read` (enforcement state + history).
 
 ### Key endpoints
 
@@ -193,6 +219,10 @@ Phase 1 imports **watch history**. Users, libraries, playback/device/transcode s
 | `GET/POST/PATCH/DELETE /connections` | `…manage_connections` |
 | `POST /connections/:id/test` · `/sync` | `…manage_connections` |
 | `GET /live` | `…view_live_activity` |
+| `POST /sessions/:id/terminate` | `…sessions.terminate` |
+| `GET/PATCH /stream-control/settings` | `…stream_limits.read` / `…manage` |
+| `GET/PUT/DELETE /stream-control/policies` · `POST /link` · `/unlink` | `…stream_limits.read` / `…manage` |
+| `GET /stream-control/status` · `/events` | `…enforcement.read` |
 | `GET /watch-history` | `…view_history` |
 | `GET /reports/usage` · `/users` · `/libraries` · `/playback` | `…view_reports` |
 | `GET /recently-added` | `media_server_analytics.view` |
