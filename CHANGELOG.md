@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.92.3] - 2026-09-12
+
+### Fixed
+- Stream Limits: seed the per-user roster from viewers analytics already knows, so it is populated (and editable) even before anyone streams under enforcement — the page was empty on a fresh setup
+
 ## [0.92.2] - 2026-09-12
 
 ### Fixed
