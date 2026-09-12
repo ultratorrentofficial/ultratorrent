@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.93.6] - 2026-09-12
+
+### Fixed
+- Sidebar: accordion expansion — opening a nav section closes its siblings (and their open sub-sections), so only one section per level stays open. Pure accordionToggle helper with tests.
+
 ## [0.93.5] - 2026-09-12
 
 ### Fixed
