@@ -45,6 +45,12 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.93.3] - 2026-09-12
+
+### Fixed
+- Household Users screen: each user row expands to show the networks that account streamed from (location, ISP, type, days, plays, watch), so an admin can analyze the sharing pattern in place before opening the review queue.
+- Nav: nest Stream Control and Household & Sharing as sections UNDER Media Server Analytics (three-level sub-nav) instead of siblings beside it — the umbrella item's children become the primary tab row, and each group expands to its own pages.
+
 ## [0.93.2] - 2026-09-12
 
 ### Fixed
