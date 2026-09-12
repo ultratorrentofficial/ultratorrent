@@ -4,6 +4,7 @@ import {
   NAV_GROUPS,
   NAV_DOMAINS,
   NAV_CONTRIBUTIONS,
+  accordionToggle,
   activeEntryId,
   composeNavGroups,
   flattenForSearch,
@@ -14,6 +15,7 @@ import {
   visibleGroups,
   workspaceLanding,
   type NavContribution,
+  type NavGroup,
   type NavItem,
   type NavVisibilityCtx,
 } from './navigation';
@@ -456,5 +458,55 @@ describe('isParentActivePage — the active box belongs to the leaf, not the par
     };
     expect(isParentActivePage(soloParent, '/p', '')).toBe(true);
     expect(isParentActivePage(soloParent, '/p/child', '')).toBe(false);
+  });
+});
+
+describe('accordionToggle — one section open per level', () => {
+  const groups: NavGroup[] = [
+    {
+      id: 'analytics',
+      title: 'A',
+      icon: Boxes,
+      items: [
+        {
+          id: 'msa', to: '/msa', label: 'MSA', icon: Boxes,
+          children: [
+            { id: 'stream', to: '/msa/s', label: 'Stream', icon: Boxes, children: [{ id: 'limits', to: '/msa/s/l', label: 'L', icon: Boxes }] },
+            { id: 'household', to: '/msa/h', label: 'HH', icon: Boxes, children: [{ id: 'users', to: '/msa/h/u', label: 'U', icon: Boxes }] },
+          ],
+        },
+      ],
+    },
+  ];
+
+  it('opening a section closes its sibling', () => {
+    const r = accordionToggle(groups, new Set(['household']), 'stream');
+    expect(r.has('stream')).toBe(true);
+    expect(r.has('household')).toBe(false);
+  });
+
+  it('opening a section also closes a sibling’s open descendants', () => {
+    const r = accordionToggle(groups, new Set(['household', 'users']), 'stream');
+    expect(r.has('household')).toBe(false);
+    expect(r.has('users')).toBe(false);
+    expect(r.has('stream')).toBe(true);
+  });
+
+  it('closing a section drops its own descendants', () => {
+    const r = accordionToggle(groups, new Set(['stream', 'limits']), 'stream');
+    expect(r.has('stream')).toBe(false);
+    expect(r.has('limits')).toBe(false);
+  });
+
+  it('leaves ancestors open when opening a nested section', () => {
+    const r = accordionToggle(groups, new Set(['msa', 'household']), 'stream');
+    expect(r.has('msa')).toBe(true); // ancestor, not a sibling
+    expect(r.has('stream')).toBe(true);
+    expect(r.has('household')).toBe(false);
+  });
+
+  it('falls back to a plain toggle for an unknown id', () => {
+    expect(accordionToggle(groups, new Set(), 'nope').has('nope')).toBe(true);
+    expect(accordionToggle(groups, new Set(['nope']), 'nope').has('nope')).toBe(false);
   });
 });

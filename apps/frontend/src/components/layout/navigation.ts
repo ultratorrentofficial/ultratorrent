@@ -526,6 +526,49 @@ export function isParentActivePage(item: NavItem, pathname: string, searchStr: s
 }
 
 /**
+ * Accordion toggle for the sidebar's expandable sections: opening a section closes
+ * its siblings (and any of their still-open descendants), so only one section per
+ * level is open at a time; closing a section also closes its descendants. Ancestors
+ * are untouched — a nested section can only be open while its parent is. An unknown
+ * id falls back to a plain toggle. Pure.
+ */
+export function accordionToggle(groups: NavGroup[], open: ReadonlySet<string>, id: string): Set<string> {
+  const descendantsOf = (item: NavItem): string[] => {
+    const out: string[] = [];
+    const walk = (n: NavItem) => (n.children ?? []).forEach((c) => { out.push(c.id); walk(c); });
+    walk(item);
+    return out;
+  };
+  let found: { node: NavItem; siblings: NavItem[] } | null = null;
+  const search = (items: NavItem[]): boolean => {
+    const node = items.find((i) => i.id === id);
+    if (node) { found = { node, siblings: items }; return true; }
+    return items.some((i) => search(i.children ?? []));
+  };
+  for (const g of groups) if (search(g.items)) break;
+
+  const next = new Set(open);
+  if (!found) {
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    return next;
+  }
+  const { node, siblings } = found as { node: NavItem; siblings: NavItem[] };
+  if (open.has(id)) {
+    next.delete(id);
+    descendantsOf(node).forEach((d) => next.delete(d));
+    return next;
+  }
+  for (const sib of siblings) {
+    if (sib.id === id) continue;
+    next.delete(sib.id);
+    descendantsOf(sib).forEach((d) => next.delete(d));
+  }
+  next.add(id);
+  return next;
+}
+
+/**
  * The navigation domain the current route belongs to, plus the active top-level
  * item and (if the match is a sub-page) its parent. Drives the contextual
  * secondary nav: sibling pages within the active domain, so a user can move

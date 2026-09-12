@@ -39,6 +39,7 @@ import { CommandPalette } from '@/components/layout/CommandPalette';
 import { NotificationBell } from '@/components/layout/NotificationBell';
 import { LanguageSwitcher } from '@/components/layout/LanguageSwitcher';
 import {
+  accordionToggle,
   activeEntryId,
   flattenForSearch,
   isBranchActive,
@@ -868,8 +869,14 @@ function Sidebar({
     [],
   );
   const toggleItem = useCallback(
-    (id: string) => setExpandedItems((s) => toggleInSet(ITEMS_EXPANDED_KEY, s, id)),
-    [],
+    (id: string) =>
+      setExpandedItems((s) => {
+        // Accordion: opening a section closes its siblings, so only one is open per level.
+        const next = accordionToggle(groups, s, id);
+        writeStringSet(ITEMS_EXPANDED_KEY, next);
+        return next;
+      }),
+    [groups],
   );
   const collapseAll = useCallback(() => {
     const all = new Set(groups.map((g) => g.id));
