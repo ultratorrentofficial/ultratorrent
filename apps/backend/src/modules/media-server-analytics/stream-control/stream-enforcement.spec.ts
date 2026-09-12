@@ -79,6 +79,23 @@ function build(opts: { settings: StreamControlSettings; sessions: any[]; connect
   return { svc, events: fp.events, terminate, broadcast };
 }
 
+/**
+ * Enforcement now waits at least one poll cycle before acting (so a just-paused or
+ * just-moved stream settles in a fresh snapshot first). Simulate that: run a pass to
+ * arm the grace, advance the clock past the floor, run again.
+ */
+async function enforceAndAct(svc: StreamEnforcementService): Promise<void> {
+  const base = Date.now();
+  const spy = jest.spyOn(Date, 'now').mockReturnValue(base);
+  try {
+    await svc.enforce();
+    spy.mockReturnValue(base + 30_000);
+    await svc.enforce();
+  } finally {
+    spy.mockRestore();
+  }
+}
+
 describe('StreamEnforcementService.enforce', () => {
   it('does nothing while enforcement is disabled', async () => {
     const { svc, terminate, events } = build({ settings: SETTINGS({ enabled: false }), sessions: [session({ id: 'a' }), session({ id: 'b' })] });
@@ -95,7 +112,7 @@ describe('StreamEnforcementService.enforce', () => {
         session({ id: 'new', providerSessionId: 'sNew', startedAt: new Date('2026-01-01T18:30:00Z') }),
       ],
     });
-    await svc.enforce();
+    await enforceAndAct(svc);
     expect(terminate).toHaveBeenCalledTimes(1);
     expect(terminate).toHaveBeenCalledWith('plex1', 'sNew', expect.objectContaining({ message: expect.stringContaining('maximum of 1') }));
     expect(events[0]).toMatchObject({ action: 'terminate_newest', result: 'success', configuredLimit: 1, observedStreams: 2 });
@@ -109,7 +126,7 @@ describe('StreamEnforcementService.enforce', () => {
         session({ id: 'new', providerSessionId: 'sNew', startedAt: new Date('2026-01-01T18:30:00Z') }),
       ],
     });
-    await svc.enforce();
+    await enforceAndAct(svc);
     expect(terminate).toHaveBeenCalledWith('plex1', 'sOld', expect.anything());
   });
 
@@ -122,7 +139,7 @@ describe('StreamEnforcementService.enforce', () => {
         session({ id: 'c', providerSessionId: 'sC', startedAt: new Date('2026-01-01T18:20:00Z') }),
       ],
     });
-    await svc.enforce();
+    await enforceAndAct(svc);
     expect(terminate).toHaveBeenCalledTimes(1);
     expect(terminate).toHaveBeenCalledWith('plex1', 'sC', expect.anything());
   });
@@ -135,6 +152,29 @@ describe('StreamEnforcementService.enforce', () => {
     await svc.enforce();
     expect(terminate).not.toHaveBeenCalled();
     expect(broadcast).toHaveBeenCalledWith('media_server.stream_limit.exceeded', expect.anything());
+  });
+
+  it('never acts on the first detection, even with zero grace (waits one poll cycle for fresh state)', async () => {
+    const { svc, terminate } = build({
+      settings: SETTINGS({ defaultLimit: 1, gracePeriodSeconds: 0 }),
+      sessions: [session({ id: 'a', providerSessionId: 'sA' }), session({ id: 'b', providerSessionId: 'sB' })],
+    });
+    await svc.enforce(); // first pass only arms the grace — a just-paused/moved stream may not be reflected yet
+    expect(terminate).not.toHaveBeenCalled();
+  });
+
+  it('records a reason with each stream’s playback state (diagnosable)', async () => {
+    const { svc, events } = build({
+      settings: SETTINGS({ defaultLimit: 1 }),
+      sessions: [
+        session({ id: 'old', providerSessionId: 'sOld', title: 'Show A', playbackState: 'playing', startedAt: new Date('2026-01-01T18:00:00Z') }),
+        session({ id: 'new', providerSessionId: 'sNew', title: 'Show B', playbackState: 'playing', startedAt: new Date('2026-01-01T18:30:00Z') }),
+      ],
+    });
+    await enforceAndAct(svc);
+    expect(events[0].reason).toContain('limit of 1');
+    expect(events[0].reason).toContain('Show A');
+    expect(events[0].reason).toContain('playing');
   });
 
   it('does not terminate if the account returns to compliance during grace', async () => {
@@ -158,14 +198,14 @@ describe('StreamEnforcementService.enforce', () => {
   it('records a skipped event when the provider cannot terminate (monitor-only)', async () => {
     const terminate = jest.fn(async () => ({ supported: false, message: 'kodi does not support "terminateSession".' }));
     const { svc, events } = build({ settings: SETTINGS({ defaultLimit: 1 }), sessions: [session({ id: 'a' }), session({ id: 'b' })], terminate });
-    await svc.enforce();
+    await enforceAndAct(svc);
     expect(events[0]).toMatchObject({ result: 'skipped' });
   });
 
   it('records a failure when the provider stop fails', async () => {
     const terminate = jest.fn(async () => ({ supported: true, result: { success: false, message: 'HTTP 500' } }));
     const { svc, events, broadcast } = build({ settings: SETTINGS({ defaultLimit: 1 }), sessions: [session({ id: 'a' }), session({ id: 'b' })], terminate });
-    await svc.enforce();
+    await enforceAndAct(svc);
     expect(events[0]).toMatchObject({ result: 'failure', errorMessage: 'HTTP 500' });
     expect(broadcast).toHaveBeenCalledWith('media_server.stream.termination_failed', expect.anything());
   });
@@ -227,7 +267,7 @@ describe('StreamEnforcementService.enforce', () => {
       session({ id: 'b', providerSessionId: 'sB', connectionId: 'jf1', providerUserId: 'JF', startedAt: new Date('2026-01-01T18:30:00Z') }),
     ];
     const { svc, terminate } = build({ settings: SETTINGS({ defaultLimit: 1 }), sessions, connections, subjects });
-    await svc.enforce();
+    await enforceAndAct(svc);
     // One person, limit 1, two streams across Plex+Jellyfin → newest (Jellyfin) stops.
     expect(terminate).toHaveBeenCalledTimes(1);
     expect(terminate).toHaveBeenCalledWith('jf1', 'sB', expect.anything());

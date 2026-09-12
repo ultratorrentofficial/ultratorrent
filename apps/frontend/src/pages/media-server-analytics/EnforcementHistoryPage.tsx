@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
-import { ShieldAlert } from 'lucide-react';
+import { ShieldAlert, ChevronRight, ChevronDown } from 'lucide-react';
 import { api, type StreamEnforcementEvent } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
@@ -24,6 +24,8 @@ export function EnforcementHistoryPage() {
 
   const q = useQuery({ queryKey: ['streamControl', 'events', params], queryFn: () => api.mediaServerAnalytics.streamControl.events(params) });
   const set = (k: keyof typeof filters, v: string) => { setFilters((f) => ({ ...f, [k]: v })); setPage(1); };
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggle = (id: string) => setExpanded((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   return (
     <div className="space-y-6">
@@ -72,23 +74,52 @@ export function EnforcementHistoryPage() {
                     <th className="px-3 py-2">{t('streamControl.history.colStreams')}</th>
                     <th className="px-3 py-2">{t('streamControl.history.colAction')}</th>
                     <th className="px-3 py-2">{t('streamControl.history.colResult')}</th>
+                    <th className="px-3 py-2" />
                   </tr>
                 </thead>
                 <tbody>
-                  {(q.data?.items ?? []).map((e: StreamEnforcementEvent) => (
-                    <tr key={e.id} className="border-b border-white/5">
-                      <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">{formatDateTime(e.detectedAt)}</td>
-                      <td className="whitespace-nowrap px-3 py-2 font-medium">{e.displayName ?? '—'}</td>
-                      <td className="px-3 py-2">{e.provider}</td>
-                      <td className="px-3 py-2">{e.mediaTitle ?? '—'}</td>
-                      <td className="px-3 py-2 text-muted-foreground">{[e.client, e.device].filter(Boolean).join(' / ') || '—'}</td>
-                      <td className="px-3 py-2 tabular-nums">{e.observedStreams} / {e.configuredLimit}</td>
-                      <td className="px-3 py-2">{t(`streamControl.action.${e.action}` as never, { defaultValue: e.action })}</td>
-                      <td className="px-3 py-2">
-                        <span className={resultClass(e.result)}>{t(`streamControl.result.${e.result}` as never, { defaultValue: e.result })}</span>
-                      </td>
-                    </tr>
-                  ))}
+                  {(q.data?.items ?? []).map((e: StreamEnforcementEvent) => {
+                    const detail = [e.reason, e.errorMessage].filter(Boolean).join(' · ');
+                    const isOpen = expanded.has(e.id);
+                    return (
+                    <Fragment key={e.id}>
+                      <tr className="border-b border-white/5">
+                        <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">{formatDateTime(e.detectedAt)}</td>
+                        <td className="whitespace-nowrap px-3 py-2 font-medium">{e.displayName ?? '—'}</td>
+                        <td className="px-3 py-2">{e.provider}</td>
+                        <td className="px-3 py-2">{e.mediaTitle ?? '—'}</td>
+                        <td className="px-3 py-2 text-muted-foreground">{[e.client, e.device].filter(Boolean).join(' / ') || '—'}</td>
+                        <td className="px-3 py-2 tabular-nums">{e.observedStreams} / {e.configuredLimit}</td>
+                        <td className="px-3 py-2">{t(`streamControl.action.${e.action}` as never, { defaultValue: e.action })}</td>
+                        <td className="px-3 py-2">
+                          <span className={resultClass(e.result)}>{t(`streamControl.result.${e.result}` as never, { defaultValue: e.result })}</span>
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {detail && (
+                            <button
+                              type="button"
+                              onClick={() => toggle(e.id)}
+                              aria-expanded={isOpen}
+                              aria-label={isOpen ? t('streamControl.history.hideReason') : t('streamControl.history.showReason')}
+                              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-muted-foreground hover:text-foreground"
+                            >
+                              {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                              {t('streamControl.history.colReason')}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                      {isOpen && detail && (
+                        <tr className="border-b border-white/5 bg-white/[0.02]">
+                          <td colSpan={9} className="px-4 py-2 text-muted-foreground">
+                            <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">{t('streamControl.history.colReason')}</span>
+                            <p className="mt-0.5 whitespace-pre-wrap">{detail}</p>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

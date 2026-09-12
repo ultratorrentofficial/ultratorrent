@@ -46,6 +46,23 @@ const LOCK_TTL_MS = 15_000;
 // A session the poller has not refreshed within this window is stale; it is not
 // counted and never terminated (safety §19).
 const STALE_MS = 90_000;
+// The session snapshot is only as fresh as the 15s poller, so a stream paused (or
+// handed off to another device) in the last cycle can still read `playing`.
+// Enforcement therefore waits at LEAST one full poll cycle after first detecting an
+// over-limit before it acts, so that state settles first — even if the configured
+// grace is shorter. This is the floor that stops us terminating an actively-watched
+// stream because a just-paused/just-moved one had not been re-polled yet.
+const POLL_CYCLE_MS = 15_000;
+const MIN_GRACE_MS = POLL_CYCLE_MS + 5_000;
+
+/** Human label for where the winning limit came from, for the recorded reason. */
+const SOURCE_LABEL: Record<string, string> = {
+  global: 'global default',
+  user: 'per-user override',
+  user_server: 'per-user (server) override',
+  server: 'per-server default',
+  exempt: 'exempt',
+};
 
 @Injectable()
 export class StreamEnforcementService {
@@ -113,21 +130,22 @@ export class StreamEnforcementService {
     // Warn/log actions never terminate — record the observation and (for warn)
     // tell the operator, then leave the streams alone.
     if (g.eff.action === 'warn' || g.eff.action === 'log') {
-      await this.record(g, limit, g.counted.length, g.eff.action, 'skipped', 'soft action — not terminated');
+      await this.record(g, limit, g.counted.length, g.eff.action, 'skipped', this.describeReason(g, 'soft action — not terminated'));
       if (g.eff.action === 'warn') this.emitExceeded(g, limit);
       return;
     }
 
-    // Grace: give a client mid-handoff time to settle before we act. A zero grace
-    // acts on the first detection; a positive grace waits at least that long.
+    // Grace: give a client mid-handoff (or a just-paused stream) time to settle
+    // before we act — never shorter than one poll cycle, so we act on state the
+    // poller has actually refreshed rather than a stale snapshot.
+    const graceMs = Math.max(g.eff.gracePeriodSeconds * 1000, MIN_GRACE_MS);
     const startedAt = this.pending.get(key);
     if (startedAt === undefined) {
       this.pending.set(key, now);
       this.emitExceeded(g, limit);
-      if (g.eff.gracePeriodSeconds > 0) return;
-    } else if (now - startedAt < g.eff.gracePeriodSeconds * 1000) {
       return;
     }
+    if (now - startedAt < graceMs) return;
 
     // Grace elapsed — acquire an exclusive lock so no other replica double-acts.
     await this.lock.withLock(`media-stream-enforcement:${g.subject.id}`, LOCK_TTL_MS, async () => {
@@ -182,11 +200,31 @@ export class StreamEnforcementService {
     } catch (err) {
       errorMessage = (err as Error).message;
     }
-    await this.record(g, limit, observed, g.eff.action, result, undefined, victim, errorMessage);
+    await this.record(g, limit, observed, g.eff.action, result, this.describeReason(g), victim, errorMessage);
     this.realtime.broadcast(
       result === 'success' ? 'media_server.stream.terminated' : 'media_server.stream.termination_failed',
       { connectionId: victim.connectionId, sessionId: victim.id, title: victim.title, userName: victim.userName },
     );
+  }
+
+  /**
+   * A human-readable account of WHY the group was over the limit — the source of
+   * the winning limit and every stream in the group with its playback state and
+   * whether it counted. This is what makes an enforcement diagnosable after the
+   * fact: e.g. it shows an older stream that read `paused, not counted` versus one
+   * that read `playing` and did count.
+   */
+  private describeReason(g: Group, prefix?: string): string {
+    const src = SOURCE_LABEL[g.eff.source] ?? g.eff.source;
+    const streams = g.sessions
+      .map((s) => {
+        const counted = g.counted.some((c) => c.id === s.id);
+        const where = s.client ?? s.device ?? 'device';
+        return `“${s.title}” (${where}, ${s.playbackState ?? 'unknown'}${counted ? '' : ', not counted'})`;
+      })
+      .join('; ');
+    const head = `${g.counted.length} of ${g.sessions.length} stream(s) counted against a limit of ${g.eff.limit} (${src}).`;
+    return `${prefix ? `${prefix} — ` : ''}${head} ${streams}`;
   }
 
   private emitExceeded(g: Group, limit: number): void {

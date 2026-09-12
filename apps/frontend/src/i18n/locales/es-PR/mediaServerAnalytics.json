@@ -675,7 +675,10 @@
       "pageInfo": "Página {{page}} · {{total}} eventos",
       "prev": "Anterior",
       "next": "Siguiente",
-      "colUser": "Usuario"
+      "colUser": "Usuario",
+      "colReason": "Motivo",
+      "showReason": "Ver motivo",
+      "hideReason": "Ocultar motivo"
     },
     "link": {
       "linked": "Vinculado",

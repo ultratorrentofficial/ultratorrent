@@ -675,7 +675,10 @@
       "pageInfo": "Page {{page}} · {{total}} events",
       "prev": "Previous",
       "next": "Next",
-      "colUser": "User"
+      "colUser": "User",
+      "colReason": "Reason",
+      "showReason": "Show reason",
+      "hideReason": "Hide reason"
     },
     "link": {
       "linked": "Linked",
