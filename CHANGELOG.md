@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.93.5] - 2026-09-12
+
+### Fixed
+- Sidebar: a nested section (Stream Control, Household) no longer keeps the active highlight when one of its sub-pages is selected — the active box belongs to the leaf that owns the route. Extracted as isParentActivePage with tests.
+
 ## [0.93.4] - 2026-09-12
 
 ### Fixed
