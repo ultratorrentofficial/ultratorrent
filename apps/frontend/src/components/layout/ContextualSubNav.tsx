@@ -27,18 +27,29 @@ export function ContextualSubNav() {
   const ctx = resolveActiveContext(groups, location.pathname, location.search);
   if (!ctx) return null;
 
-  // Only navigable siblings become tabs (a pure parent contributes its branch,
-  // which we reach via its landing route or first child).
-  const siblings = ctx.group.items.filter((i) => i.to || (i.children ?? []).some((c) => c.to));
-  // The active top-level item's children (present only when we're in a branch).
-  const branch = ctx.parent ?? (ctx.item.children?.length ? ctx.item : undefined);
-  const children = (branch?.children ?? []).filter((c) => c.to);
+  // A single-umbrella domain — one top-level item that exists only to group
+  // sub-sections (Media Server Analytics) — promotes that item's children to the
+  // primary tab row, so its nested groups (Stream Control, Household & Sharing)
+  // read as sections UNDER it, each expanding to its own pages. Every other domain
+  // keeps its top-level items as the primary row.
+  const umbrella =
+    ctx.group.items.length === 1 && (ctx.group.items[0].children?.length ?? 0) > 0
+      ? ctx.group.items[0]
+      : null;
+  const primary = umbrella ? umbrella.children ?? [] : ctx.group.items;
+
+  // Only navigable entries become tabs (a pure parent is reached via its landing
+  // route or first child).
+  const siblings = primary.filter((i) => i.to || (i.children ?? []).some((c) => c.to));
+  // The active section within the primary row, and the sub-pages it expands to.
+  const activeSection = siblings.find((i) => isBranchActive(i, location.pathname, location.search));
+  const children = (activeSection?.children ?? []).filter((c) => c.to);
 
   const hasSiblingRow = siblings.length > 1;
   const hasChildRow = children.length > 0;
   if (!hasSiblingRow && !hasChildRow) return null;
 
-  const branchLabel = branch ? tNav(t, 'items', branch.label) : '';
+  const branchLabel = activeSection ? tNav(t, 'items', activeSection.label) : '';
 
   return (
     <nav

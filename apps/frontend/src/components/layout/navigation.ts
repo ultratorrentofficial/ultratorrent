@@ -284,30 +284,26 @@ export const NAV_CONTRIBUTIONS: NavContribution[] = [
       { id: 'msa-newsletters', to: '/media-server-analytics/newsletters', label: 'Newsletters', icon: Mail, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_MANAGE_NEWSLETTERS, module: 'media_server_analytics', descriptionKey: 'Newsletters' },
       { id: 'msa-import', to: '/media-server-analytics/import', label: 'Import Analytics', icon: DownloadCloud, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_MANAGE_IMPORTS, module: 'media_server_analytics', descriptionKey: 'Import Analytics' },
       { id: 'msa-geoip', to: '/media-server-analytics/geolocation', label: 'IP Geolocation', icon: Globe, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_MANAGE_SETTINGS, module: 'media_server_analytics', descriptionKey: 'IP Geolocation' },
+      // Stream Control — a section UNDER Media Server Analytics, expanding to its
+      // own pages (roster + global settings + enforcement log).
+      { id: 'msa-stream-control', to: '/media-server-analytics/stream-limits', label: 'Stream Control', icon: Gauge, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_READ, module: 'media_server_analytics', descriptionKey: 'Stream Control',
+        children: [
+          { id: 'msa-stream-limits', to: '/media-server-analytics/stream-limits', label: 'Stream Limits', icon: Users2, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_READ, module: 'media_server_analytics', descriptionKey: 'Stream Limits' },
+          { id: 'msa-stream-settings', to: '/media-server-analytics/stream-control', label: 'Global Settings', icon: SlidersHorizontal, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_MANAGE, module: 'media_server_analytics', descriptionKey: 'Stream Control' },
+          { id: 'msa-enforcement', to: '/media-server-analytics/enforcement-history', label: 'Enforcement History', icon: ShieldAlert, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_ENFORCEMENT_READ, module: 'media_server_analytics', descriptionKey: 'Enforcement History' },
+        ],
+      },
+      // Household & Sharing — a section UNDER Media Server Analytics, expanding to
+      // its own pages (overview + users + review queue + networks).
+      { id: 'msa-household', to: '/media-server-analytics/household', label: 'Household & Sharing', icon: HomeIcon, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_HOUSEHOLD_READ, module: 'media_server_analytics', descriptionKey: 'Household & Sharing',
+        children: [
+          { id: 'msa-household-overview', to: '/media-server-analytics/household', label: 'Overview', icon: HomeIcon, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_HOUSEHOLD_READ, module: 'media_server_analytics', descriptionKey: 'Household & Sharing', end: true },
+          { id: 'msa-household-users', to: '/media-server-analytics/household/users', label: 'Users', icon: Users2, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_HOUSEHOLD_READ, module: 'media_server_analytics', descriptionKey: 'Household Users' },
+          { id: 'msa-household-review', to: '/media-server-analytics/household/reviews', label: 'Review Queue', icon: ClipboardCheck, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_HOUSEHOLD_READ, module: 'media_server_analytics', descriptionKey: 'Review Queue' },
+          { id: 'msa-household-networks', to: '/media-server-analytics/household/networks', label: 'Networks', icon: NetworkIcon, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_HOUSEHOLD_READ, module: 'media_server_analytics', descriptionKey: 'Household Networks' },
+        ],
+      },
       { id: 'msa-connections', to: '/media-server-analytics/connections', label: 'Server Connections', icon: Server, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_VIEW, module: 'media_server_analytics', descriptionKey: 'Server Connections' },
-    ],
-  } },
-
-  // Stream Control — its own grouped area (roster + global settings + enforcement
-  // log) rather than three loose siblings of the analytics observation tools.
-  { slot: { domain: 'analytics', order: 20 }, item: {
-    id: 'msa-stream-control', to: '/media-server-analytics/stream-limits', label: 'Stream Control', icon: Gauge, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_READ, module: 'media_server_analytics', descriptionKey: 'Stream Control',
-    children: [
-      { id: 'msa-stream-limits', to: '/media-server-analytics/stream-limits', label: 'Stream Limits', icon: Users2, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_READ, module: 'media_server_analytics', descriptionKey: 'Stream Limits' },
-      { id: 'msa-stream-settings', to: '/media-server-analytics/stream-control', label: 'Global Settings', icon: SlidersHorizontal, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_MANAGE, module: 'media_server_analytics', descriptionKey: 'Stream Control' },
-      { id: 'msa-enforcement', to: '/media-server-analytics/enforcement-history', label: 'Enforcement History', icon: ShieldAlert, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_ENFORCEMENT_READ, module: 'media_server_analytics', descriptionKey: 'Enforcement History' },
-    ],
-  } },
-
-  // Household & Sharing — its own grouped area (overview + users + review queue +
-  // networks) rather than four loose siblings.
-  { slot: { domain: 'analytics', order: 30 }, item: {
-    id: 'msa-household', to: '/media-server-analytics/household', label: 'Household & Sharing', icon: HomeIcon, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_HOUSEHOLD_READ, module: 'media_server_analytics', descriptionKey: 'Household & Sharing',
-    children: [
-      { id: 'msa-household-overview', to: '/media-server-analytics/household', label: 'Overview', icon: HomeIcon, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_HOUSEHOLD_READ, module: 'media_server_analytics', descriptionKey: 'Household & Sharing', end: true },
-      { id: 'msa-household-users', to: '/media-server-analytics/household/users', label: 'Users', icon: Users2, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_HOUSEHOLD_READ, module: 'media_server_analytics', descriptionKey: 'Household Users' },
-      { id: 'msa-household-review', to: '/media-server-analytics/household/reviews', label: 'Review Queue', icon: ClipboardCheck, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_HOUSEHOLD_READ, module: 'media_server_analytics', descriptionKey: 'Review Queue' },
-      { id: 'msa-household-networks', to: '/media-server-analytics/household/networks', label: 'Networks', icon: NetworkIcon, permission: PERMISSIONS.MEDIA_SERVER_ANALYTICS_HOUSEHOLD_READ, module: 'media_server_analytics', descriptionKey: 'Household Networks' },
     ],
   } },
 
@@ -528,6 +524,8 @@ export interface ActiveNavContext {
   group: NavGroup;
   item: NavItem;
   parent?: NavItem;
+  /** The parent's parent, when the active route is nested three levels deep. */
+  grandparent?: NavItem;
 }
 
 /**
@@ -572,18 +570,24 @@ export function resolveActiveContext(
 ): ActiveNavContext | null {
   let best: ActiveNavContext | null = null;
   let bestLen = -1;
-  const consider = (group: NavGroup, item: NavItem, parent?: NavItem) => {
+  const consider = (group: NavGroup, item: NavItem, parent?: NavItem, grandparent?: NavItem) => {
     if (!item.to || !isItemActive(item, pathname, searchStr)) return;
     const len = item.to.split('?')[0].length;
     if (len > bestLen) {
       bestLen = len;
-      best = { group, item, parent };
+      best = { group, item, parent, grandparent };
     }
   };
   for (const group of groups) {
     for (const item of group.items) {
       consider(group, item);
-      for (const child of item.children ?? []) consider(group, child, item);
+      for (const child of item.children ?? []) {
+        consider(group, child, item);
+        // Third level: a section nested under a single-umbrella item (e.g. a
+        // Stream Control / Household page under Media Server Analytics) must still
+        // resolve to its domain, or its route would fall outside the nav entirely.
+        for (const grand of child.children ?? []) consider(group, grand, child, item);
+      }
     }
   }
   return best;
