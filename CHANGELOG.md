@@ -45,6 +45,12 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.93.0] - 2026-09-12
+
+### Added
+- Household & Sharing: advisory account-sharing detection in Media Server Analytics — learns a likely home residential network and scores possible sharing from multiple explainable signals (mobile/travel/dynamic-IP handled conservatively), with review workflow; never terminates a stream (Stream Control remains the only enforcer)
+- Add Series: one idempotent workflow that provisions the full acquisition stack (watchlist, rule, readiness, intake, missing-episode scan, and a managed back-catalogue backfill job) by reusing existing subsystems — three modes, season scope, ended-show override, pause/resume/cancel backfill.
+
 ## [0.92.4] - 2026-09-12
 
 ### Fixed
