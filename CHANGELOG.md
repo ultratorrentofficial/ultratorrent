@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.93.7] - 2026-09-12
+
+### Fixed
+- Enforcement History now shows WHO was enforced: the events endpoint resolves each event's canonical subject display name (falling back to the provider user id), and the page gains a User column.
+
 ## [0.93.6] - 2026-09-12
 
 ### Fixed
