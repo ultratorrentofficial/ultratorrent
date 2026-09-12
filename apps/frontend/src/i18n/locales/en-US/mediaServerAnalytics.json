@@ -767,7 +767,10 @@
       "colNetworks": "Other networks",
       "colRisk": "Risk",
       "open": "Open",
-      "learning": "Learning…"
+      "learning": "Learning…",
+      "showNetworks": "Show networks",
+      "hideNetworks": "Hide networks",
+      "noNetworks": "No networks recorded yet"
     },
     "networks": {
       "title": "Household Networks",

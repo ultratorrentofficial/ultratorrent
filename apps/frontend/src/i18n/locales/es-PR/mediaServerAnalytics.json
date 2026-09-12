@@ -767,7 +767,10 @@
       "colNetworks": "Otras redes",
       "colRisk": "Riesgo",
       "open": "Abrir",
-      "learning": "Aprendiendo…"
+      "learning": "Aprendiendo…",
+      "showNetworks": "Ver redes",
+      "hideNetworks": "Ocultar redes",
+      "noNetworks": "Aún no hay redes registradas"
     },
     "networks": {
       "title": "Redes del hogar",
