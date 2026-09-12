@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.92.4] - 2026-09-12
+
+### Fixed
+- Stream Limits: the list now holds only viewers an admin has deliberately configured (override, exemption, or link), with an Add user picker to grant one — not every viewer at the global default. Also show the ISP/organisation next to a viewer's IP address (it was resolved but never displayed)
+
 ## [0.92.3] - 2026-09-12
 
 ### Fixed
