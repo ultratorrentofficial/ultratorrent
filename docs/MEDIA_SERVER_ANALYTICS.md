@@ -61,6 +61,12 @@ Under `/api/media-server-analytics`:
 | `GET /live` | `…view_live_activity` | Current now-playing sessions. |
 | `GET /live/:id/artwork` | `…view_live_activity` | Proxy a session's poster. |
 | `POST /live/poll` | `…manage_connections` | Reconcile sessions now (also polled every 15s). |
+| `POST /sessions/:id/terminate` | `…sessions.terminate` | Administratively stop a live session (Concurrent Stream Control). |
+| `GET/PATCH /stream-control/settings` | `…stream_limits.read` / `…manage` | Global Stream Control defaults. |
+| `GET /stream-control/policies[/:mediaUserId]` | `…stream_limits.read` | Per-user limit roster / one subject. |
+| `PUT/DELETE /stream-control/policies/:mediaUserId` · `PATCH /policies/:mediaUserId/exempt` | `…stream_limits.manage` | Set/clear a user's override; toggle exempt. |
+| `POST /stream-control/link` · `POST /policies/:mediaUserId/unlink` | `…stream_limits.manage` | Link accounts as one person / unlink. |
+| `GET /stream-control/status` · `/stream-control/events` | `…enforcement.read` | Live enforcement state / enforcement history. |
 | `GET /watch-history` | `…view_history` | Completed playback. |
 | `GET /reports/usage` · `/users` · `/libraries` · `/playback` · `/top-media` · `/devices` · `/heatmap` · `/trends` · `/resolutions` · `/library-growth` · `/bandwidth` | `…view_reports` | Analytics aggregations. |
 | `GET /export/watch-history` | `…export` | Export watch history. |
@@ -99,6 +105,72 @@ The poller also used to publish onto the notification event bus
 2026-07-25** with the notification engine and its event bus — nothing publishes
 them today.
 
+## Concurrent Stream Control
+
+Native, provider-agnostic control over playback sessions: manual termination,
+automatic per-user/global concurrent-stream limits, and cross-product identity
+linking so one person's Plex **and** Jellyfin streams count together.
+
+- **Provider capability.** `MediaServerCapabilities.terminateSessions` and
+  `MediaServerProvider.terminateSession(cfg, sessionId, options?)` are the single
+  boundary that knows how to stop a stream: **Plex** (`/status/sessions/terminate`,
+  the message becomes the client-visible reason), **Jellyfin/Emby**
+  (`POST /Sessions/{id}/Playing/Stop`, preceded by a best-effort on-screen message).
+  **Kodi cannot terminate** — it throws `UnsupportedCapabilityError` and the UI
+  shows **"Monitoring only — session termination is not supported by this
+  provider."** A provider that can't terminate, or a terminate that fails, is
+  **never** treated as the server being unhealthy.
+- **Manual stop.** `POST /sessions/:id/terminate` (permission
+  `media_server_analytics.sessions.terminate`) resolves the provider-native id
+  from the `MediaServerSession` row and delegates to the provider. In **Live
+  Activity**, a capable session shows a confirm-gated **Terminate stream** action;
+  the acting admin, target, and outcome are written to the audit log
+  (`media_server_analytics.session.terminated`).
+- **Realtime.** The outcome broadcasts `media_server.stream.terminated` /
+  `media_server.stream.termination_failed` (scoped to analytics-view holders), so
+  every open Live Activity view updates without a refresh.
+
+### Automatic enforcement
+
+- **Canonical subject.** `MediaAnalyticsUser` is one row per `(product kind,
+  stable providerUserId)`. Plex account ids are global, so one Plex account across
+  several Plex servers is **one** subject and its streams count together; Jellyfin
+  and Emby ids are per-server, so they stay separate. Accounts are **never**
+  auto-merged across products — that is a manual admin action (a later phase).
+- **Global defaults** live in **Media Server Analytics → Stream Control** (settings
+  key `media_server_analytics.stream_control`): a master **enabled** switch (off by
+  default — nothing is enforced until an admin turns it on), a default limit
+  (unlimited or 1–100), the action when a limit is exceeded (terminate newest /
+  oldest / warn / log), a grace period (0–300s), whether paused sessions count (and
+  when they expire), and the scope (across all servers, or per server).
+- **Per-user overrides** live in **Stream Limits**: use-default / unlimited /
+  custom, an optional action & scope override, and an **exempt** toggle (the admin
+  bypass, preferred over a huge number). Effective policy resolves per the priority
+  per-user+server → per-user → per-server → global, and the UI shows the source.
+- **The engine** (`StreamEnforcementService`, a 5s interval) reuses the poller's
+  `MediaServerSession` rows — it never re-polls the providers. It counts a subject's
+  active streams, waits out the grace period, then terminates exactly the excess
+  (newest or oldest by start time) via `provider.terminateSession`, recording a
+  `MediaStreamEnforcementEvent` and broadcasting `media_server.stream_limit.exceeded`
+  / `stream.termination_requested|terminated|termination_failed`.
+- **Safety.** Enforcement never terminates when it is disabled, the user is
+  unlimited/exempt, the provider cannot terminate, the server is not `online`, the
+  session data is stale, or the identity cannot be resolved — it records and skips.
+- **Concurrency.** A `DistributedLockService` (Redis `SET NX PX`, with an
+  in-process fallback when Redis is absent) makes enforcement single-flight per
+  subject across replicas; every termination re-checks the session is still active
+  and still over the limit before acting (idempotent).
+- **Enforcement History** (a filterable table) is the operational record; it is
+  separate from the audit log, which records admin configuration changes.
+- **Cross-product linking.** By default the same person's Plex and Jellyfin
+  accounts are separate subjects (different id-spaces). An admin can **link** them
+  on the Stream Limits page (select two or more → Link) so they share a `groupId`
+  and count together; the group's effective policy is the most restrictive of its
+  members (any exempt member exempts the person, otherwise the tightest limit).
+  Linking is always explicit — accounts are **never** joined by a matching name or
+  email — and **Unlink** dissolves it. `POST /stream-control/link` /
+  `…/policies/:id/unlink`, audited.
+
 ## Metadata sync
 
 A second job (`media_server_metadata_sync`, hourly and on demand via `POST
@@ -120,7 +192,10 @@ Every run is recorded as a `MediaProviderSyncRun`; one bad server never aborts t
 `media_server_analytics.` + `view`, `manage_connections`, `manage_mappings`,
 `view_live_activity`, `view_users`, `view_history`, `view_reports`, `export`,
 `manage_newsletters`, `send_newsletters`, `manage_imports`, `run_imports`,
-`manage_settings`, `admin`. Enforced server-side (`@RequirePermissions`) and
+`manage_settings`, `admin`, `sessions.terminate` (stop a live session — a stronger
+grant than viewing activity), `stream_limits.read`/`stream_limits.manage` (view/edit
+concurrent-stream limits), `enforcement.read` (view enforcement state + history).
+Enforced server-side (`@RequirePermissions`) and
 frontend-side (nav/route gating). Auto-synced to the `Permission` table at boot.
 
 ## Roadmap

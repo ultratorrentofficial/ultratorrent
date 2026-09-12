@@ -35,6 +35,21 @@ export interface MediaServerCapabilities {
   sessions: boolean;
   watchHistory: boolean;
   refresh: boolean;
+  /**
+   * Whether the provider can administratively STOP a playing session (not just
+   * observe it). Concurrent Stream Control and the manual "Terminate Stream"
+   * action check this — a provider that cannot terminate operates monitor-only,
+   * and is NOT marked unhealthy for lacking the capability.
+   */
+  terminateSessions: boolean;
+}
+
+/** The outcome of an attempt to stop a session — provider-agnostic. */
+export interface ProviderTerminateSessionResult {
+  success: boolean;
+  sessionId: string;
+  provider: string;
+  message?: string;
 }
 
 export interface ServerInfo {
@@ -215,6 +230,19 @@ export interface MediaServerProvider {
    */
   getUsers(cfg: MediaServerConfig): Promise<ProviderUser[]>;
   refreshLibrary(cfg: MediaServerConfig): Promise<void>;
+  /**
+   * Administratively stop a playing session by its provider-native session id.
+   * Throws {@link UnsupportedCapabilityError} where the provider cannot terminate
+   * (Kodi). Returns `{ success: false, message }` when the provider was reached
+   * but declined/failed — the caller must NOT treat that as the server being
+   * offline. `options.message` is the localized text shown to the viewer where
+   * the provider supports it (Plex reason / Jellyfin-Emby session message).
+   */
+  terminateSession(
+    cfg: MediaServerConfig,
+    sessionId: string,
+    options?: { reason?: string; message?: string },
+  ): Promise<ProviderTerminateSessionResult>;
 }
 
 function pct(offset?: number, total?: number): number | undefined {
@@ -383,7 +411,7 @@ export class PlexProvider implements MediaServerProvider {
   readonly kind = 'plex' as const;
 
   capabilities(): MediaServerCapabilities {
-    return { libraries: true, recentlyAdded: true, sessions: true, watchHistory: true, refresh: true };
+    return { libraries: true, recentlyAdded: true, sessions: true, watchHistory: true, refresh: true, terminateSessions: true };
   }
 
   getServerInfo(cfg: MediaServerConfig): Promise<ServerInfo> {
@@ -520,6 +548,32 @@ export class PlexProvider implements MediaServerProvider {
     });
     if (!ok) throw new Error(`Plex refresh failed with HTTP ${status}.`);
   }
+
+  /**
+   * Stop a Plex session. `sessionId` is the `Session.id` carried on the
+   * now-playing item (what `getSessions` records as `sessionId`). Plex shows the
+   * `reason` text to the client as it stops, so the localized message is passed
+   * there. A bad/stale id makes Plex reject the request rather than stop an
+   * unrelated session, so a mismatch fails safe.
+   */
+  async terminateSession(
+    cfg: MediaServerConfig,
+    sessionId: string,
+    options?: { reason?: string; message?: string },
+  ): Promise<ProviderTerminateSessionResult> {
+    const base = requireBaseUrl(cfg);
+    if (!cfg.token) throw new Error('Plex token is required.');
+    const reason = (options?.message ?? options?.reason ?? '').trim();
+    const params = new URLSearchParams({ sessionId });
+    if (reason) params.set('reason', reason);
+    const { ok, status } = await fetchJson(`${base}/status/sessions/terminate?${params.toString()}`, {
+      headers: { 'X-Plex-Token': cfg.token },
+    });
+    if (!ok) {
+      return { success: false, sessionId, provider: this.kind, message: `Plex terminate failed with HTTP ${status}.` };
+    }
+    return { success: true, sessionId, provider: this.kind };
+  }
 }
 
 /** Shared Jellyfin/Emby implementation (compatible APIs). */
@@ -553,6 +607,42 @@ class JellyfinEmbyBase {
       headers: { [this.headerName]: cfg.apiKey },
     });
     if (!ok) throw new Error(`Library refresh failed with HTTP ${status}.`);
+  }
+
+  /**
+   * Stop a Jellyfin/Emby session (`sessionId` = `SessionInfo.Id`). Best-effort
+   * sends the viewer a message first so they see WHY playback stopped; a failed
+   * message never blocks the stop. `kind` is the concrete provider name for the
+   * result.
+   */
+  async terminate(
+    cfg: MediaServerConfig,
+    sessionId: string,
+    kind: string,
+    options?: { reason?: string; message?: string },
+  ): Promise<ProviderTerminateSessionResult> {
+    const base = requireBaseUrl(cfg);
+    if (!cfg.apiKey) throw new Error('API key is required.');
+    const message = (options?.message ?? '').trim();
+    if (message) {
+      try {
+        await fetchJson(`${base}/Sessions/${encodeURIComponent(sessionId)}/Message`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', [this.headerName]: cfg.apiKey },
+          body: JSON.stringify({ Text: message, Header: 'UltraTorrent', TimeoutMs: 5000 }),
+        });
+      } catch {
+        // The stop below is what matters; a missed notice must not abort it.
+      }
+    }
+    const { ok, status } = await fetchJson(`${base}/Sessions/${encodeURIComponent(sessionId)}/Playing/Stop`, {
+      method: 'POST',
+      headers: { [this.headerName]: cfg.apiKey },
+    });
+    if (!ok) {
+      return { success: false, sessionId, provider: kind, message: `Session stop failed with HTTP ${status}.` };
+    }
+    return { success: true, sessionId, provider: kind };
   }
 
   async libraries(cfg: MediaServerConfig): Promise<MediaServerLibrary[]> {
@@ -659,7 +749,7 @@ export function normalizeContainer(raw: string | null | undefined): string | und
 }
 
 const JELLYFIN_EMBY_CAPS: MediaServerCapabilities = {
-  libraries: true, recentlyAdded: true, sessions: true, watchHistory: true, refresh: true,
+  libraries: true, recentlyAdded: true, sessions: true, watchHistory: true, refresh: true, terminateSessions: true,
 };
 
 export class JellyfinProvider implements MediaServerProvider {
@@ -672,6 +762,9 @@ export class JellyfinProvider implements MediaServerProvider {
   getSessions(cfg: MediaServerConfig) { return this.impl.sessions(cfg); }
   getUsers(cfg: MediaServerConfig) { return this.impl.users(cfg); }
   refreshLibrary(cfg: MediaServerConfig) { return this.impl.refresh(cfg); }
+  terminateSession(cfg: MediaServerConfig, sessionId: string, options?: { reason?: string; message?: string }) {
+    return this.impl.terminate(cfg, sessionId, this.kind, options);
+  }
 }
 
 export class EmbyProvider implements MediaServerProvider {
@@ -684,6 +777,9 @@ export class EmbyProvider implements MediaServerProvider {
   getSessions(cfg: MediaServerConfig) { return this.impl.sessions(cfg); }
   getUsers(cfg: MediaServerConfig) { return this.impl.users(cfg); }
   refreshLibrary(cfg: MediaServerConfig) { return this.impl.refresh(cfg); }
+  terminateSession(cfg: MediaServerConfig, sessionId: string, options?: { reason?: string; message?: string }) {
+    return this.impl.terminate(cfg, sessionId, this.kind, options);
+  }
 }
 
 /** Kodi — JSON-RPC over HTTP (optional basic auth). */
@@ -709,8 +805,9 @@ export class KodiProvider implements MediaServerProvider {
 
   capabilities(): MediaServerCapabilities {
     // Kodi is a client library, not a multi-user server — no section list,
-    // sessions API, or watch history in the sense the other providers expose.
-    return { libraries: false, recentlyAdded: true, sessions: false, watchHistory: false, refresh: true };
+    // sessions API, or watch history in the sense the other providers expose,
+    // and no administrative session termination.
+    return { libraries: false, recentlyAdded: true, sessions: false, watchHistory: false, refresh: true, terminateSessions: false };
   }
 
   getServerInfo(cfg: MediaServerConfig): Promise<ServerInfo> {
@@ -723,6 +820,15 @@ export class KodiProvider implements MediaServerProvider {
 
   async getSessions(_cfg: MediaServerConfig): Promise<ProviderSession[]> {
     throw new UnsupportedCapabilityError('getSessions', this.kind);
+  }
+
+  async terminateSession(
+    _cfg: MediaServerConfig,
+    _sessionId: string,
+    _options?: { reason?: string; message?: string },
+  ): Promise<ProviderTerminateSessionResult> {
+    // Kodi cannot stop another client's playback administratively — monitor-only.
+    throw new UnsupportedCapabilityError('terminateSession', this.kind);
   }
 
   async getUsers(_cfg: MediaServerConfig): Promise<ProviderUser[]> {

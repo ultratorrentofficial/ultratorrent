@@ -5506,6 +5506,46 @@ export const api = {
     live(): Promise<MediaServerLiveSession[]> {
       return request<MediaServerLiveSession[]>('/media-server-analytics/live');
     },
+    /** Administratively stop a live session; `message` is the localized viewer notice. */
+    terminateSession(sessionId: string, message?: string): Promise<MediaServerTerminateResult> {
+      return request<MediaServerTerminateResult>(`/media-server-analytics/sessions/${sessionId}/terminate`, {
+        method: 'POST',
+        body: message ? { message } : {},
+      });
+    },
+    streamControl: {
+      settings(): Promise<StreamControlSettings> {
+        return request<StreamControlSettings>('/media-server-analytics/stream-control/settings');
+      },
+      updateSettings(patch: Partial<StreamControlSettings>): Promise<StreamControlSettings> {
+        return request<StreamControlSettings>('/media-server-analytics/stream-control/settings', { method: 'PATCH', body: patch });
+      },
+      policies(): Promise<StreamPolicyRow[]> {
+        return request<StreamPolicyRow[]>('/media-server-analytics/stream-control/policies');
+      },
+      putPolicy(mediaUserId: string, input: StreamPolicyInput): Promise<MediaStreamPolicy> {
+        return request<MediaStreamPolicy>(`/media-server-analytics/stream-control/policies/${mediaUserId}`, { method: 'PUT', body: input });
+      },
+      deletePolicy(mediaUserId: string): Promise<{ ok: boolean }> {
+        return request<{ ok: boolean }>(`/media-server-analytics/stream-control/policies/${mediaUserId}`, { method: 'DELETE' });
+      },
+      setExempt(mediaUserId: string, exempt: boolean): Promise<{ id: string; exemptFromLimits: boolean }> {
+        return request(`/media-server-analytics/stream-control/policies/${mediaUserId}/exempt`, { method: 'PATCH', body: { exempt } });
+      },
+      link(mediaUserIds: string[]): Promise<{ groupId: string | null }> {
+        return request('/media-server-analytics/stream-control/link', { method: 'POST', body: { mediaUserIds } });
+      },
+      unlink(mediaUserId: string): Promise<{ ok: boolean }> {
+        return request(`/media-server-analytics/stream-control/policies/${mediaUserId}/unlink`, { method: 'POST' });
+      },
+      status(): Promise<StreamControlStatus> {
+        return request<StreamControlStatus>('/media-server-analytics/stream-control/status');
+      },
+      events(params: Record<string, string> = {}): Promise<{ items: StreamEnforcementEvent[]; total: number; page: number; pageSize: number }> {
+        const q = new URLSearchParams(params).toString();
+        return request(`/media-server-analytics/stream-control/events${q ? `?${q}` : ''}`);
+      },
+    },
     /** Now-playing poster for a session, proxied through the provider's auth (bearer-fetched blob). */
     async liveArtwork(sessionId: string): Promise<Blob> {
       const token = getAccessToken();
@@ -6299,6 +6339,92 @@ export interface MediaServerLiveSession {
   year: number | null;
   startedAt: string;
   updatedAt: string;
+  /** Whether this session's server supports administrative termination. */
+  canTerminate: boolean;
+}
+
+/** Result of a manual "Terminate Stream" request. */
+export interface MediaServerTerminateResult {
+  supported: boolean;
+  success: boolean;
+  message?: string;
+}
+
+// --- Concurrent Stream Control ------------------------------------------------
+export type StreamEnforcementAction = 'terminate_newest' | 'terminate_oldest' | 'warn' | 'log';
+export type StreamEnforcementScope = 'all_servers' | 'per_server';
+
+export interface StreamControlSettings {
+  enabled: boolean;
+  defaultLimit: number | null;
+  defaultAction: StreamEnforcementAction;
+  gracePeriodSeconds: number;
+  countPaused: boolean;
+  pausedExpirationMinutes: number;
+  scope: StreamEnforcementScope;
+}
+
+export interface MediaStreamPolicy {
+  id: string;
+  mediaAnalyticsUserId: string | null;
+  mediaServerId: string | null;
+  maxConcurrentStreams: number | null;
+  enforcementAction: StreamEnforcementAction | null;
+  gracePeriodSeconds: number | null;
+  countPaused: boolean | null;
+  scope: StreamEnforcementScope | null;
+  enabled: boolean;
+}
+
+export interface StreamPolicyRow {
+  mediaAnalyticsUserId: string;
+  kind: string;
+  providerUserId: string;
+  displayName: string | null;
+  exemptFromLimits: boolean;
+  /** Non-null when this subject is linked to others as one person. */
+  groupId: string | null;
+  policy: MediaStreamPolicy | null;
+  activeStreams: number;
+  limit: number | null;
+  overLimit: boolean;
+}
+
+export interface StreamControlStatus {
+  enabled: boolean;
+  usesRedis: boolean;
+  subjects: Array<{ mediaAnalyticsUserId: string; displayName: string | null; kind: string; activeStreams: number; limit: number | null; overLimit: boolean; exempt: boolean; scope: string; source: string }>;
+  sessions: Record<string, { activeStreams: number; limit: number | null; overLimit: boolean; exempt: boolean; canEnforce: boolean }>;
+}
+
+export interface StreamEnforcementEvent {
+  id: string;
+  mediaAnalyticsUserId: string | null;
+  mediaServerId: string;
+  provider: string;
+  providerUserId: string | null;
+  providerSessionId: string;
+  mediaTitle: string | null;
+  client: string | null;
+  device: string | null;
+  ipAddress: string | null;
+  configuredLimit: number;
+  observedStreams: number;
+  action: string;
+  result: string;
+  reason: string | null;
+  errorMessage: string | null;
+  detectedAt: string;
+  enforcedAt: string | null;
+}
+
+export interface StreamPolicyInput {
+  maxConcurrentStreams?: number | null;
+  enforcementAction?: StreamEnforcementAction | null;
+  gracePeriodSeconds?: number | null;
+  countPaused?: boolean | null;
+  scope?: StreamEnforcementScope | null;
+  enabled?: boolean;
 }
 
 export interface MediaServerWatchHistoryRow {

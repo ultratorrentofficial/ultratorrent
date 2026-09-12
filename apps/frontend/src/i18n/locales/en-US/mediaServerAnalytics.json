@@ -86,7 +86,21 @@
       "playing": "Playing",
       "paused": "Paused"
     },
-    "onServer": "Playing on {{name}} ({{kind}})"
+    "onServer": "Playing on {{name}} ({{kind}})",
+    "terminate": {
+      "action": "Terminate stream",
+      "monitorOnly": "Monitoring only — session termination is not supported by this provider.",
+      "confirmTitle": "Terminate this stream?",
+      "confirmBody": "Playback of \"{{title}}\" for {{user}} will be stopped immediately.",
+      "confirm": "Terminate",
+      "cancel": "Cancel",
+      "viewerMessage": "Playback stopped by UltraTorrent.",
+      "working": "Stopping…",
+      "success": "Stopped {{title}}.",
+      "unsupported": "This provider cannot stop playback — monitoring only.",
+      "failed": "Could not stop the stream: {{message}}",
+      "monitorOnlyShort": "Monitor only"
+    }
   },
   "watchHistory": {
     "title": "Watch History",
@@ -572,5 +586,101 @@
     "size": "Size",
     "updatedAt": "Updated",
     "lastRun": "Last update {{when}}"
+  },
+  "streamControl": {
+    "badge": {
+      "unlimited": "Unlimited",
+      "count": "{{count}} / {{limit}}",
+      "title": "{{count}} of {{limit}} allowed streams"
+    },
+    "limit": {
+      "unlimited": "Unlimited",
+      "custom": "Custom",
+      "useDefault": "Use global default",
+      "inherit": "Inherit default"
+    },
+    "action": {
+      "terminate_newest": "Terminate newest stream",
+      "terminate_oldest": "Terminate oldest stream",
+      "warn": "Warn only",
+      "log": "Log only"
+    },
+    "scope": {
+      "all_servers": "Across all servers",
+      "per_server": "Per server"
+    },
+    "status": {
+      "ok": "OK",
+      "atLimit": "At limit",
+      "over": "Over limit",
+      "unlimited": "Unlimited",
+      "exempt": "Exempt"
+    },
+    "result": {
+      "success": "Success",
+      "failure": "Failure",
+      "skipped": "Skipped"
+    },
+    "settings": {
+      "title": "Stream Control",
+      "subtitle": "Cap how many streams a viewer may run at once, across every connected media server.",
+      "loadError": "Could not load stream-control settings.",
+      "saved": "Stream-control settings saved.",
+      "saving": "Saving…",
+      "save": "Save",
+      "enable": "Enable concurrent-stream enforcement",
+      "enableHint": "Off by default. Nothing is terminated until you turn this on.",
+      "defaultLimit": "Default limit",
+      "defaultAction": "When the limit is exceeded",
+      "scope": "Limit scope",
+      "grace": "Grace period (seconds)",
+      "pausedExpiration": "Paused-session expiration (minutes)",
+      "countPaused": "Count paused sessions",
+      "countPausedHint": "Include paused streams in the count until they expire."
+    },
+    "limits": {
+      "title": "Stream Limits",
+      "subtitle": "Per-user concurrent-stream limits and overrides.",
+      "loadError": "Could not load stream limits.",
+      "empty": "No media users yet.",
+      "emptyHint": "Users appear here once they have streamed from a connected server.",
+      "colUser": "User",
+      "colActive": "Active",
+      "colLimit": "Limit",
+      "colStatus": "Status",
+      "edit": "Edit",
+      "exempt": "Exempt",
+      "saved": "Stream limit saved.",
+      "editFor": "Stream limit — {{name}}",
+      "exemptToggle": "Exempt from all limits",
+      "cancel": "Cancel"
+    },
+    "history": {
+      "title": "Enforcement History",
+      "subtitle": "Every stream-limit decision, newest first.",
+      "allProviders": "All providers",
+      "allActions": "All actions",
+      "allResults": "All results",
+      "loadError": "Could not load enforcement history.",
+      "empty": "No enforcement events yet.",
+      "colTime": "Time",
+      "colProvider": "Provider",
+      "colMedia": "Media",
+      "colClient": "Client",
+      "colStreams": "Streams",
+      "colAction": "Action",
+      "colResult": "Result",
+      "pageInfo": "Page {{page}} · {{total}} events",
+      "prev": "Previous",
+      "next": "Next"
+    },
+    "link": {
+      "linked": "Linked",
+      "unlinked": "Identity unlinked.",
+      "linkSelected": "Link {{count}} accounts",
+      "select": "Select for linking",
+      "linkedTitle": "Linked to another account as one person",
+      "unlink": "Unlink"
+    }
   }
 }

@@ -586,6 +586,13 @@ Every route is gated by a `media_server_analytics.*` permission.
 | `GET`  | `/api/media-server-analytics/dashboard` | `media_server_analytics.view` |
 | `GET`  | `/api/media-server-analytics/live` · `/live/:id/artwork` | `media_server_analytics.view_live_activity` |
 | `POST` | `/api/media-server-analytics/live/poll` | `media_server_analytics.manage_connections` |
+| `POST` | `/api/media-server-analytics/sessions/:id/terminate` | `media_server_analytics.sessions.terminate` |
+| `GET`  | `/api/media-server-analytics/stream-control/settings` | `media_server_analytics.stream_limits.read` |
+| `PATCH`| `/api/media-server-analytics/stream-control/settings` | `media_server_analytics.stream_limits.manage` |
+| `GET`  | `/api/media-server-analytics/stream-control/policies` · `/policies/:mediaUserId` | `media_server_analytics.stream_limits.read` |
+| `PUT`·`DELETE` | `/api/media-server-analytics/stream-control/policies/:mediaUserId` · `PATCH /policies/:mediaUserId/exempt` | `media_server_analytics.stream_limits.manage` |
+| `POST` | `/api/media-server-analytics/stream-control/link` · `/policies/:mediaUserId/unlink` | `media_server_analytics.stream_limits.manage` |
+| `GET`  | `/api/media-server-analytics/stream-control/status` · `/stream-control/events` | `media_server_analytics.enforcement.read` |
 | `GET`  | `/api/media-server-analytics/watch-history` | `media_server_analytics.view_history` |
 | `GET`  | `/api/media-server-analytics/reports/{usage,users,libraries,playback,top-media,devices,heatmap,trends,resolutions,library-growth,bandwidth}` | `media_server_analytics.view_reports` |
 | `GET`  | `/api/media-server-analytics/export/watch-history` | `media_server_analytics.export` |

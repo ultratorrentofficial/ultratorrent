@@ -86,7 +86,21 @@
       "playing": "Reproduciendo",
       "paused": "Pausado"
     },
-    "onServer": "Reproduciendo en {{name}} ({{kind}})"
+    "onServer": "Reproduciendo en {{name}} ({{kind}})",
+    "terminate": {
+      "action": "Detener transmisión",
+      "monitorOnly": "Solo monitoreo — este proveedor no permite detener la reproducción.",
+      "confirmTitle": "¿Detener esta transmisión?",
+      "confirmBody": "La reproducción de «{{title}}» de {{user}} se detendrá de inmediato.",
+      "confirm": "Detener",
+      "cancel": "Cancelar",
+      "viewerMessage": "La reproducción fue detenida por UltraTorrent.",
+      "working": "Deteniendo…",
+      "success": "Se detuvo {{title}}.",
+      "unsupported": "Este proveedor no puede detener la reproducción — solo monitoreo.",
+      "failed": "No se pudo detener la transmisión: {{message}}",
+      "monitorOnlyShort": "Solo monitoreo"
+    }
   },
   "watchHistory": {
     "title": "Historial de reproducción",
@@ -572,5 +586,101 @@
     "size": "Tamaño",
     "updatedAt": "Actualizada",
     "lastRun": "Última actualización {{when}}"
+  },
+  "streamControl": {
+    "badge": {
+      "unlimited": "Ilimitado",
+      "count": "{{count}} / {{limit}}",
+      "title": "{{count}} de {{limit}} transmisiones permitidas"
+    },
+    "limit": {
+      "unlimited": "Ilimitado",
+      "custom": "Personalizado",
+      "useDefault": "Usar predeterminado global",
+      "inherit": "Heredar predeterminado"
+    },
+    "action": {
+      "terminate_newest": "Detener la transmisión más nueva",
+      "terminate_oldest": "Detener la transmisión más antigua",
+      "warn": "Solo advertir",
+      "log": "Solo registrar"
+    },
+    "scope": {
+      "all_servers": "En todos los servidores",
+      "per_server": "Por servidor"
+    },
+    "status": {
+      "ok": "OK",
+      "atLimit": "En el límite",
+      "over": "Sobre el límite",
+      "unlimited": "Ilimitado",
+      "exempt": "Exento"
+    },
+    "result": {
+      "success": "Correcto",
+      "failure": "Fallo",
+      "skipped": "Omitido"
+    },
+    "settings": {
+      "title": "Control de transmisiones",
+      "subtitle": "Limita cuántas transmisiones puede tener un espectador a la vez, en todos los servidores conectados.",
+      "loadError": "No se pudo cargar la configuración de control de transmisiones.",
+      "saved": "Configuración guardada.",
+      "saving": "Guardando…",
+      "save": "Guardar",
+      "enable": "Activar la aplicación de transmisiones simultáneas",
+      "enableHint": "Desactivado por defecto. No se detiene nada hasta que lo actives.",
+      "defaultLimit": "Límite predeterminado",
+      "defaultAction": "Cuando se excede el límite",
+      "scope": "Alcance del límite",
+      "grace": "Período de gracia (segundos)",
+      "pausedExpiration": "Expiración de sesión en pausa (minutos)",
+      "countPaused": "Contar sesiones en pausa",
+      "countPausedHint": "Incluir transmisiones en pausa en el conteo hasta que expiren."
+    },
+    "limits": {
+      "title": "Límites de transmisión",
+      "subtitle": "Límites y excepciones de transmisiones simultáneas por usuario.",
+      "loadError": "No se pudieron cargar los límites.",
+      "empty": "Aún no hay usuarios.",
+      "emptyHint": "Los usuarios aparecen aquí una vez que han transmitido desde un servidor conectado.",
+      "colUser": "Usuario",
+      "colActive": "Activas",
+      "colLimit": "Límite",
+      "colStatus": "Estado",
+      "edit": "Editar",
+      "exempt": "Exento",
+      "saved": "Límite guardado.",
+      "editFor": "Límite de transmisión — {{name}}",
+      "exemptToggle": "Exento de todos los límites",
+      "cancel": "Cancelar"
+    },
+    "history": {
+      "title": "Historial de aplicación",
+      "subtitle": "Cada decisión de límite de transmisión, la más reciente primero.",
+      "allProviders": "Todos los proveedores",
+      "allActions": "Todas las acciones",
+      "allResults": "Todos los resultados",
+      "loadError": "No se pudo cargar el historial.",
+      "empty": "Aún no hay eventos de aplicación.",
+      "colTime": "Hora",
+      "colProvider": "Proveedor",
+      "colMedia": "Contenido",
+      "colClient": "Cliente",
+      "colStreams": "Transmisiones",
+      "colAction": "Acción",
+      "colResult": "Resultado",
+      "pageInfo": "Página {{page}} · {{total}} eventos",
+      "prev": "Anterior",
+      "next": "Siguiente"
+    },
+    "link": {
+      "linked": "Vinculado",
+      "unlinked": "Identidad desvinculada.",
+      "linkSelected": "Vincular {{count}} cuentas",
+      "select": "Seleccionar para vincular",
+      "linkedTitle": "Vinculado a otra cuenta como una sola persona",
+      "unlink": "Desvincular"
+    }
   }
 }

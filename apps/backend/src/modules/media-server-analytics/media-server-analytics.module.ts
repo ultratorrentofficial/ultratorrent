@@ -15,6 +15,10 @@ import { MediaServerNewsletterService } from './media-server-newsletter.service'
 import { NewsletterImageService } from './newsletter-image.service';
 import { MediaServerAnalyticsController } from './media-server-analytics.controller';
 import { NewsletterImageController } from './newsletter-image.controller';
+import { StreamControlSettingsService } from './stream-control/stream-control-settings.service';
+import { StreamPolicyService } from './stream-control/stream-policy.service';
+import { StreamEnforcementService } from './stream-control/stream-enforcement.service';
+import { StreamControlController } from './stream-control/stream-control.controller';
 
 /**
  * Media Server Analytics (`media_server_analytics`). A core module that reuses
@@ -38,9 +42,14 @@ import { SystemModule } from '../system/system.module';
     MediaServerNewsletterService,
     NewsletterImageService,
     SecretCipher,
+    StreamControlSettingsService,
+    StreamPolicyService,
+    StreamEnforcementService,
   ],
   controllers: [
-    NewsletterUnsubscribeController,MediaServerAnalyticsController, NewsletterImageController],
+    NewsletterUnsubscribeController, MediaServerAnalyticsController, NewsletterImageController,
+    StreamControlController,
+  ],
   // Exported for the operations module's Live Activity projection. It reuses
   // `liveActivity()` precisely because that method is already the redaction
   // boundary — it withholds each viewer's IP and the provider-internal art

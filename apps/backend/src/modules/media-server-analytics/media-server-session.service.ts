@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { DOMAIN_EVENTS, MODULE_IDS } from '@ultratorrent/shared';
 import type { MediaServerSession } from '@prisma/client';
@@ -6,6 +6,7 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { ModuleRegistryService } from '../module-registry/module-registry.service';
 import { MediaServerIntegrationService } from '../media/media-server-integration.service';
+import { AuditService } from '../audit/audit.service';
 import { GeoIpService, type GeoResult } from '../geoip/geoip.service';
 import type { ProviderSession } from '../media/media-server-provider';
 import { DomainEventBus } from '../domain-events/domain-event-bus.service';
@@ -59,6 +60,12 @@ export interface LiveSessionView {
   startedAt: Date;
   updatedAt: Date;
   hasArtwork: boolean;
+  /**
+   * Whether this session's server can be administratively stopped — drives the
+   * "Terminate Stream" action and the monitor-only label. Provider-declared
+   * (Kodi is false); never a reason to treat the server as unhealthy.
+   */
+  canTerminate: boolean;
 }
 
 /**
@@ -82,6 +89,7 @@ export class MediaServerSessionService {
     private readonly registry: ModuleRegistryService,
     private readonly bus: DomainEventBus,
     private readonly geoip: GeoIpService,
+    private readonly audit: AuditService,
   ) {}
 
   /**
@@ -100,7 +108,7 @@ export class MediaServerSessionService {
   async liveActivity(): Promise<LiveSessionView[]> {
     // One accounts read for the whole page, not one per row: resolving inside
     // the map would issue a query per playing session.
-    const [rows, known] = await Promise.all([
+    const [rows, known, connections] = await Promise.all([
       this.prisma.mediaServerSession.findMany({
       orderBy: { updatedAt: 'desc' },
       select: {
@@ -113,7 +121,17 @@ export class MediaServerSessionService {
       },
       }),
       this.knownViewers(),
+      this.prisma.mediaServerIntegration.findMany({ select: { id: true, kind: true, capabilities: true } }),
     ]);
+    // Which connections can be administratively stopped — from the persisted,
+    // provider-declared capability, defaulting by kind (Kodi cannot) when a
+    // connection has not been health-probed yet.
+    const canTerminateByConn = new Map<string, boolean>(
+      connections.map((c) => {
+        const declared = (c.capabilities as { terminateSessions?: boolean } | null)?.terminateSessions;
+        return [c.id, typeof declared === 'boolean' ? declared : c.kind !== 'kodi'];
+      }),
+    );
     // Resolve every distinct address once, offline. The IP is now shown to the
     // operator (this endpoint is analytics-permissioned), so it is deliberately
     // on the wire — with its location attached where the database can place it.
@@ -153,7 +171,72 @@ export class MediaServerSessionService {
       startedAt: r.startedAt,
       updatedAt: r.updatedAt,
       hasArtwork: !!r.artPath,
+      canTerminate: canTerminateByConn.get(r.connectionId) ?? false,
     }));
+  }
+
+  /**
+   * Administratively stop a live session (the manual "Terminate Stream" action).
+   *
+   * `id` is the internal `MediaServerSession` row id shown in Live Activity; the
+   * provider-native id and connection are read from the row so the caller never
+   * handles them. Delegates the actual stop to the provider (via the integration
+   * service), records an audit entry with the acting admin + request context, and
+   * broadcasts the outcome so every Live Activity view updates without a refresh.
+   * A provider that cannot terminate (Kodi) yields `supported: false` and is not
+   * treated as an error.
+   */
+  async terminateStream(
+    id: string,
+    ctx: { userId: string; ipAddress: string | null; userAgent: string | null },
+    message?: string,
+  ): Promise<{ supported: boolean; success: boolean; message?: string }> {
+    const row = await this.prisma.mediaServerSession.findUnique({
+      where: { id },
+      select: {
+        id: true, connectionId: true, providerSessionId: true,
+        title: true, userName: true, device: true, client: true, ipAddress: true,
+      },
+    });
+    if (!row) throw new NotFoundException('Session not found');
+
+    const outcome = await this.integrations.terminateSession(row.connectionId, row.providerSessionId, { message });
+
+    const audonly = {
+      userId: ctx.userId,
+      ipAddress: ctx.ipAddress ?? undefined,
+      userAgent: ctx.userAgent ?? undefined,
+      objectType: 'media_server_session',
+      objectId: row.id,
+    } as const;
+
+    if (!outcome.supported) {
+      await this.audit.record({
+        ...audonly,
+        action: 'media_server_analytics.session.terminate_unsupported',
+        result: 'failure',
+        metadata: { message: outcome.message, title: row.title, userName: row.userName },
+      });
+      return { supported: false, success: false, message: outcome.message };
+    }
+
+    const success = outcome.result?.success ?? false;
+    await this.audit.record({
+      ...audonly,
+      action: 'media_server_analytics.session.terminated',
+      result: success ? 'success' : 'failure',
+      metadata: {
+        title: row.title, userName: row.userName, device: row.device,
+        client: row.client, viewerIp: row.ipAddress, providerMessage: outcome.result?.message,
+      },
+    });
+
+    this.realtime.broadcast(
+      success ? 'media_server.stream.terminated' : 'media_server.stream.termination_failed',
+      { connectionId: row.connectionId, sessionId: row.id, title: row.title, userName: row.userName },
+    );
+
+    return { supported: true, success, message: outcome.result?.message };
   }
 
   /**

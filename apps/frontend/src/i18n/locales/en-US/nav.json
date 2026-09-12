@@ -103,7 +103,10 @@
     "Workflow Approvals": "Workflow Approvals",
     "Workflows": "Workflows",
     "Discover": "Discover",
-    "IP Geolocation": "IP Geolocation"
+    "IP Geolocation": "IP Geolocation",
+    "Stream Limits": "Stream Limits",
+    "Stream Control": "Stream Control",
+    "Enforcement History": "Enforcement History"
   },
   "descriptions": {
     "Acquisition Intelligence": "Smart acquisition and upgrades",
@@ -186,7 +189,10 @@
     "Workflow Approvals": "Decide workflow steps awaiting approval",
     "Workflows": "Design automations visually on a canvas",
     "Discover": "Upcoming titles and what was decided about them",
-    "IP Geolocation": "IP Geolocation"
+    "IP Geolocation": "IP Geolocation",
+    "Stream Limits": "Per-user concurrent-stream limits",
+    "Stream Control": "Global concurrent-stream enforcement settings",
+    "Enforcement History": "Record of stream-limit enforcement"
   },
   "details": {
     "Account": "Account",

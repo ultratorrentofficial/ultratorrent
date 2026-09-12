@@ -1590,6 +1590,102 @@ model MediaServerUser {
   @@map("media_server_users")
 }
 
+/// Concurrent Stream Control — the canonical enforcement subject.
+///
+/// One row per (product id-space, stable provider user id). Plex account ids are
+/// global to plex.tv, so one Plex account seen on several Plex servers is ONE
+/// subject and its streams count together; Jellyfin/Emby ids are per-server, so
+/// they stay separate. Accounts are NEVER auto-merged across products — a
+/// cross-product link is an explicit admin action (a later phase). Distinct from
+/// `MediaServerUser`, which is per-(connection, userName) for display/analytics.
+model MediaAnalyticsUser {
+  id               String   @id @default(uuid())
+  /// The product id-space this identity belongs to: plex | jellyfin | emby.
+  kind             String
+  /// The provider's stable user id within that product.
+  providerUserId   String
+  /// Cached name for the admin UI; the authoritative name still resolves through
+  /// `MediaServerUser`/`resolveViewerName`.
+  displayName      String?
+  /// Admin bypass — this viewer is never counted or terminated, regardless of any
+  /// limit. Preferred over assigning an arbitrary huge number (spec §20).
+  exemptFromLimits Boolean  @default(false)
+  /// Cross-product link: subjects sharing a `groupId` are the SAME person, so
+  /// their streams count together against one limit (a Plex + a Jellyfin account,
+  /// say). Null = standalone. Only ever set by an explicit admin link — never
+  /// inferred from a name or email.
+  groupId          String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  policy MediaStreamPolicy?
+
+  @@unique([kind, providerUserId])
+  @@index([groupId])
+  @@map("media_analytics_users")
+}
+
+/// A concurrent-stream policy OVERRIDE. The global default lives in settings
+/// (`media_server_analytics.stream_control`); a row here overrides it for one
+/// user (`mediaAnalyticsUserId` set) or one server (`mediaServerId` set). A null
+/// field means "inherit the global default"; `maxConcurrentStreams = null` means
+/// unlimited, a positive value is a custom cap. Resolution priority (spec §9):
+/// per-user+per-server → per-user → per-server → global.
+model MediaStreamPolicy {
+  id                   String   @id @default(uuid())
+  /// The per-user subject, when this is a user override. Unique: one per user.
+  mediaAnalyticsUserId String?  @unique
+  /// The server this override is scoped to (a `MediaServerIntegration.id`), when
+  /// this is a per-server default or a per-user+per-server override.
+  mediaServerId        String?
+  /// null = unlimited; a positive integer is the custom concurrent-stream cap.
+  maxConcurrentStreams Int?
+  /// terminate_newest | terminate_oldest | warn | log ; null = use the default.
+  enforcementAction    String?
+  gracePeriodSeconds   Int?
+  countPaused          Boolean?
+  /// all_servers | per_server ; null = use the default.
+  scope                String?
+  enabled              Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user MediaAnalyticsUser? @relation(fields: [mediaAnalyticsUserId], references: [id], onDelete: Cascade)
+
+  @@index([mediaServerId])
+  @@map("media_stream_policies")
+}
+
+/// Operational history of every enforcement decision — observed vs allowed, the
+/// action taken and its result. This is NOT the audit log (admin config changes
+/// go to `AuditLog`); it is the per-event record the Enforcement History UI reads.
+model MediaStreamEnforcementEvent {
+  id                   String    @id @default(uuid())
+  mediaAnalyticsUserId String?
+  mediaServerId        String
+  provider             String
+  providerUserId       String?
+  providerSessionId    String
+  mediaTitle           String?
+  client               String?
+  device               String?
+  ipAddress            String?
+  configuredLimit      Int
+  observedStreams      Int
+  /// terminate_newest | terminate_oldest | warn | log
+  action               String
+  /// success | failure | skipped
+  result               String
+  reason               String?
+  errorMessage         String?
+  detectedAt           DateTime  @default(now())
+  enforcedAt           DateTime?
+
+  @@index([mediaAnalyticsUserId])
+  @@index([detectedAt])
+  @@map("media_stream_enforcement_events")
+}
+
 /// A provider sync run — libraries + users refreshed from a connection (Phase 6e).
 model MediaProviderSyncRun {
   id              String    @id @default(uuid())

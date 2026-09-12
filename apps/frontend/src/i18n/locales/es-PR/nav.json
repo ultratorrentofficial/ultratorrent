@@ -103,7 +103,10 @@
     "Workflow Approvals": "Aprobaciones de flujo",
     "Workflows": "Flujos de trabajo",
     "Discover": "Descubrir",
-    "IP Geolocation": "Geolocalización de IP"
+    "IP Geolocation": "Geolocalización de IP",
+    "Stream Limits": "Límites de transmisión",
+    "Stream Control": "Control de transmisiones",
+    "Enforcement History": "Historial de aplicación"
   },
   "descriptions": {
     "Acquisition Intelligence": "Adquisición y mejoras inteligentes",
@@ -186,7 +189,10 @@
     "Workflow Approvals": "Decide pasos de flujo que esperan aprobación",
     "Workflows": "Diseña automatizaciones visualmente en un lienzo",
     "Discover": "Títulos próximos y lo que se decidió sobre ellos",
-    "IP Geolocation": "Geolocalización de IP"
+    "IP Geolocation": "Geolocalización de IP",
+    "Stream Limits": "Límites de transmisiones simultáneas por usuario",
+    "Stream Control": "Ajustes globales de control de transmisiones simultáneas",
+    "Enforcement History": "Registro de la aplicación de límites de transmisión"
   },
   "details": {
     "Account": "Cuenta",

@@ -145,6 +145,12 @@ export const PERMISSIONS = {
   MEDIA_SERVER_ANALYTICS_RUN_IMPORTS: 'media_server_analytics.run_imports',
   MEDIA_SERVER_ANALYTICS_MANAGE_SETTINGS: 'media_server_analytics.manage_settings',
   MEDIA_SERVER_ANALYTICS_ADMIN: 'media_server_analytics.admin',
+  // Concurrent Stream Control — stopping a viewer's playback is a stronger
+  // action than viewing live activity, so it carries its own grant.
+  MEDIA_SERVER_ANALYTICS_SESSIONS_TERMINATE: 'media_server_analytics.sessions.terminate',
+  MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_READ: 'media_server_analytics.stream_limits.read',
+  MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_MANAGE: 'media_server_analytics.stream_limits.manage',
+  MEDIA_SERVER_ANALYTICS_ENFORCEMENT_READ: 'media_server_analytics.enforcement.read',
 
   // Media Manager (core)
   MEDIA_MANAGER_VIEW: 'media_manager.view',

@@ -53,6 +53,12 @@ export interface WsEventMap {
   // Media Server Analytics live activity (broadcast by the session poller).
   'media_server.session.started': { connectionId: string; title: string; userName: string | null };
   'media_server.session.ended': { connectionId: string; title: string };
+  // Concurrent Stream Control.
+  'media_server.stream.terminated': { connectionId: string; sessionId: string; title: string; userName: string | null };
+  'media_server.stream.termination_failed': { connectionId: string; sessionId: string; title: string; userName: string | null };
+  'media_server.stream.termination_requested': { connectionId: string; sessionId: string; title: string; userName: string | null };
+  'media_server.stream_limit.exceeded': { mediaAnalyticsUserId: string; displayName: string | null; activeStreams: number; limit: number; serverId: string | null };
+  'media_server.stream_limit.updated': { mediaAnalyticsUserId: string };
   // Unified Jobs Center — the platform-wide job lifecycle channel (permission-scoped).
   [WS_EVENTS.JOB_CREATED]: JobEventPayload;
   [WS_EVENTS.JOB_QUEUED]: JobEventPayload;

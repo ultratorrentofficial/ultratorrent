@@ -77,6 +77,9 @@ import { WatchHistoryPage } from '@/pages/media-server-analytics/WatchHistoryPag
 import { MediaServerUsersPage } from '@/pages/media-server-analytics/MediaServerUsersPage';
 import { ReportsPage } from '@/pages/media-server-analytics/ReportsPage';
 import { GeoIpSettingsPage } from '@/pages/media-server-analytics/GeoIpSettingsPage';
+import { StreamLimitsPage } from '@/pages/media-server-analytics/StreamLimitsPage';
+import { StreamControlSettingsPage } from '@/pages/media-server-analytics/StreamControlSettingsPage';
+import { EnforcementHistoryPage } from '@/pages/media-server-analytics/EnforcementHistoryPage';
 import { RecentlyAddedPage } from '@/pages/media-server-analytics/RecentlyAddedPage';
 import { ImportAnalyticsPage } from '@/pages/media-server-analytics/ImportAnalyticsPage';
 import { NewslettersPage } from '@/pages/media-server-analytics/NewslettersPage';
@@ -534,6 +537,30 @@ export function App() {
                         element={
                           <ModuleRoute moduleId="media_server_analytics">
                             <GeoIpSettingsPage />
+                          </ModuleRoute>
+                        }
+                      />
+                      <Route
+                        path="/media-server-analytics/stream-limits"
+                        element={
+                          <ModuleRoute moduleId="media_server_analytics">
+                            <StreamLimitsPage />
+                          </ModuleRoute>
+                        }
+                      />
+                      <Route
+                        path="/media-server-analytics/stream-control"
+                        element={
+                          <ModuleRoute moduleId="media_server_analytics">
+                            <StreamControlSettingsPage />
+                          </ModuleRoute>
+                        }
+                      />
+                      <Route
+                        path="/media-server-analytics/enforcement-history"
+                        element={
+                          <ModuleRoute moduleId="media_server_analytics">
+                            <EnforcementHistoryPage />
                           </ModuleRoute>
                         }
                       />

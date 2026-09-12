@@ -15,6 +15,7 @@ import {
   MediaServerKind,
   MediaServerLibrary,
   ProviderSession,
+  ProviderTerminateSessionResult,
   ProviderUser,
   ServerInfo,
   UnsupportedCapabilityError,
@@ -473,6 +474,33 @@ export class MediaServerIntegrationService {
         return { supported: false, message: err.message, sessions: [] };
       }
       throw new BadRequestException(`Fetching sessions failed: ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * Stop a playing session on a saved integration. Mirrors {@link sessions}:
+   * providers that cannot terminate (Kodi) return `{ supported: false }` rather
+   * than throwing, and — like every read path here — this NEVER calls
+   * `markHealth`, so a declined or failed terminate does not flip the server
+   * offline. `providerSessionId` is the provider-native id stored on the
+   * `MediaServerSession` row; `options.message` is the localized viewer notice.
+   */
+  async terminateSession(
+    id: string,
+    providerSessionId: string,
+    options?: { reason?: string; message?: string },
+  ): Promise<{ supported: boolean; message?: string; result?: ProviderTerminateSessionResult }> {
+    const row = await this.load(id);
+    const provider = getMediaServerProvider(row.kind);
+    const cfg = this.decryptConfig((row.config as Record<string, unknown>) ?? {});
+    try {
+      const result = await provider.terminateSession(cfg, providerSessionId, options);
+      return { supported: true, result };
+    } catch (err) {
+      if (err instanceof UnsupportedCapabilityError) {
+        return { supported: false, message: err.message };
+      }
+      throw new BadRequestException(`Terminating session failed: ${(err as Error).message}`);
     }
   }
 

@@ -2,6 +2,7 @@ import {
   getMediaServerProvider,
   PlexProvider,
   JellyfinProvider,
+  EmbyProvider,
   KodiProvider,
   UnsupportedCapabilityError,
   parsePlexUsersXml,
@@ -35,14 +36,15 @@ describe('media server provider factory', () => {
 describe('capabilities', () => {
   it('Plex declares full capabilities', () => {
     expect(new PlexProvider().capabilities()).toEqual({
-      libraries: true, recentlyAdded: true, sessions: true, watchHistory: true, refresh: true,
+      libraries: true, recentlyAdded: true, sessions: true, watchHistory: true, refresh: true, terminateSessions: true,
     });
   });
-  it('Kodi declares no library/session support', () => {
+  it('Kodi declares no library/session/terminate support', () => {
     const caps = new KodiProvider().capabilities();
     expect(caps.libraries).toBe(false);
     expect(caps.sessions).toBe(false);
     expect(caps.refresh).toBe(true);
+    expect(caps.terminateSessions).toBe(false);
   });
 });
 
@@ -201,5 +203,70 @@ describe('getUsers', () => {
       { providerUserId: 'a1', userName: 'Alice' },
       { providerUserId: 'b2', userName: 'Bob' },
     ]);
+  });
+});
+
+// Records every fetch (url + init) and answers each with a fixed status, so a
+// terminate call can be asserted by the URL it built and the method it used.
+function recordFetch(status = 200): Array<{ url: string; init: RequestInit }> {
+  const calls: Array<{ url: string; init: RequestInit }> = [];
+  global.fetch = jest.fn(async (url: string, init: RequestInit = {}) => {
+    calls.push({ url: String(url), init });
+    return { ok: status >= 200 && status < 300, status, json: async () => ({}), text: async () => '' };
+  }) as unknown as typeof fetch;
+  return calls;
+}
+
+describe('terminateSession', () => {
+  it('Plex stops the session and passes the message as the client-visible reason', async () => {
+    const calls = recordFetch(200);
+    const r = await new PlexProvider().terminateSession(
+      { baseUrl: 'http://plex', token: 'tok' },
+      'sess-1',
+      { message: 'Playback stopped by UltraTorrent.' },
+    );
+    expect(r).toEqual({ success: true, sessionId: 'sess-1', provider: 'plex' });
+    const url = calls[0].url;
+    expect(url).toContain('/status/sessions/terminate');
+    expect(url).toContain('sessionId=sess-1');
+    expect(url).toContain('reason=Playback');
+    expect((calls[0].init.headers as Record<string, string>)['X-Plex-Token']).toBe('tok');
+  });
+
+  it('Plex reports failure (not a throw) when the server rejects the stop', async () => {
+    recordFetch(404);
+    const r = await new PlexProvider().terminateSession({ baseUrl: 'http://plex', token: 'tok' }, 'sess-x');
+    expect(r.success).toBe(false);
+    expect(r.message).toMatch(/HTTP 404/);
+  });
+
+  it('Jellyfin messages the viewer, then POSTs the stop', async () => {
+    const calls = recordFetch(204);
+    const r = await new JellyfinProvider().terminateSession(
+      { baseUrl: 'http://jf', apiKey: 'k' },
+      'S9',
+      { message: 'stopped' },
+    );
+    expect(r).toEqual({ success: true, sessionId: 'S9', provider: 'jellyfin' });
+    expect(calls[0].url).toContain('/Sessions/S9/Message');
+    expect(calls[0].init.method).toBe('POST');
+    expect(calls[1].url).toContain('/Sessions/S9/Playing/Stop');
+    expect(calls[1].init.method).toBe('POST');
+    expect((calls[1].init.headers as Record<string, string>)['X-Emby-Token']).toBe('k');
+  });
+
+  it('Emby stops the session via the same admin endpoint', async () => {
+    const calls = recordFetch(200);
+    const r = await new EmbyProvider().terminateSession({ baseUrl: 'http://emby', apiKey: 'k' }, 'E3');
+    expect(r).toEqual({ success: true, sessionId: 'E3', provider: 'emby' });
+    // No message → straight to the stop, no /Message call.
+    expect(calls.some((c) => c.url.includes('/Sessions/E3/Playing/Stop'))).toBe(true);
+    expect(calls.some((c) => c.url.includes('/Message'))).toBe(false);
+  });
+
+  it('Kodi cannot terminate — a clean typed error, not a failure', async () => {
+    await expect(
+      new KodiProvider().terminateSession({ baseUrl: 'http://kodi' }, 'x'),
+    ).rejects.toBeInstanceOf(UnsupportedCapabilityError);
   });
 });

@@ -1,5 +1,5 @@
-import { Body, Controller, Delete, Get, Header, NotFoundException, Param, Patch, Post, Query, Res, StreamableFile, UseGuards } from '@nestjs/common';
-import type { Response } from 'express';
+import { Body, Controller, Delete, Get, Header, NotFoundException, Param, Patch, Post, Query, Req, Res, StreamableFile, UseGuards } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -74,6 +74,27 @@ export class MediaServerAnalyticsController {
   pollLive() {
     return this.sessions.poll();
   }
+  /**
+   * Manually stop a live session (admin session control). `id` is the internal
+   * session id from Live Activity; `message` is the localized viewer notice.
+   * Requires the dedicated terminate permission — a stronger grant than viewing.
+   */
+  @Post('sessions/:id/terminate')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_SESSIONS_TERMINATE)
+  terminateSession(
+    @Param('id') id: string,
+    @Body() body: { message?: string } | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
+  ) {
+    const message = typeof body?.message === 'string' ? body.message.trim().slice(0, 300) : undefined;
+    return this.sessions.terminateStream(
+      id,
+      { userId: user.id, ipAddress: req.ip ?? null, userAgent: req.headers['user-agent'] ?? null },
+      message || undefined,
+    );
+  }
+
   /** Proxy the now-playing poster for a live session (provider auth injected server-side). */
   @Get('live/:id/artwork')
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_VIEW_LIVE_ACTIVITY)

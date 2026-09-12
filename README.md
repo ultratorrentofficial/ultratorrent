@@ -95,6 +95,10 @@ architecture.
   renaming (hardlink/symlink/move), duplicate detection, and
   Plex/Jellyfin/Emby/Kodi integrations, with a post-download workflow and live
   job progress over WebSocket.
+- **Media Server Analytics** — live activity, watch history, reports, offline IP
+  geolocation, newsletters, and **Concurrent Stream Control**: per-user and global
+  limits on simultaneous streams, enforced provider-agnostically (Plex/Jellyfin/Emby;
+  Kodi monitor-only) with manual termination, grace periods, and enforcement history.
 - **Subtitle Intelligence** — the definitive subtitle engine: fingerprints each
   file (OpenSubtitles movie hash + technical metadata), searches multiple
   providers (OpenSubtitles, SubDL, a local repository) with a progressively-relaxed

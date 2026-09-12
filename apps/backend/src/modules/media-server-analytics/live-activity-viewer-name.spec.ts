@@ -36,10 +36,12 @@ function build(sessions: Array<Record<string, unknown>>, accounts = ACCOUNTS) {
         return accounts;
       }),
     },
+    mediaServerIntegration: { findMany: jest.fn(async () => []) },
   };
   const svc = new MediaServerSessionService(
     prisma as never, {} as never, {} as never, {} as never, {} as never,
     { lookupMany: async () => new Map() } as never,
+    { record: jest.fn() } as never,
   );
   return { svc, prisma, counts };
 }
