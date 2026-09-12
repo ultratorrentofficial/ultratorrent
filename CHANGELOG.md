@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.93.1] - 2026-09-12
+
+### Fixed
+- Household & Sharing: a Trusted/Dismissed review no longer respawns on the next recompute — a dispositioned case reopens only when the sharing picture materially escalates (a new signal, or a higher risk level than was reviewed).
+
 ## [0.93.0] - 2026-09-12
 
 ### Added
