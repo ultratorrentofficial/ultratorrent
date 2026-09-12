@@ -45,6 +45,13 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.92.2] - 2026-09-12
+
+### Fixed
+- Concurrent Stream Control (Phase 1): providers can now stop a playing session (Plex/Jellyfin/Emby; Kodi is monitor-only), and admins with the new sessions.terminate permission get a Terminate stream action in Live Activity
+- Concurrent Stream Control (Phase 2): per-user and global concurrent-stream limits with an enforcement engine that terminates the excess (newest/oldest) after a grace period, cross-server counting within a product, a Redis-backed single-flight lock (in-process fallback), plus Stream Limits, Stream Control settings, and Enforcement History admin pages
+- Concurrent Stream Control (Phase 3): admins can link a person's separate media-server accounts (e.g. Plex + Jellyfin) so their streams count together against one limit — an explicit action only, never inferred; the group's policy is the most restrictive of its members
+
 ## [0.92.1] - 2026-09-11
 
 ### Fixed
