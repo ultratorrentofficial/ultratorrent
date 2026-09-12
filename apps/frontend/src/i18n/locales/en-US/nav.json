@@ -110,7 +110,10 @@
     "Household & Sharing": "Household & Sharing",
     "Household Users": "Household Users",
     "Review Queue": "Review Queue",
-    "Household Networks": "Household Networks"
+    "Household Networks": "Household Networks",
+    "Overview": "Overview",
+    "Networks": "Networks",
+    "Global Settings": "Global Settings"
   },
   "descriptions": {
     "Acquisition Intelligence": "Smart acquisition and upgrades",

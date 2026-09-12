@@ -110,7 +110,10 @@
     "Household & Sharing": "Hogar y uso compartido",
     "Household Users": "Usuarios del hogar",
     "Review Queue": "Cola de revisión",
-    "Household Networks": "Redes del hogar"
+    "Household Networks": "Redes del hogar",
+    "Overview": "Resumen",
+    "Networks": "Redes",
+    "Global Settings": "Ajustes globales"
   },
   "descriptions": {
     "Acquisition Intelligence": "Adquisición y mejoras inteligentes",
