@@ -5523,6 +5523,12 @@ export const api = {
       policies(): Promise<StreamPolicyRow[]> {
         return request<StreamPolicyRow[]>('/media-server-analytics/stream-control/policies');
       },
+      candidates(): Promise<StreamCandidate[]> {
+        return request<StreamCandidate[]>('/media-server-analytics/stream-control/candidates');
+      },
+      addPolicy(payload: StreamPolicyInput & { kind: string; providerUserId: string; displayName?: string | null; exempt?: boolean }): Promise<{ mediaAnalyticsUserId: string }> {
+        return request('/media-server-analytics/stream-control/policies', { method: 'POST', body: payload });
+      },
       putPolicy(mediaUserId: string, input: StreamPolicyInput): Promise<MediaStreamPolicy> {
         return request<MediaStreamPolicy>(`/media-server-analytics/stream-control/policies/${mediaUserId}`, { method: 'PUT', body: input });
       },
@@ -6425,6 +6431,13 @@ export interface StreamPolicyInput {
   countPaused?: boolean | null;
   scope?: StreamEnforcementScope | null;
   enabled?: boolean;
+}
+
+/** A viewer the admin can add an override for (known, not yet configured). */
+export interface StreamCandidate {
+  kind: string;
+  providerUserId: string;
+  displayName: string | null;
 }
 
 export interface MediaServerWatchHistoryRow {

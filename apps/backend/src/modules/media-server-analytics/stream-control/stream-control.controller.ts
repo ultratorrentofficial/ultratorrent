@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { PERMISSIONS as P } from '@ultratorrent/shared';
@@ -47,15 +47,12 @@ export class StreamControlController {
     return next;
   }
 
-  /** The Stream Limits roster: every canonical subject + its override + live count. */
+  /** The Stream Limits roster — only viewers an admin has configured (override,
+   * exemption, or link), with their live count. Not a list of every viewer. */
   @Get('policies')
   @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_READ)
   async policies() {
-    // Seed the roster from known viewers so it is populated even before anyone
-    // streams under enforcement (otherwise the page can only ever show whoever
-    // was caught mid-stream, and stays empty on a fresh setup).
-    await this.policy.syncSubjectsFromKnownUsers();
-    const [subjects, status] = await Promise.all([this.policy.listSubjects(), this.enforcement.status()]);
+    const [subjects, status] = await Promise.all([this.policy.listConfiguredSubjects(), this.enforcement.status()]);
     const live = new Map(status.subjects.map((s) => [s.mediaAnalyticsUserId, s]));
     return subjects.map((subj) => ({
       mediaAnalyticsUserId: subj.id,
@@ -69,6 +66,30 @@ export class StreamControlController {
       limit: live.get(subj.id)?.limit ?? null,
       overLimit: live.get(subj.id)?.overLimit ?? false,
     }));
+  }
+
+  /** Viewers the admin can add an override for (known, not yet configured). */
+  @Get('candidates')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_READ)
+  candidates() {
+    return this.policy.candidates();
+  }
+
+  /** Add an override for a viewer picked from the candidate list. Resolves (and
+   * only now creates) the canonical subject, then applies the override/exemption. */
+  @Post('policies')
+  @RequirePermissions(P.MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_MANAGE)
+  async addPolicy(
+    @Body() body: StreamPolicyInput & { kind: string; providerUserId: string; displayName?: string; exempt?: boolean },
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
+  ) {
+    const subject = await this.policy.resolveSubject(body?.kind, body?.providerUserId, body?.displayName);
+    if (!subject) throw new BadRequestException('Unknown viewer — pick one from the candidate list.');
+    if (body.exempt) await this.policy.setExempt(subject.id, true);
+    else await this.policy.putUserPolicy(subject.id, body);
+    await this.audit.record({ ...this.ctx(user, req), action: 'media_server_analytics.stream_policy.updated', objectType: 'media_stream_policy', objectId: subject.id, metadata: { added: true, exempt: !!body.exempt, maxConcurrentStreams: body.maxConcurrentStreams } });
+    return { mediaAnalyticsUserId: subject.id };
   }
 
   /** Link two or more subjects as one person (cross-product identity). */

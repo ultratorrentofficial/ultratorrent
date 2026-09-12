@@ -133,28 +133,24 @@ describe('StreamPolicyService link/unlink', () => {
   });
 });
 
-describe('StreamPolicyService.syncSubjectsFromKnownUsers', () => {
-  it('seeds a canonical subject for each known viewer, so the roster is not empty', async () => {
-    const subjects: any[] = [];
-    let seq = 0;
+describe('StreamPolicyService.candidates', () => {
+  it('lists known viewers not yet configured — never creates anything', async () => {
     const prisma = {
       mediaServerUser: {
         findMany: async () => [
           { connectionId: 'plex1', providerUserId: '100', userName: 'john', displayName: 'John' },
           { connectionId: 'jf1', providerUserId: 'JF', userName: 'mary', displayName: null },
-          { connectionId: 'gone', providerUserId: '999', userName: 'ghost', displayName: null }, // connection removed → skipped
+          { connectionId: 'plex1', providerUserId: '200', userName: 'alex', displayName: 'Alex' }, // already configured → excluded
+          { connectionId: 'gone', providerUserId: '999', userName: 'ghost', displayName: null }, // connection removed → excluded
         ],
       },
       mediaServerIntegration: { findMany: async () => [{ id: 'plex1', kind: 'plex' }, { id: 'jf1', kind: 'jellyfin' }] },
-      mediaAnalyticsUser: {
-        findUnique: async ({ where }: any) => subjects.find((s) => s.kind === where.kind_providerUserId.kind && s.providerUserId === where.kind_providerUserId.providerUserId) ?? null,
-        create: async ({ data }: any) => { const r = { id: `s${++seq}`, ...data }; subjects.push(r); return r; },
-        update: async ({ where, data }: any) => { const r = subjects.find((s) => s.id === where.id)!; Object.assign(r, data); return r; },
-      },
+      // The "configured" set (has a policy / exemption / link).
+      mediaAnalyticsUser: { findMany: async () => [{ kind: 'plex', providerUserId: '200' }] },
     };
     const svc = new StreamPolicyService(prisma as never, {} as never);
-    await svc.syncSubjectsFromKnownUsers();
-    expect(subjects.map((s) => `${s.kind}:${s.providerUserId}`).sort()).toEqual(['jellyfin:JF', 'plex:100']);
+    const c = await svc.candidates();
+    expect(c.map((x) => `${x.kind}:${x.providerUserId}`).sort()).toEqual(['jellyfin:JF', 'plex:100']);
   });
 });
 

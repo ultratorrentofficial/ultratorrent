@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Users2, Pencil, Link2, Unlink } from 'lucide-react';
-import { api, type StreamPolicyRow, type StreamEnforcementAction, type StreamEnforcementScope } from '@/lib/api';
+import { Users2, Pencil, Link2, Unlink, UserPlus } from 'lucide-react';
+import { api, type StreamPolicyRow, type StreamCandidate, type StreamEnforcementAction, type StreamEnforcementScope } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input, Label } from '@/components/ui/input';
@@ -18,13 +18,19 @@ import { MediaServerIcon } from '@/components/media-servers/MediaServerIcon';
 const ACTIONS: StreamEnforcementAction[] = ['terminate_newest', 'terminate_oldest', 'warn', 'log'];
 const SCOPES: StreamEnforcementScope[] = ['all_servers', 'per_server'];
 
-/** Per-user stream limits: the roster of canonical subjects and their overrides. */
+/**
+ * Per-user stream limits. The list holds ONLY viewers an admin has deliberately
+ * configured (an override, an exemption, or a link) — not every viewer. Use "Add
+ * user" to pick someone and give them an override.
+ */
 export function StreamLimitsPage() {
   const { t } = useTranslation('mediaServerAnalytics');
   const qc = useQueryClient();
   const toast = useToast();
   const rows = useQuery({ queryKey: ['streamControl', 'policies'], queryFn: () => api.mediaServerAnalytics.streamControl.policies() });
   const [editing, setEditing] = useState<StreamPolicyRow | null>(null);
+  const [adding, setAdding] = useState<StreamCandidate | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const toggle = (id: string) => setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -39,6 +45,8 @@ export function StreamLimitsPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const list = rows.data ?? [];
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -48,19 +56,27 @@ export function StreamLimitsPage() {
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">{t('streamControl.limits.subtitle')}</p>
         </div>
-        {selected.size >= 2 && (
-          <Button onClick={() => link.mutate()} disabled={link.isPending}>
-            <Link2 className="h-4 w-4" /> {t('streamControl.link.linkSelected', { count: selected.size })}
+        <div className="flex items-center gap-2">
+          {selected.size >= 2 && (
+            <Button variant="secondary" onClick={() => link.mutate()} disabled={link.isPending}>
+              <Link2 className="h-4 w-4" /> {t('streamControl.link.linkSelected', { count: selected.size })}
+            </Button>
+          )}
+          <Button onClick={() => setPickerOpen(true)}>
+            <UserPlus className="h-4 w-4" /> {t('streamControl.limits.addUser')}
           </Button>
-        )}
+        </div>
       </div>
 
       {rows.isLoading ? (
         <CenteredSpinner />
       ) : rows.isError ? (
         <ErrorState title={t('streamControl.limits.loadError')} onRetry={() => void rows.refetch()} />
-      ) : (rows.data ?? []).length === 0 ? (
-        <Card><CardContent className="py-12"><EmptyState title={t('streamControl.limits.empty')} description={t('streamControl.limits.emptyHint')} /></CardContent></Card>
+      ) : list.length === 0 ? (
+        <Card><CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+          <EmptyState title={t('streamControl.limits.empty')} description={t('streamControl.limits.emptyHint')} />
+          <Button onClick={() => setPickerOpen(true)}><UserPlus className="h-4 w-4" /> {t('streamControl.limits.addUser')}</Button>
+        </CardContent></Card>
       ) : (
         <Card>
           <CardContent className="p-0">
@@ -77,7 +93,7 @@ export function StreamLimitsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(rows.data ?? []).map((r) => (
+                  {list.map((r) => (
                     <tr key={r.mediaAnalyticsUserId} className="border-b border-white/5">
                       <td className="px-4 py-2">
                         <Checkbox checked={selected.has(r.mediaAnalyticsUserId)} onCheckedChange={() => toggle(r.mediaAnalyticsUserId)} aria-label={t('streamControl.link.select')} />
@@ -117,7 +133,14 @@ export function StreamLimitsPage() {
         </Card>
       )}
 
-      {editing && <PolicyEditor row={editing} onClose={() => setEditing(null)} />}
+      {pickerOpen && (
+        <CandidatePicker
+          onClose={() => setPickerOpen(false)}
+          onPick={(c) => { setPickerOpen(false); setAdding(c); }}
+        />
+      )}
+      {editing && <PolicyEditor existing={editing} onClose={() => setEditing(null)} />}
+      {adding && <PolicyEditor candidate={adding} onClose={() => setAdding(null)} />}
     </div>
   );
 }
@@ -141,24 +164,80 @@ function StatusPill({ r, t }: { r: StreamPolicyRow; t: TFunction<'mediaServerAna
   return <span className={`rounded border px-1.5 py-0.5 text-[10px] font-medium ${cls}`}>{label}</span>;
 }
 
+/** Pick a known viewer who does not yet have an override. */
+function CandidatePicker({ onClose, onPick }: { onClose: () => void; onPick: (c: StreamCandidate) => void }) {
+  const { t } = useTranslation('mediaServerAnalytics');
+  const [q, setQ] = useState('');
+  const candidates = useQuery({ queryKey: ['streamControl', 'candidates'], queryFn: () => api.mediaServerAnalytics.streamControl.candidates() });
+  const filtered = (candidates.data ?? []).filter((c) => (c.displayName ?? c.providerUserId).toLowerCase().includes(q.trim().toLowerCase()));
+
+  return (
+    <Dialog open onClose={onClose} title={t('streamControl.picker.title')}>
+      <div className="space-y-3">
+        <Input placeholder={t('streamControl.picker.search')} value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
+        {candidates.isLoading ? (
+          <CenteredSpinner />
+        ) : candidates.isError ? (
+          <ErrorState title={t('streamControl.picker.loadError')} onRetry={() => void candidates.refetch()} />
+        ) : filtered.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">{t('streamControl.picker.empty')}</p>
+        ) : (
+          <div className="max-h-72 overflow-y-auto">
+            {filtered.map((c) => (
+              <button
+                key={`${c.kind}:${c.providerUserId}`}
+                type="button"
+                onClick={() => onPick(c)}
+                className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm hover:bg-white/5"
+              >
+                <MediaServerIcon kind={c.kind} className="h-4 w-4" />
+                <span className="font-medium">{c.displayName ?? c.providerUserId}</span>
+                <span className="ml-auto text-xs capitalize text-muted-foreground">{c.kind}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      <DialogFooter>
+        <Button variant="ghost" onClick={onClose}>{t('streamControl.limits.cancel')}</Button>
+      </DialogFooter>
+    </Dialog>
+  );
+}
+
 type Mode = 'default' | 'unlimited' | 'custom';
 
-function PolicyEditor({ row, onClose }: { row: StreamPolicyRow; onClose: () => void }) {
+/** Edit an existing override, or configure a new one for a picked candidate. */
+function PolicyEditor({ existing, candidate, onClose }: { existing?: StreamPolicyRow; candidate?: StreamCandidate; onClose: () => void }) {
   const { t } = useTranslation('mediaServerAnalytics');
   const qc = useQueryClient();
   const toast = useToast();
+  const isNew = !existing;
+  const name = existing ? existing.displayName ?? existing.providerUserId : candidate!.displayName ?? candidate!.providerUserId;
 
-  const initialMode: Mode = row.policy == null ? 'default' : row.policy.maxConcurrentStreams == null ? 'unlimited' : 'custom';
+  const initialMode: Mode = existing?.policy == null ? (isNew ? 'custom' : 'default') : existing.policy.maxConcurrentStreams == null ? 'unlimited' : 'custom';
   const [mode, setMode] = useState<Mode>(initialMode);
-  const [value, setValue] = useState(row.policy?.maxConcurrentStreams ?? 2);
-  const [action, setAction] = useState<StreamEnforcementAction | ''>(row.policy?.enforcementAction ?? '');
-  const [scope, setScope] = useState<StreamEnforcementScope | ''>(row.policy?.scope ?? '');
-  const [exempt, setExempt] = useState(row.exemptFromLimits);
-  useEffect(() => { /* re-seed if a different row is opened */ }, [row.mediaAnalyticsUserId]);
+  const [value, setValue] = useState(existing?.policy?.maxConcurrentStreams ?? 2);
+  const [action, setAction] = useState<StreamEnforcementAction | ''>(existing?.policy?.enforcementAction ?? '');
+  const [scope, setScope] = useState<StreamEnforcementScope | ''>(existing?.policy?.scope ?? '');
+  const [exempt, setExempt] = useState(existing?.exemptFromLimits ?? false);
 
   const save = useMutation({
     mutationFn: async () => {
+      if (isNew) {
+        await api.mediaServerAnalytics.streamControl.addPolicy({
+          kind: candidate!.kind,
+          providerUserId: candidate!.providerUserId,
+          displayName: candidate!.displayName,
+          ...(exempt
+            ? { exempt: true }
+            : { maxConcurrentStreams: mode === 'unlimited' ? null : Math.max(1, Math.min(100, value)), enforcementAction: action || null, scope: scope || null }),
+        });
+        return;
+      }
+      const row = existing!;
       if (exempt !== row.exemptFromLimits) await api.mediaServerAnalytics.streamControl.setExempt(row.mediaAnalyticsUserId, exempt);
+      if (exempt) return;
       if (mode === 'default') {
         if (row.policy) await api.mediaServerAnalytics.streamControl.deletePolicy(row.mediaAnalyticsUserId);
       } else {
@@ -179,7 +258,7 @@ function PolicyEditor({ row, onClose }: { row: StreamPolicyRow; onClose: () => v
   });
 
   return (
-    <Dialog open onClose={onClose} title={t('streamControl.limits.editFor', { name: row.displayName ?? row.providerUserId })}>
+    <Dialog open onClose={onClose} title={t(isNew ? 'streamControl.limits.addFor' : 'streamControl.limits.editFor', { name })}>
       <div className="space-y-4">
         <label className="flex items-center justify-between gap-4">
           <span className="font-medium">{t('streamControl.limits.exemptToggle')}</span>
@@ -192,7 +271,9 @@ function PolicyEditor({ row, onClose }: { row: StreamPolicyRow; onClose: () => v
               <Label>{t('streamControl.settings.defaultLimit')}</Label>
               <div className="mt-1 flex items-center gap-2">
                 <Select value={mode} onChange={(e) => setMode(e.target.value as Mode)}>
-                  <option value="default">{t('streamControl.limit.useDefault')}</option>
+                  {/* A brand-new override must actually set something; "use default" only
+                      makes sense when clearing an existing one. */}
+                  {!isNew && <option value="default">{t('streamControl.limit.useDefault')}</option>}
                   <option value="unlimited">{t('streamControl.limit.unlimited')}</option>
                   <option value="custom">{t('streamControl.limit.custom')}</option>
                 </Select>

@@ -642,8 +642,8 @@
       "title": "Límites de transmisión",
       "subtitle": "Límites y excepciones de transmisiones simultáneas por usuario.",
       "loadError": "No se pudieron cargar los límites.",
-      "empty": "Aún no hay usuarios.",
-      "emptyHint": "Los usuarios aparecen aquí una vez que han transmitido desde un servidor conectado.",
+      "empty": "Aún no hay excepciones por usuario",
+      "emptyHint": "Todos siguen el valor global predeterminado. Agrega un usuario para darle un límite específico o una exención.",
       "colUser": "Usuario",
       "colActive": "Activas",
       "colLimit": "Límite",
@@ -653,7 +653,9 @@
       "saved": "Límite guardado.",
       "editFor": "Límite de transmisión — {{name}}",
       "exemptToggle": "Exento de todos los límites",
-      "cancel": "Cancelar"
+      "cancel": "Cancelar",
+      "addUser": "Agregar usuario",
+      "addFor": "Nueva excepción — {{name}}"
     },
     "history": {
       "title": "Historial de aplicación",
@@ -681,6 +683,12 @@
       "select": "Seleccionar para vincular",
       "linkedTitle": "Vinculado a otra cuenta como una sola persona",
       "unlink": "Desvincular"
+    },
+    "picker": {
+      "title": "Agregar un usuario",
+      "search": "Buscar espectadores…",
+      "empty": "No hay más espectadores para agregar.",
+      "loadError": "No se pudieron cargar los espectadores."
     }
   }
 }

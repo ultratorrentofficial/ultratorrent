@@ -133,7 +133,7 @@ The mapping is per server account, so the same human on two servers is two entri
 
 ### IP address & geolocation
 
-Every play records the address the viewer streamed from (Plex `Player.address`, Jellyfin/Emby `RemoteEndPoint`, and Tautulli-imported history). **Live Activity** and **Watch History** show it, and **Analytics Reports → Locations** charts top countries, cities and ISPs.
+Every play records the address the viewer streamed from (Plex `Player.address`, Jellyfin/Emby `RemoteEndPoint`, and Tautulli-imported history). **Live Activity** and **Watch History** show it — the city, the **ISP/organisation**, and the address itself — and **Analytics Reports → Locations** charts top countries, cities and ISPs.
 
 Resolution is **fully offline** — no viewer IP ever leaves your server. It uses MaxMind's GeoLite2 databases, managed in-app under **IP Geolocation**: enter your (free) MaxMind Account ID + licence key, and UltraTorrent downloads, verifies (sha256) and refreshes the City and ASN databases on a schedule or on demand. LAN/private addresses show as **Local**; country flags render as bundled SVGs so they appear on every platform, not just those with emoji flags.
 
@@ -143,7 +143,7 @@ Cap how many streams a viewer may run at once, and stop the excess automatically
 
 **Manual termination.** Any admin with `sessions.terminate` gets a **Terminate stream** action on each Live Activity card (Plex/Jellyfin/Emby). Kodi cannot stop playback, so it shows **"Monitoring only"**. The viewer sees a message where their client supports it — Plex's stop *reason*, or a Jellyfin/Emby on-screen message.
 
-**Automatic limits.** Turn enforcement on under **Stream Control** — it is **off by default, so nothing is ever terminated until you enable it**. Set a global default and per-user overrides under **Stream Limits**:
+**Automatic limits.** Turn enforcement on under **Stream Control** — it is **off by default, so nothing is ever terminated until you enable it**. Set the global default there; then, under **Stream Limits**, use **Add user** to give a specific viewer an override. Stream Limits lists **only** the viewers you have configured — everyone else simply follows the global default. Each override can be:
 
 - **Limit** — unlimited, or 1–100 simultaneous streams. Mark a viewer **exempt** to bypass limits entirely (preferred over an arbitrary huge number).
 - **When exceeded** — terminate the **newest** stream, the **oldest**, or just **warn** / **log**.

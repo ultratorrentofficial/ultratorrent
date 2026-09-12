@@ -143,10 +143,14 @@ linking so one person's Plex **and** Jellyfin streams count together.
   (unlimited or 1–100), the action when a limit is exceeded (terminate newest /
   oldest / warn / log), a grace period (0–300s), whether paused sessions count (and
   when they expire), and the scope (across all servers, or per server).
-- **Per-user overrides** live in **Stream Limits**: use-default / unlimited /
-  custom, an optional action & scope override, and an **exempt** toggle (the admin
-  bypass, preferred over a huge number). Effective policy resolves per the priority
-  per-user+server → per-user → per-server → global, and the UI shows the source.
+- **Per-user overrides** live in **Stream Limits**, which lists **only** the
+  viewers an admin has deliberately configured — not everyone. **Add user** picks a
+  known viewer and grants an override: unlimited / custom, an optional action &
+  scope override, or an **exempt** toggle (the admin bypass, preferred over a huge
+  number). Clearing an override ("use global default") drops the viewer from the
+  list. Effective policy resolves per the priority per-user+server → per-user →
+  per-server → global. (The enforcement engine still auto-provisions internal
+  subjects for counting; those never appear in the list until configured.)
 - **The engine** (`StreamEnforcementService`, a 5s interval) reuses the poller's
   `MediaServerSession` rows — it never re-polls the providers. It counts a subject's
   active streams, waits out the grace period, then terminates exactly the excess

@@ -642,8 +642,8 @@
       "title": "Stream Limits",
       "subtitle": "Per-user concurrent-stream limits and overrides.",
       "loadError": "Could not load stream limits.",
-      "empty": "No media users yet.",
-      "emptyHint": "Users appear here once they have streamed from a connected server.",
+      "empty": "No per-user overrides yet",
+      "emptyHint": "Everyone follows the global default. Add a user to give them a specific limit or an exemption.",
       "colUser": "User",
       "colActive": "Active",
       "colLimit": "Limit",
@@ -653,7 +653,9 @@
       "saved": "Stream limit saved.",
       "editFor": "Stream limit — {{name}}",
       "exemptToggle": "Exempt from all limits",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "addUser": "Add user override",
+      "addFor": "New override — {{name}}"
     },
     "history": {
       "title": "Enforcement History",
@@ -681,6 +683,12 @@
       "select": "Select for linking",
       "linkedTitle": "Linked to another account as one person",
       "unlink": "Unlink"
+    },
+    "picker": {
+      "title": "Add a user",
+      "search": "Search viewers…",
+      "empty": "No more viewers to add.",
+      "loadError": "Could not load viewers."
     }
   }
 }

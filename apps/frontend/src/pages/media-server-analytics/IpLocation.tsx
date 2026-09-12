@@ -37,17 +37,20 @@ export function IpLocation({
 
   const loc = geo?.location ?? null;
   const place = loc ? [loc.city, loc.region, loc.country].filter(Boolean).join(', ') : null;
+  // The ISP/organisation comes from the ASN database — shown alongside the place.
+  const isp = geo?.isp ?? null;
 
-  if (!place) {
-    // Public but unplaced, or no database — the address alone.
+  if (!place && !isp) {
+    // Public but unplaced and no ISP (or no database) — the address alone.
     return <span className="font-mono text-xs tabular-nums">{addr}</span>;
   }
 
   if (inline) {
     return (
       <span className="inline-flex items-center gap-1.5">
-        <CountryFlag code={loc?.countryCode} />
-        <span>{place}</span>
+        {loc?.countryCode && <CountryFlag code={loc.countryCode} />}
+        {place && <span>{place}</span>}
+        {isp && <span className="text-muted-foreground">· {isp}</span>}
         <span className="font-mono text-[10px] tabular-nums text-muted-foreground/80">{addr}</span>
       </span>
     );
@@ -55,10 +58,13 @@ export function IpLocation({
 
   return (
     <span className="inline-flex flex-col leading-tight">
-      <span className="flex items-center gap-1.5">
-        <CountryFlag code={loc?.countryCode} />
-        <span>{place}</span>
-      </span>
+      {place && (
+        <span className="flex items-center gap-1.5">
+          <CountryFlag code={loc?.countryCode} />
+          <span>{place}</span>
+        </span>
+      )}
+      {isp && <span className="text-[10px] text-muted-foreground">{isp}</span>}
       <span className="font-mono text-[10px] tabular-nums text-muted-foreground">{addr}</span>
     </span>
   );
