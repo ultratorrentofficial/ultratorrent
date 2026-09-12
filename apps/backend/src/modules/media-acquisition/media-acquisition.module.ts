@@ -101,6 +101,15 @@ export class MediaAcquisitionScheduler {
   // which creates watchlist entries for auto-monitored titles. It goes through
   // this service rather than the table so the audit row, the realtime broadcast
   // and the series-title collapsing all still happen.
-  exports: [MediaAcquisitionService, AcquisitionEvaluatorService, AcquisitionWatchlistService, MissingEpisodesService],
+  // `MissingEpisodeSearchService` is exported so the Add-Series backfill job can
+  // drive its `searchEpisode` primitive (the Smart-Download-backed grab path) for
+  // the back catalogue, rather than reimplementing release selection.
+  exports: [
+    MediaAcquisitionService,
+    AcquisitionEvaluatorService,
+    AcquisitionWatchlistService,
+    MissingEpisodesService,
+    MissingEpisodeSearchService,
+  ],
 })
 export class MediaAcquisitionModule {}

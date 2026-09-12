@@ -13,6 +13,7 @@ import enActions from './locales/en-US/actions.json';
 import enMedia from './locales/en-US/media.json';
 import enMediaServerAnalytics from './locales/en-US/mediaServerAnalytics.json';
 import enMediaDiscovery from './locales/en-US/mediaDiscovery.json';
+import enSeriesAcquisition from './locales/en-US/seriesAcquisition.json';
 import enIntake from './locales/en-US/intake.json';
 import enSubtitleIntelligence from './locales/en-US/subtitleIntelligence.json';
 import enImdb from './locales/en-US/imdb.json';
@@ -42,6 +43,7 @@ import esActions from './locales/es-PR/actions.json';
 import esMedia from './locales/es-PR/media.json';
 import esMediaServerAnalytics from './locales/es-PR/mediaServerAnalytics.json';
 import esMediaDiscovery from './locales/es-PR/mediaDiscovery.json';
+import esSeriesAcquisition from './locales/es-PR/seriesAcquisition.json';
 import esIntake from './locales/es-PR/intake.json';
 import esSubtitleIntelligence from './locales/es-PR/subtitleIntelligence.json';
 import esImdb from './locales/es-PR/imdb.json';
@@ -99,6 +101,7 @@ export const NAMESPACES = [
   'media',
   'mediaServerAnalytics',
   'mediaDiscovery',
+  'seriesAcquisition',
   'intake',
   'subtitleIntelligence',
   'imdb',
@@ -133,6 +136,7 @@ export const resources = {
     media: enMedia,
     mediaServerAnalytics: enMediaServerAnalytics,
     mediaDiscovery: enMediaDiscovery,
+    seriesAcquisition: enSeriesAcquisition,
     intake: enIntake,
     subtitleIntelligence: enSubtitleIntelligence,
     imdb: enImdb,
@@ -164,6 +168,7 @@ export const resources = {
     media: esMedia,
     mediaServerAnalytics: esMediaServerAnalytics,
     mediaDiscovery: esMediaDiscovery,
+    seriesAcquisition: esSeriesAcquisition,
     intake: esIntake,
     subtitleIntelligence: esSubtitleIntelligence,
     imdb: esImdb,

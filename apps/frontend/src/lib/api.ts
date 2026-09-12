@@ -3659,6 +3659,74 @@ export interface DuplicateScanSchedule {
   nextRunAt: string | null;
 }
 
+// --- Add Series (unified acquisition workflow) -------------------------------
+
+export type SeriesAcquisitionMode = 'backfill_and_monitor' | 'backfill_only' | 'monitor_new_only';
+
+export interface SeriesSearchHit {
+  provider: string;
+  externalIds: Record<string, string>;
+  title: string;
+  year: number | null;
+}
+
+export interface SeriesAcquisitionInput {
+  title: string;
+  year?: number;
+  externalIds?: Record<string, string>;
+  mediaType?: string;
+  mode: SeriesAcquisitionMode;
+  seasons?: number[];
+  allowInactiveShowMonitoring?: boolean;
+  templateId?: string | null;
+  targetLibraryId?: string | null;
+}
+
+export interface SeriesAcquisitionPlan {
+  mode: SeriesAcquisitionMode;
+  media: { title: string; year: number | null; mediaType: string; externalIds: Record<string, string> };
+  template: { id: string; name: string } | null;
+  readiness: { ready: boolean; reason: string };
+  existing: { watchlistItemId: string | null; status: string | null; rssRuleId: string | null };
+  showStatus: { normalizedStatus: string; inactive: boolean } | null;
+  requestedSeasons: number[] | null;
+  willMonitor: boolean;
+  willBackfill: boolean;
+  requiresInactiveConfirmation: boolean;
+  blockers: string[];
+  ready: boolean;
+}
+
+export interface SeriesAcquisitionResult {
+  watchlistItemId: string;
+  rssRuleId: string | null;
+  ruleEnabled: boolean;
+  alreadyExisted: boolean;
+  scan: { total: number; owned: number; missing: number; unaired: number } | null;
+  excludedFromScope: number;
+  backfillJobId: string | null;
+  notes: string[];
+}
+
+export interface SeriesBackfillJobStatus {
+  id: string;
+  status: string;
+  progressCurrent: number | null;
+  progressTotal: number | null;
+  resultSummary: {
+    total?: number;
+    grabbed?: number;
+    pendingApproval?: number;
+    noResults?: number;
+    failed?: number;
+    skipped?: number;
+  } | null;
+  startedAt: string | null;
+  completedAt: string | null;
+}
+
+export type SeriesBackfillAction = 'pause' | 'resume' | 'cancel';
+
 export const api = {
   auth: {
     async login(
@@ -5463,6 +5531,35 @@ export const api = {
       a.click();
       a.remove();
       URL.revokeObjectURL(objectUrl);
+    },
+  },
+
+  seriesAcquisition: {
+    /** Search providers for a series to add (candidates carry their external id). */
+    search(q: string, year?: number): Promise<SeriesSearchHit[]> {
+      return request<SeriesSearchHit[]>('/series-acquisition/search', {
+        query: { q, year: year != null ? String(year) : undefined },
+      });
+    },
+    /** Dry-run: what provisioning would ensure. No writes. */
+    plan(body: SeriesAcquisitionInput): Promise<SeriesAcquisitionPlan> {
+      return request<SeriesAcquisitionPlan>('/series-acquisition/plan', { method: 'POST', body });
+    },
+    /** Ensure the full acquisition stack (idempotent). */
+    provision(body: SeriesAcquisitionInput): Promise<SeriesAcquisitionResult> {
+      return request<SeriesAcquisitionResult>('/series-acquisition/provision', { method: 'POST', body });
+    },
+    /** Current/most-recent backfill job for a series. */
+    backfillStatus(watchlistItemId: string): Promise<SeriesBackfillJobStatus | null> {
+      return request<SeriesBackfillJobStatus | null>(
+        `/series-acquisition/backfill/${encodeURIComponent(watchlistItemId)}`,
+      );
+    },
+    /** Pause / resume / cancel a backfill job. */
+    backfillControl(jobId: string, action: SeriesBackfillAction): Promise<{ ok?: boolean; job?: unknown }> {
+      return request(`/series-acquisition/backfill/job/${encodeURIComponent(jobId)}/${action}`, {
+        method: 'POST',
+      });
     },
   },
 

@@ -91,6 +91,9 @@ export class MissingEpisodeSearchService {
       const rows = await this.prisma.wantedEpisode.findMany({
         where: {
           status: 'missing',
+          // Episodes outside the operator's requested acquisition scope are NOT
+          // wanted (see WantedEpisode.excludedFromScope); the sweep skips them.
+          excludedFromScope: false,
           OR: [
             { searchStatus: 'idle' },
             { searchStatus: { in: ['no_results', 'failed'] }, lastSearchedAt: { lt: cutoff } },
@@ -138,7 +141,7 @@ export class MissingEpisodeSearchService {
     if (!this.enabled) throw new BadRequestException('Media Acquisition module is disabled');
     const settings = await this.acquisition.getSettings();
     const rows = await this.prisma.wantedEpisode.findMany({
-      where: { watchlistItemId, status: 'missing' },
+      where: { watchlistItemId, status: 'missing', excludedFromScope: false },
       orderBy: [{ seasonNumber: 'asc' }, { episodeNumber: 'asc' }],
     });
     const results: EpisodeSearchOutcome[] = [];

@@ -1,0 +1,108 @@
+{
+  "addSeries": {
+    "open": "Añadir serie",
+    "title": "Añadir una serie",
+    "subtitle": "Dile a UltraTorrent que quieres un programa. Se encarga de todo — la lista de seguimiento, la regla de adquisición, la carpeta de descargas y la búsqueda del catálogo anterior.",
+    "cancel": "Cancelar",
+    "back": "Atrás",
+    "search": {
+      "label": "Buscar una serie",
+      "placeholder": "Título, o pega un id de IMDb / TMDB",
+      "yearPlaceholder": "Año",
+      "button": "Buscar",
+      "searching": "Buscando…",
+      "empty": "No hay coincidencias. Prueba otro título, o pega un id de IMDb (tt…) o TMDB.",
+      "idPasted": "Usando el id que escribiste.",
+      "resultsLabel": "Resultados",
+      "provider": "{{provider}}",
+      "noYear": "Año desconocido"
+    },
+    "selected": {
+      "label": "Serie seleccionada",
+      "change": "Cambiar"
+    },
+    "mode": {
+      "label": "¿Qué debe pasar?",
+      "backfill_and_monitor": {
+        "name": "Recuperar y monitorear",
+        "description": "Consigue todo lo que ya salió al aire y sigue pendiente de los episodios nuevos."
+      },
+      "backfill_only": {
+        "name": "Solo recuperar",
+        "description": "Consigue el catálogo anterior ahora y luego detente — sin monitoreo continuo."
+      },
+      "monitor_new_only": {
+        "name": "Solo monitorear nuevos",
+        "description": "Solo episodios nuevos de ahora en adelante. No se baja nada de lo que ya salió al aire."
+      }
+    },
+    "seasons": {
+      "label": "Temporadas (opcional)",
+      "placeholder": "p. ej. 1, 2, 3 — déjalo en blanco para todas",
+      "hint": "Limita la adquisición a temporadas específicas. Los episodios fuera de tu selección no se desean (distinto de faltantes)."
+    },
+    "plan": {
+      "title": "Preparación",
+      "checking": "Verificando preparación…",
+      "ready": "Listo para aprovisionar.",
+      "notReady": "Aún no está listo",
+      "blockers": "Resuelve esto primero:",
+      "willMonitor": "Mantendrá la regla de adquisición activa para los lanzamientos nuevos.",
+      "willBackfill": "Iniciará una búsqueda del catálogo anterior.",
+      "noBackfill": "Sin búsqueda del catálogo anterior (solo nuevos).",
+      "template": "Plantilla de adquisición: {{name}}",
+      "matchPreferences": "Preferencias de coincidencia: {{reason}}",
+      "existingNew": "Todavía no está en tu lista — se creará una entrada nueva.",
+      "existingLinked": "Ya está en tu lista ({{status}}) — se enlazará, no se duplicará.",
+      "statusReturning": "Este programa aún está al aire.",
+      "statusEnded": "Este programa ha terminado.",
+      "statusCanceled": "Este programa fue cancelado.",
+      "statusUnknown": "Estado de emisión desconocido."
+    },
+    "inactive": {
+      "warning": "Este programa ha terminado o fue cancelado. Monitorearlo por lanzamientos nuevos puede que nunca produzca nada.",
+      "confirm": "Sí, monitorear este programa terminado de todas formas.",
+      "needsPermission": "Monitorear un programa terminado requiere el permiso de anulación. Pídeselo a un administrador."
+    },
+    "provision": {
+      "button": "Añadir serie",
+      "working": "Aprovisionando…",
+      "success": "Se añadió \"{{title}}\".",
+      "successExisting": "Se enlazó \"{{title}}\" — ya estaba en tu lista.",
+      "failed": "No se pudo añadir la serie"
+    },
+    "result": {
+      "title": "Listo",
+      "missing": "Se encontró {{count}} episodio faltante.",
+      "missing_plural": "Se encontraron {{count}} episodios faltantes.",
+      "none": "No faltan episodios — estás al día.",
+      "backfillStarted": "Se inició la búsqueda del catálogo anterior.",
+      "monitoring": "El monitoreo está activo para los lanzamientos nuevos.",
+      "monitoringOff": "El monitoreo está apagado.",
+      "notesTitle": "Notas",
+      "close": "Cerrar"
+    }
+  },
+  "backfill": {
+    "title": "Búsqueda del catálogo anterior",
+    "none": "No se ha ejecutado ninguna recuperación para esta serie.",
+    "status": {
+      "queued": "En cola",
+      "running": "Buscando",
+      "paused": "Pausado",
+      "completed": "Completado",
+      "completed_with_warnings": "Completado con advertencias",
+      "failed": "Falló",
+      "cancelled": "Cancelado"
+    },
+    "progress": "{{current}} / {{total}} episodios",
+    "summary": "{{grabbed}} obtenidos · {{pending}} pendientes · {{noResults}} sin resultado · {{failed}} fallidos",
+    "pause": "Pausar",
+    "resume": "Reanudar",
+    "cancel": "Cancelar",
+    "paused": "Recuperación pausada.",
+    "resumed": "Recuperación reanudada.",
+    "cancelled": "Recuperación cancelada.",
+    "actionFailed": "No se pudo cambiar la recuperación"
+  }
+}

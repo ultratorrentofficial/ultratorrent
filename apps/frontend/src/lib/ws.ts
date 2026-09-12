@@ -59,6 +59,9 @@ export interface WsEventMap {
   'media_server.stream.termination_requested': { connectionId: string; sessionId: string; title: string; userName: string | null };
   'media_server.stream_limit.exceeded': { mediaAnalyticsUserId: string; displayName: string | null; activeStreams: number; limit: number; serverId: string | null };
   'media_server.stream_limit.updated': { mediaAnalyticsUserId: string };
+
+  'media_acquisition.series.provisioned': { watchlistItemId: string; mode: string; ruleEnabled: boolean; missing: number; backfillJobId: string | null };
+  'media_acquisition.series.backfill_completed': { watchlistItemId: string; jobId: string; summary: Record<string, number> };
   // Unified Jobs Center — the platform-wide job lifecycle channel (permission-scoped).
   [WS_EVENTS.JOB_CREATED]: JobEventPayload;
   [WS_EVENTS.JOB_QUEUED]: JobEventPayload;

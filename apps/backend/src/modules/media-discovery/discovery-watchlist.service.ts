@@ -41,6 +41,13 @@ export interface LinkTarget {
   targetLibraryId?: string | null;
   /** Generated rule, when Phase 13 has produced one. */
   rssRuleId?: string | null;
+  /**
+   * Settings blob stamped on a FRESHLY created item, overriding the default
+   * discovery origin. Used by callers that are not Media Discovery (e.g. the
+   * Add-Series workflow) so the item records its true provenance rather than
+   * falsely claiming `createdByDiscovery`. Ignored when an item already exists.
+   */
+  createSettings?: Record<string, unknown>;
 }
 
 /**
@@ -78,7 +85,7 @@ export class DiscoveryWatchlistService {
           externalIds: media.externalIds,
           targetLibraryId: target.targetLibraryId ?? undefined,
           rssRuleId: target.rssRuleId ?? undefined,
-          settings: { discoveredMediaId: media.id, createdByDiscovery: true },
+          settings: target.createSettings ?? { discoveredMediaId: media.id, createdByDiscovery: true },
         },
         userId,
       );
@@ -197,6 +204,21 @@ export class DiscoveryWatchlistService {
     return hit
       ? { id: hit.id, status: hit.status, externalIds: hit.externalIds, rssRuleId: hit.rssRuleId }
       : null;
+  }
+
+  /**
+   * Read-only identity lookup: the watchlist entry this media is already
+   * represented by, if any, WITHOUT creating one. Exposes {@link findExisting}
+   * for callers that preview a provisioning decision before acting (the
+   * Add-Series dry-run) — the same external-ids-first, canonical-title-fallback
+   * resolution {@link linkOrCreate} uses, so a plan and the act it describes
+   * agree on what already exists.
+   */
+  async resolveExisting(
+    media: LinkableMedia,
+  ): Promise<{ id: string; status: string; rssRuleId: string | null } | null> {
+    const hit = await this.findExisting(media);
+    return hit ? { id: hit.id, status: hit.status, rssRuleId: hit.rssRuleId ?? null } : null;
   }
 
   /** True when the discovery knows an id the watchlist entry does not. */

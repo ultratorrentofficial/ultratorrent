@@ -196,5 +196,44 @@ reject, override, history, export, settings}`.
   Check Upgrade Opportunity, Require/Approve/Reject Acquisition) are a **design
   sketch only** — no such nodes exist in the automation surface today.
 
+## Add Series — the unified acquisition workflow
+
+`SeriesAcquisitionProvisioningService` (module `series-acquisition/`) is the one
+"I want this series" path. The operator names a series and UltraTorrent ensures
+the whole stack — canonical identity, watchlist item, RSS/acquisition rule,
+match-preference readiness, storage/intake destination, a Missing-Episodes scan,
+WantedEpisode state, and (for backfill modes) a managed back-catalogue job. It
+**reuses every subsystem** and replaces none: the watchlist/rule/readiness/intake
+of Media Discovery, `MissingEpisodesService.scanSeries`, the Smart-Download-backed
+`MissingEpisodeSearchService.searchEpisode`, and RSS's `TvShowStatusService`.
+
+- **Idempotent ("ensure", not "create again")** — re-running links to what exists
+  rather than duplicating; it can widen season scope or change mode safely.
+  `planSeriesAcquisition` is a read-only dry-run (identity, existing state,
+  readiness, airing status, scope, blockers) shared with the execution path.
+- **Three modes, one set of subsystems** — `backfill_and_monitor` (rule enabled +
+  backfill), `backfill_only` (rule created but disabled + backfill),
+  `monitor_new_only` (rule enabled, no backfill, every already-aired episode
+  marked out-of-scope so only new releases are wanted).
+- **Readiness is a hard gate** — provisioning refuses if the template's match
+  preferences are not ready (`DiscoveryTemplateService.acquisitionReadiness`).
+- **Season scope, "NOT WANTED ≠ MISSING"** — `WantedEpisode.excludedFromScope`
+  marks episodes outside the requested scope as not-wanted (distinct from
+  missing); `scanSeries` preserves it across rescans like `ignored`, and both the
+  sweep and the backfill skip it. No-result episodes stay `missing` (stay wanted).
+- **Ended/canceled shows** — gated by `TvShowStatusService` + `isInactiveStatus`.
+  Monitoring an inactive show needs `allowInactiveShowMonitoring` AND the
+  `media_acquisition.override` permission (audited); the generated rule then
+  carries `allowInactiveShowMonitoring` so the RSS sweep does not skip it.
+- **Back catalogue = a managed platform job** (`media_acquisition.series_backfill`,
+  cancellable/retryable/pausable/resumable) — a bounded-concurrency driver
+  (clamped 2–4, no indexer floods) over `searchEpisode`, with checkpoint/progress/
+  heartbeat and idempotent skipping of anything no longer `missing`. One active
+  backfill per series (idempotency key = the watchlist item).
+
+Endpoints live under [`/api/series-acquisition`](API.md#add-series--apiseries-acquisition).
+**Smart Download stays authoritative** for release selection throughout — the
+workflow never picks releases itself.
+
 See also: [MODULES.md](MODULES.md), [MEDIA_MANAGER.md](MEDIA_MANAGER.md),
 [SECURITY.md](SECURITY.md).

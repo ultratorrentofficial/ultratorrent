@@ -28,6 +28,8 @@ import { Progress } from '@/components/ui/progress';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
 import { ShowStatusBadge } from '@/components/rss/ShowStatusPanel';
 import { AddSeriesFromLibraryDialog } from './AddSeriesFromLibraryDialog';
+import { AddSeriesDialog } from './AddSeriesDialog';
+import { SeriesBackfillPanel } from './SeriesBackfillPanel';
 
 const STATUS_VARIANT: Record<WantedEpisodeStatus, BadgeProps['variant']> = {
   owned: 'success',
@@ -50,9 +52,11 @@ const QK = ['mediaAcquisition', 'missingEpisodes'] as const;
 
 export function MissingEpisodesPage() {
   const { t } = useTranslation('media');
+  const { t: tSeries } = useTranslation('seriesAcquisition');
   const toast = useToast();
   const queryClient = useQueryClient();
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [addSeriesOpen, setAddSeriesOpen] = useState(false);
 
   const gaps = useQuery({ queryKey: QK, queryFn: () => api.mediaAcquisition.missingEpisodes() });
   const imdb = useQuery({ queryKey: ['media', 'imdbStatus'], queryFn: () => api.media.imdbStatus() });
@@ -89,6 +93,10 @@ export function MissingEpisodesPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button onClick={() => setAddSeriesOpen(true)}>
+            <Plus className="h-4 w-4" />
+            {tSeries('addSeries.open')}
+          </Button>
           <Button variant="secondary" onClick={() => setPickerOpen(true)}>
             <Plus className="h-4 w-4" />
             {t('acquisition.missingEpisodes.addFromLibrary')}
@@ -103,6 +111,7 @@ export function MissingEpisodesPage() {
       </div>
 
       <AddSeriesFromLibraryDialog open={pickerOpen} onClose={() => setPickerOpen(false)} />
+      <AddSeriesDialog open={addSeriesOpen} onClose={() => setAddSeriesOpen(false)} />
       {/* end header */}
 
       <p className="text-xs text-muted-foreground">
@@ -295,7 +304,8 @@ function SeriesRow({ series }: { series: SeriesGapSummary }) {
         )}
 
         {open && (
-          <div className="pt-1">
+          <div className="space-y-3 pt-1">
+            <SeriesBackfillPanel watchlistItemId={series.watchlistItemId} />
             {episodes.isLoading ? (
               <CenteredSpinner />
             ) : episodes.data && episodes.data.length > 0 ? (

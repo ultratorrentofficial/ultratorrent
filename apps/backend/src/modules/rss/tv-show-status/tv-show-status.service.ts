@@ -71,6 +71,46 @@ export class TvShowStatusService {
     return (await this.buildProviders()).map((p) => p.getProviderCapabilities());
   }
 
+  /**
+   * Search every configured provider for shows matching a title, merged into one
+   * candidate list for a picker (the Add-Series wizard). Each candidate carries
+   * the external id the provider answers under (`tmdb`/`imdb`), so the chosen one
+   * can be provisioned identity-first. Best-effort: a provider that throws is
+   * skipped, and the `local` (library) provider is omitted — it only knows shows
+   * already present, which is the opposite of what "add a series" needs.
+   */
+  async searchShows(
+    title: string,
+    year?: number | null,
+  ): Promise<Array<{ provider: string; externalIds: Record<string, string>; title: string; year: number | null }>> {
+    const q = title.trim();
+    if (!q) return [];
+    const providers = (await this.buildProviders()).filter((p) => p.name !== 'local');
+    const seen = new Set<string>();
+    const out: Array<{ provider: string; externalIds: Record<string, string>; title: string; year: number | null }> = [];
+    for (const provider of providers) {
+      try {
+        const hits = await provider.searchShow(q, year ?? null);
+        for (const hit of hits) {
+          const ns = provider.name === 'tmdb' || provider.name === 'imdb' ? provider.name : null;
+          if (!ns || !hit.providerShowId) continue;
+          const dedupeKey = `${ns}:${hit.providerShowId}`;
+          if (seen.has(dedupeKey)) continue;
+          seen.add(dedupeKey);
+          out.push({
+            provider: provider.name,
+            externalIds: { [ns]: hit.providerShowId },
+            title: hit.title,
+            year: hit.year,
+          });
+        }
+      } catch (err) {
+        this.logger.debug(`show search via ${provider.name} failed for "${q}": ${(err as Error).message}`);
+      }
+    }
+    return out;
+  }
+
   /** Resolve one show's status, trying providers in order until one matches. */
   async lookup(query: StatusLookupQuery, ctx: StatusLookupContext = {}): Promise<ShowStatusResult> {
     const title = query.title.trim();

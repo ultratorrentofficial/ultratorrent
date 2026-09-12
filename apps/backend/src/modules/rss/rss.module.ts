@@ -2546,6 +2546,9 @@ export class RssController {
     RssAutomationActions,
   ],
   controllers: [RssController],
-  exports: [RssAutomationActions],
+  // `TvShowStatusService` is exported so the Add-Series workflow can gate
+  // monitoring of an ended/canceled show — the one authoritative airing-status
+  // resolver, reused rather than reimplemented.
+  exports: [RssAutomationActions, TvShowStatusService],
 })
 export class RssModule {}

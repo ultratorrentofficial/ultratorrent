@@ -27,6 +27,7 @@ directly from the NestJS controllers.
 - [Media Manager — `/api/media`](#media-manager--apimedia)
 - [Subtitle Intelligence — `/api/subtitle-intelligence`](#subtitle-intelligence--apisubtitle-intelligence)
 - [Media Acquisition Intelligence — `/api/media-acquisition`](#media-acquisition-intelligence--apimedia-acquisition)
+- [Add Series — `/api/series-acquisition`](#add-series--apiseries-acquisition)
 - [Release Scoring — `/api/release-scoring`](#release-scoring--apirelease-scoring)
 - [Modules — `/api/modules`](#modules--apimodules)
 - [System — `/api/system`](#system--apisystem)
@@ -1002,6 +1003,28 @@ superseded one on an upgrade). See [SMART_DOWNLOAD.md](SMART_DOWNLOAD.md) and
 | `GET`    | `/api/media-acquisition/settings` | `media_acquisition.settings` |
 | `PATCH`  | `/api/media-acquisition/settings` | `media_acquisition.settings` |
 | `POST`   | `/api/media-acquisition/export` | `media_acquisition.export` |
+
+---
+
+## Add Series — `/api/series-acquisition`
+
+`@Controller('series-acquisition')` (`SeriesAcquisitionController`) guarded by
+`JwtAuthGuard` + `PermissionsGuard` — tag `series-acquisition`. The unified
+"I want this series" workflow. It provisions nothing itself: it composes the
+existing watchlist, rule, readiness, intake, missing-episode and show-status
+subsystems, then runs the back catalogue as the managed `media_acquisition.series_backfill`
+platform job. `provision` is idempotent ("ensure"): re-running links to what
+exists and can widen season scope or change mode. Monitoring an ended/canceled
+show additionally requires `media_acquisition.override` (the confirmed override
+is audited).
+
+| Method | Path | Permission |
+|--------|------|------------|
+| `GET`  | `/api/series-acquisition/search?q=&year=` | `media_acquisition.view` |
+| `POST` | `/api/series-acquisition/plan` | `media_acquisition.view` |
+| `POST` | `/api/series-acquisition/provision` | `media_acquisition.manage_watchlist` (+ `media_acquisition.override` to monitor an inactive show) |
+| `GET`  | `/api/series-acquisition/backfill/:watchlistItemId` | `media_acquisition.view` |
+| `POST` | `/api/series-acquisition/backfill/job/:jobId/:action` (`pause`·`resume`·`cancel`) | `media_acquisition.manage_watchlist` |
 
 ---
 

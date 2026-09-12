@@ -211,5 +211,11 @@
     "library_cleanup_run": "Library cleanup scan",
     "workflow_execution": "Workflow execution",
     "workflow_node": "Workflow action"
+  },
+  "seriesBackfill": {
+    "label": "Series Backfill",
+    "description": "Searches indexers for a series' already-aired episodes and grabs them, bounded so it never floods.",
+    "phase": "Searching episodes…",
+    "episodeFailed": "An episode could not be searched: {{error}}"
   }
 }

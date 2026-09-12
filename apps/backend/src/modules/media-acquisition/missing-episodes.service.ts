@@ -222,6 +222,15 @@ export class MissingEpisodesService {
     const ignoredKeys = new Set(
       existing.filter((w) => w.status === 'ignored').map((w) => this.key(w.seasonNumber, w.episodeNumber)),
     );
+    // Preserve the operator's "not in my acquisition scope" decision across rescans,
+    // the same way `ignored` is preserved — the Add-Series workflow sets this flag,
+    // and a delete+recreate that dropped it would silently re-widen the scope and
+    // start fetching seasons the operator deliberately excluded.
+    const excludedKeys = new Set(
+      existing
+        .filter((w) => w.status !== 'ignored' && w.excludedFromScope)
+        .map((w) => this.key(w.seasonNumber, w.episodeNumber)),
+    );
     // Also preserve acquisition (search/grab) state — otherwise the delete+recreate
     // below would forget that a still-missing episode was already searched or
     // grabbed and re-trigger it. Only carried onto rows that remain `missing`.
@@ -263,6 +272,7 @@ export class MissingEpisodesService {
           episodeTitle: ep.episodeTitle,
           airYear: ep.airYear,
           status,
+          excludedFromScope: excludedKeys.has(this.key(ep.seasonNumber, ep.episodeNumber)),
         };
         // A now-owned episode's grab succeeded (or it was sideloaded) — drop the
         // grab-state; an unaired one resets to idle. Only a still-missing episode

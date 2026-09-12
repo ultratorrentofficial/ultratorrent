@@ -44,6 +44,7 @@ import { MediaServerAnalyticsModule } from './modules/media-server-analytics/med
 import { GeoIpModule } from './modules/geoip/geoip.module';
 import { RedisModule } from './modules/redis/redis.module';
 import { MediaDiscoveryModule } from './modules/media-discovery/media-discovery.module';
+import { SeriesAcquisitionModule } from './modules/series-acquisition/series-acquisition.module';
 import { SubtitleIntelligenceModule } from './modules/subtitle-intelligence/subtitle-intelligence.module';
 import { OperationsModule } from './modules/operations/operations.module';
 import { JobsModule } from './modules/jobs/jobs.module';
@@ -97,6 +98,7 @@ import { JobsModule } from './modules/jobs/jobs.module';
     GeoIpModule,
     MediaServerAnalyticsModule,
     MediaDiscoveryModule,
+    SeriesAcquisitionModule,
     SubtitleIntelligenceModule,
     JobsModule,
     OperationsModule,

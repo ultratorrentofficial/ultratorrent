@@ -1,0 +1,108 @@
+{
+  "addSeries": {
+    "open": "Add Series",
+    "title": "Add a series",
+    "subtitle": "Tell UltraTorrent you want a show. It provisions everything — the watchlist, the acquisition rule, the download folder, and the back-catalogue search.",
+    "cancel": "Cancel",
+    "back": "Back",
+    "search": {
+      "label": "Search for a series",
+      "placeholder": "Title, or paste an IMDb / TMDB id",
+      "yearPlaceholder": "Year",
+      "button": "Search",
+      "searching": "Searching…",
+      "empty": "No matches. Try a different title, or paste an IMDb (tt…) or TMDB id.",
+      "idPasted": "Using the id you entered.",
+      "resultsLabel": "Results",
+      "provider": "{{provider}}",
+      "noYear": "Year unknown"
+    },
+    "selected": {
+      "label": "Selected series",
+      "change": "Change"
+    },
+    "mode": {
+      "label": "What should happen?",
+      "backfill_and_monitor": {
+        "name": "Backfill and monitor",
+        "description": "Get everything that already aired, and keep watching for new episodes."
+      },
+      "backfill_only": {
+        "name": "Backfill only",
+        "description": "Get the back catalogue now, then stop — no ongoing monitoring."
+      },
+      "monitor_new_only": {
+        "name": "Monitor new only",
+        "description": "Only new episodes from now on. Nothing that already aired is fetched."
+      }
+    },
+    "seasons": {
+      "label": "Seasons (optional)",
+      "placeholder": "e.g. 1, 2, 3 — leave blank for all seasons",
+      "hint": "Limit acquisition to specific seasons. Episodes outside your selection are not wanted (distinct from missing)."
+    },
+    "plan": {
+      "title": "Readiness",
+      "checking": "Checking readiness…",
+      "ready": "Ready to provision.",
+      "notReady": "Not ready yet",
+      "blockers": "Resolve these first:",
+      "willMonitor": "Will keep the acquisition rule enabled for new releases.",
+      "willBackfill": "Will start a back-catalogue search.",
+      "noBackfill": "No back-catalogue search (monitor-new-only).",
+      "template": "Acquisition template: {{name}}",
+      "matchPreferences": "Match preferences: {{reason}}",
+      "existingNew": "Not yet on your watchlist — a new entry will be created.",
+      "existingLinked": "Already on your watchlist ({{status}}) — it will be linked, not duplicated.",
+      "statusReturning": "This show is still airing.",
+      "statusEnded": "This show has ended.",
+      "statusCanceled": "This show was canceled.",
+      "statusUnknown": "Airing status unknown."
+    },
+    "inactive": {
+      "warning": "This show has ended or been canceled. Monitoring it for new releases may never produce anything.",
+      "confirm": "Yes, monitor this ended show anyway.",
+      "needsPermission": "Monitoring an ended show requires the override permission. Ask an administrator."
+    },
+    "provision": {
+      "button": "Add series",
+      "working": "Provisioning…",
+      "success": "Added \"{{title}}\".",
+      "successExisting": "Linked \"{{title}}\" — it was already on your watchlist.",
+      "failed": "Could not add the series"
+    },
+    "result": {
+      "title": "Done",
+      "missing": "{{count}} missing episode found.",
+      "missing_plural": "{{count}} missing episodes found.",
+      "none": "No missing episodes — you are up to date.",
+      "backfillStarted": "Back-catalogue search started.",
+      "monitoring": "Monitoring is on for new releases.",
+      "monitoringOff": "Monitoring is off.",
+      "notesTitle": "Notes",
+      "close": "Close"
+    }
+  },
+  "backfill": {
+    "title": "Back-catalogue search",
+    "none": "No backfill has run for this series.",
+    "status": {
+      "queued": "Queued",
+      "running": "Searching",
+      "paused": "Paused",
+      "completed": "Completed",
+      "completed_with_warnings": "Completed with warnings",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    },
+    "progress": "{{current}} / {{total}} episodes",
+    "summary": "{{grabbed}} grabbed · {{pending}} pending · {{noResults}} no result · {{failed}} failed",
+    "pause": "Pause",
+    "resume": "Resume",
+    "cancel": "Cancel",
+    "paused": "Backfill paused.",
+    "resumed": "Backfill resumed.",
+    "cancelled": "Backfill cancelled.",
+    "actionFailed": "Could not change the backfill"
+  }
+}

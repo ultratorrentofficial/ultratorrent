@@ -2257,6 +2257,13 @@ model WantedEpisode {
   episodeTitle        String?
   airYear             Int?
   status              String    @default("missing") /// missing | unaired | owned | ignored
+  /// Outside the operator's requested acquisition scope (e.g. a season they did
+  /// not ask for, or every already-aired episode under "monitor new only"). Such
+  /// an episode is NOT wanted: the missing-episode sweep and the series backfill
+  /// job both skip it, and `scanSeries` preserves this flag across rescans the
+  /// same way it preserves an `ignored` override. "Not wanted" is distinct from
+  /// "missing" — the episode simply is not part of what the operator asked for.
+  excludedFromScope   Boolean   @default(false)
   // Auto-acquire bridge state (preserved across rescans for still-missing rows).
   searchStatus        String    @default("idle") /// idle | searching | grabbed | pending_approval | no_results | failed
   lastSearchedAt      DateTime?
