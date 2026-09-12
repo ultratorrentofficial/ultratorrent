@@ -37,7 +37,11 @@
     --secondary-foreground: 220 20% 92%;
 
     --muted: 240 12% 14%;
-    --muted-foreground: 240 8% 60%;
+    /* Secondary/label text. Kept deliberately bright: it carries most of the
+       informational text in the app (metadata rows, captions, table cells) and
+       is often dimmed further with opacity, so a dim base read as gray-on-dark.
+       At ~74% L plain muted text clears ~9:1 on a card and a /70 variant ~6.5:1. */
+    --muted-foreground: 240 10% 74%;
 
     --accent: 190 90% 55%;
     --accent-foreground: 240 24% 6%;
@@ -73,7 +77,7 @@
     --secondary: 240 14% 16%;
     --secondary-foreground: 220 20% 92%;
     --muted: 240 12% 14%;
-    --muted-foreground: 240 8% 62%;
+    --muted-foreground: 240 10% 74%;
     --accent: 190 90% 55%;
     --accent-foreground: 240 24% 6%;
     --destructive: 0 72% 58%;
