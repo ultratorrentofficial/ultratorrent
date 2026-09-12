@@ -43,6 +43,7 @@ import {
   flattenForSearch,
   isBranchActive,
   isItemActive,
+  isParentActivePage,
   resolveActiveWorkspaceId,
   tNav,
   visibleGroups,
@@ -492,10 +493,11 @@ function NavParent({
   const { t } = useTranslation('nav');
   const { t: tShell } = useTranslation('shell');
   const branchActive = isBranchActive(item, location.pathname, location.search);
-  const selfActive = isItemActive(item, location.pathname, location.search);
   const childActive = (item.children ?? []).some((c) => isBranchActive(c, location.pathname, location.search));
   // Open when the user toggled it, or a descendant is the active route.
   const expanded = expandedItems.has(item.id) || childActive;
+  // The active "box" belongs to the leaf that owns the route — see isParentActivePage.
+  const boxed = isParentActivePage(item, location.pathname, location.search);
   const label = tNav(t, 'items', item.label);
   const Icon = item.icon;
 
@@ -509,8 +511,8 @@ function NavParent({
       <div
         className={cn(
           'group flex items-center rounded-lg text-sm font-medium transition-all',
-          branchActive && !selfActive ? 'text-foreground' : '',
-          selfActive
+          branchActive && !boxed ? 'text-foreground' : '',
+          boxed
             ? 'bg-primary/15 text-foreground shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.25)]'
             : 'text-muted-foreground hover:bg-white/5 hover:text-foreground',
         )}
@@ -518,11 +520,11 @@ function NavParent({
         <Link
           to={item.to ?? '#'}
           onClick={onNavigate}
-          aria-current={selfActive ? 'page' : undefined}
+          aria-current={boxed ? 'page' : undefined}
           style={depth > 0 ? { paddingLeft: 12 + depth * 16 } : undefined}
           className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <Icon className={cn('shrink-0', depth > 0 ? 'h-4 w-4' : 'h-[18px] w-[18px]', selfActive || branchActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground')} />
+          <Icon className={cn('shrink-0', depth > 0 ? 'h-4 w-4' : 'h-[18px] w-[18px]', boxed || branchActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground')} />
           <span className="truncate">{label}</span>
         </Link>
         <button

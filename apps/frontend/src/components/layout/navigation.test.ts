@@ -9,6 +9,7 @@ import {
   flattenForSearch,
   isBranchActive,
   isItemActive,
+  isParentActivePage,
   resolveActiveWorkspaceId,
   visibleGroups,
   workspaceLanding,
@@ -418,5 +419,42 @@ describe('personal notifications in the rail', () => {
       // it render as an internal link to a page that does not exist.
       expect(item.to).toBeUndefined();
     });
+  });
+});
+
+describe('isParentActivePage — the active box belongs to the leaf, not the parent', () => {
+  const parent: NavItem = {
+    id: 'stream-control',
+    to: '/msa/stream-limits', // parent landing coincides with its first child
+    label: 'Stream Control',
+    icon: Boxes,
+    children: [
+      { id: 'limits', to: '/msa/stream-limits', label: 'Stream Limits', icon: Boxes },
+      { id: 'settings', to: '/msa/stream-control', label: 'Global Settings', icon: Boxes },
+    ],
+  };
+
+  it('does NOT mark the parent active when a child owns the route (shared landing)', () => {
+    // On /msa/stream-limits both parent and child match by route…
+    expect(isItemActive(parent, '/msa/stream-limits', '')).toBe(true);
+    // …but the parent is not the active PAGE — the child owns it.
+    expect(isParentActivePage(parent, '/msa/stream-limits', '')).toBe(false);
+  });
+
+  it('does NOT mark the parent active when a distinct child page is open', () => {
+    expect(isParentActivePage(parent, '/msa/stream-control', '')).toBe(false);
+  });
+
+  it('clears when the route leaves the branch entirely', () => {
+    expect(isParentActivePage(parent, '/msa/household/users', '')).toBe(false);
+  });
+
+  it('marks a parent active only when the route is its own and no child owns it', () => {
+    const soloParent: NavItem = {
+      id: 'p', to: '/p', label: 'P', icon: Boxes,
+      children: [{ id: 'c', to: '/p/child', label: 'C', icon: Boxes }],
+    };
+    expect(isParentActivePage(soloParent, '/p', '')).toBe(true);
+    expect(isParentActivePage(soloParent, '/p/child', '')).toBe(false);
   });
 });

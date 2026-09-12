@@ -513,6 +513,19 @@ export function isBranchActive(item: NavItem, pathname: string, searchStr: strin
 }
 
 /**
+ * Whether a PARENT item is itself the active page — the active-highlight ("box")
+ * belongs to the leaf that owns the route. A parent whose own landing route
+ * coincides with (or is a prefix of) a child's route is active-by-prefix but is
+ * NOT the active page then; the child owns it. So the parent claims the box only
+ * when the route is its own and no descendant owns it — otherwise selecting a
+ * sub-page (Stream Limits) would leave its parent (Stream Control) boxed too.
+ */
+export function isParentActivePage(item: NavItem, pathname: string, searchStr: string): boolean {
+  if (!isItemActive(item, pathname, searchStr)) return false;
+  return !(item.children ?? []).some((c) => isBranchActive(c, pathname, searchStr));
+}
+
+/**
  * The navigation domain the current route belongs to, plus the active top-level
  * item and (if the match is a sub-page) its parent. Drives the contextual
  * secondary nav: sibling pages within the active domain, so a user can move
