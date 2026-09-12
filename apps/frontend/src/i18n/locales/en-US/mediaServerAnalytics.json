@@ -690,5 +690,131 @@
       "empty": "No more viewers to add.",
       "loadError": "Could not load viewers."
     }
+  },
+  "household": {
+    "title": "Household & Sharing",
+    "subtitle": "Evidence-based detection of possible account sharing — conservative, explainable, and advisory only.",
+    "loadError": "Could not load household data.",
+    "advisoryNote": "Advisory only: this never terminates a stream. Enforcement (if ever enabled) stays in Stream Control.",
+    "prev": "Previous",
+    "next": "Next",
+    "kpi": {
+      "monitored": "Users monitored",
+      "homes": "Home networks established",
+      "review": "Users needing review",
+      "likelySharing": "Likely sharing",
+      "mobile": "Mobile networks",
+      "newResidential": "New residential (7d)",
+      "highRisk": "High-risk users",
+      "unknown": "Unknown networks"
+    },
+    "risk": {
+      "none": "None",
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "critical": "Critical"
+    },
+    "networkType": {
+      "residential": "Residential",
+      "mobile": "Mobile",
+      "hosting": "Hosting",
+      "vpn_proxy": "VPN / proxy",
+      "unknown": "Unknown"
+    },
+    "disposition": {
+      "dismissed": "Dismiss",
+      "trusted": "Trust",
+      "travel": "Travel",
+      "mobile": "Mobile",
+      "confirmed_sharing": "Confirm sharing",
+      "acknowledged": "Acknowledge"
+    },
+    "reason": {
+      "none": "No risk signals.",
+      "mobile_networks_present": "Mobile network seen (not counted as sharing)",
+      "travel_network": "Network marked as travel (discounted)",
+      "trusted_network": "Trusted network (risk reduced)",
+      "vpn_or_hosting_network": "VPN or hosting network — review, not proof",
+      "new_residential_network": "New residential network seen",
+      "persistent_secondary_residential_network": "A second residential network seen over multiple days",
+      "simultaneous_residential_networks": "Simultaneous streams from two residential networks",
+      "repeated_simultaneous_usage": "Repeated simultaneous usage over multiple days",
+      "concurrent_different_devices": "Different device families active at the same time",
+      "large_geographic_separation": "Large geographic separation between networks (approximate)"
+    },
+    "settings": {
+      "title": "Settings",
+      "enabled": "Household analysis enabled",
+      "enabledHint": "Learn home networks and score sharing risk. Advisory only.",
+      "notify": "Send notifications",
+      "notifyHint": "Off by default. Notify on meaningful transitions only.",
+      "reviewLevel": "Open a review at",
+      "minDays": "Min home days",
+      "minAge": "Min home age (days)",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Settings saved."
+    },
+    "users": {
+      "title": "Household Users",
+      "subtitle": "Each canonical person, their inferred home, and sharing risk.",
+      "empty": "No households yet",
+      "emptyHint": "Households are learned from watch history as it accrues.",
+      "colUser": "User",
+      "colHome": "Home",
+      "colConfidence": "Confidence",
+      "colNetworks": "Other networks",
+      "colRisk": "Risk",
+      "open": "Open",
+      "learning": "Learning…"
+    },
+    "networks": {
+      "title": "Household Networks",
+      "subtitle": "Networks seen across all households — for spotting mobile egress, VPN infrastructure, or a shared gateway.",
+      "empty": "No networks observed yet",
+      "note": "Multiple users sharing one ISP or ASN is not by itself evidence of anything.",
+      "colLocation": "Location",
+      "colIsp": "ISP / org",
+      "colType": "Type",
+      "colUsers": "Users",
+      "colPlays": "Plays",
+      "colWatch": "Watch"
+    },
+    "review": {
+      "title": "Review Queue",
+      "subtitle": "Only cases that warrant a human look. Nothing here is an accusation.",
+      "empty": "Nothing to review",
+      "emptyHint": "Cases appear here when evidence crosses your review threshold.",
+      "saved": "Review updated.",
+      "openProfile": "Open profile"
+    },
+    "detail": {
+      "back": "Back to users",
+      "saved": "Saved.",
+      "loadError": "Could not load this household.",
+      "relearn": "Relearn home",
+      "lock": "Lock home",
+      "unlock": "Unlock home",
+      "home": "Home network",
+      "reasons": "Why this risk",
+      "confidence": "{{pct}}% confidence",
+      "locked": "locked",
+      "autoLearned": "auto-learned",
+      "noHome": "No home learned yet — more history needed.",
+      "unplaced": "Location unknown",
+      "network": "Network",
+      "type": "Type",
+      "days": "Days",
+      "plays": "Plays",
+      "watch": "Watch",
+      "setHome": "Set as home",
+      "trust": "Trust",
+      "untrust": "Untrust",
+      "travel": "Travel",
+      "ignore": "Ignore",
+      "unignore": "Un-ignore",
+      "trusted": "trusted"
+    }
   }
 }

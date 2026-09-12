@@ -106,7 +106,11 @@
     "IP Geolocation": "Geolocalización de IP",
     "Stream Limits": "Límites de transmisión",
     "Stream Control": "Control de transmisiones",
-    "Enforcement History": "Historial de aplicación"
+    "Enforcement History": "Historial de aplicación",
+    "Household & Sharing": "Hogar y uso compartido",
+    "Household Users": "Usuarios del hogar",
+    "Review Queue": "Cola de revisión",
+    "Household Networks": "Redes del hogar"
   },
   "descriptions": {
     "Acquisition Intelligence": "Adquisición y mejoras inteligentes",
@@ -192,7 +196,11 @@
     "IP Geolocation": "Geolocalización de IP",
     "Stream Limits": "Límites de transmisiones simultáneas por usuario",
     "Stream Control": "Ajustes globales de control de transmisiones simultáneas",
-    "Enforcement History": "Registro de la aplicación de límites de transmisión"
+    "Enforcement History": "Registro de la aplicación de límites de transmisión",
+    "Household & Sharing": "Detección de posible uso compartido de cuentas",
+    "Household Users": "Hogares y su hogar inferido",
+    "Review Queue": "Casos de uso compartido por revisar",
+    "Household Networks": "Redes vistas en los hogares"
   },
   "details": {
     "Account": "Cuenta",

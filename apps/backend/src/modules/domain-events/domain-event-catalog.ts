@@ -82,6 +82,38 @@ const DEFINITIONS: readonly DomainEventDefinition[] = [
     deduplicationWindowSeconds: 900,
   },
 
+  // --- Household & Sharing (advisory; only meaningful transitions) ----------
+  {
+    key: DOMAIN_EVENTS.MEDIA_SERVER_HOUSEHOLD_HOME_ESTABLISHED,
+    description: 'A household home network was inferred for the first time.',
+    requiredFields: ['profileId'],
+    deduplicationWindowSeconds: 86_400,
+  },
+  {
+    key: DOMAIN_EVENTS.MEDIA_SERVER_HOUSEHOLD_HOME_CHANGED,
+    description: "A household's inferred home network changed.",
+    requiredFields: ['profileId'],
+    deduplicationWindowSeconds: 86_400,
+  },
+  {
+    key: DOMAIN_EVENTS.MEDIA_SERVER_HOUSEHOLD_RISK_CHANGED,
+    description: "A household's account-sharing risk level changed.",
+    requiredFields: ['profileId', 'riskLevel'],
+    deduplicationWindowSeconds: 3600,
+  },
+  {
+    key: DOMAIN_EVENTS.MEDIA_SERVER_HOUSEHOLD_REVIEW_REQUIRED,
+    description: 'A household case needs human review.',
+    requiredFields: ['profileId', 'riskLevel'],
+    deduplicationWindowSeconds: 86_400,
+  },
+  {
+    key: DOMAIN_EVENTS.MEDIA_SERVER_HOUSEHOLD_SHARING_LIKELY,
+    description: 'A household reached high/critical account-sharing risk.',
+    requiredFields: ['profileId', 'riskLevel'],
+    deduplicationWindowSeconds: 86_400,
+  },
+
   // --- Torrents ------------------------------------------------------------
   {
     key: DOMAIN_EVENTS.TORRENT_COMPLETED,

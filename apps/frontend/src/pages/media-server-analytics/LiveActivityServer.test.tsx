@@ -4,10 +4,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import '@/i18n';
 
 vi.mock('@/lib/api', () => ({
-  api: { mediaServerAnalytics: { live: vi.fn(), dashboard: vi.fn() } },
+  api: { mediaServerAnalytics: { live: vi.fn(), dashboard: vi.fn(), streamControl: { status: vi.fn().mockResolvedValue({ enabled: false, usesRedis: false, subjects: [], sessions: {} }) } } },
 }));
 vi.mock('@/lib/ws', () => ({ wsClient: { on: () => () => {}, off: () => {} } }));
 vi.mock('@/realtime/RealtimeContext', () => ({ useRealtime: () => ({ connected: true }) }));
+// The terminate action needs auth + toast contexts; this suite is about server labels.
+vi.mock('@/auth/AuthContext', () => ({ usePermission: () => false }));
+vi.mock('@/components/ui/toast', () => ({ useToast: () => ({ success: () => {}, error: () => {}, info: () => {} }) }));
 
 import { api } from '@/lib/api';
 import { LiveActivityPage } from './LiveActivityPage';

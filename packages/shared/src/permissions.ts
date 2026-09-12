@@ -151,6 +151,10 @@ export const PERMISSIONS = {
   MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_READ: 'media_server_analytics.stream_limits.read',
   MEDIA_SERVER_ANALYTICS_STREAM_LIMITS_MANAGE: 'media_server_analytics.stream_limits.manage',
   MEDIA_SERVER_ANALYTICS_ENFORCEMENT_READ: 'media_server_analytics.enforcement.read',
+  // Household & Sharing — read evidence, review cases, manage home/network config.
+  MEDIA_SERVER_ANALYTICS_HOUSEHOLD_READ: 'media_server_analytics.household.read',
+  MEDIA_SERVER_ANALYTICS_HOUSEHOLD_REVIEW: 'media_server_analytics.household.review',
+  MEDIA_SERVER_ANALYTICS_HOUSEHOLD_MANAGE: 'media_server_analytics.household.manage',
 
   // Media Manager (core)
   MEDIA_MANAGER_VIEW: 'media_manager.view',

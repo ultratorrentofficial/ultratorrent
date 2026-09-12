@@ -80,6 +80,11 @@ import { GeoIpSettingsPage } from '@/pages/media-server-analytics/GeoIpSettingsP
 import { StreamLimitsPage } from '@/pages/media-server-analytics/StreamLimitsPage';
 import { StreamControlSettingsPage } from '@/pages/media-server-analytics/StreamControlSettingsPage';
 import { EnforcementHistoryPage } from '@/pages/media-server-analytics/EnforcementHistoryPage';
+import { HouseholdOverviewPage } from '@/pages/media-server-analytics/household/HouseholdOverviewPage';
+import { HouseholdUsersPage } from '@/pages/media-server-analytics/household/HouseholdUsersPage';
+import { HouseholdUserDetailPage } from '@/pages/media-server-analytics/household/HouseholdUserDetailPage';
+import { HouseholdReviewPage } from '@/pages/media-server-analytics/household/HouseholdReviewPage';
+import { HouseholdNetworksPage } from '@/pages/media-server-analytics/household/HouseholdNetworksPage';
 import { RecentlyAddedPage } from '@/pages/media-server-analytics/RecentlyAddedPage';
 import { ImportAnalyticsPage } from '@/pages/media-server-analytics/ImportAnalyticsPage';
 import { NewslettersPage } from '@/pages/media-server-analytics/NewslettersPage';
@@ -564,6 +569,11 @@ export function App() {
                           </ModuleRoute>
                         }
                       />
+                      <Route path="/media-server-analytics/household" element={<ModuleRoute moduleId="media_server_analytics"><HouseholdOverviewPage /></ModuleRoute>} />
+                      <Route path="/media-server-analytics/household/users" element={<ModuleRoute moduleId="media_server_analytics"><HouseholdUsersPage /></ModuleRoute>} />
+                      <Route path="/media-server-analytics/household/users/:id" element={<ModuleRoute moduleId="media_server_analytics"><HouseholdUserDetailPage /></ModuleRoute>} />
+                      <Route path="/media-server-analytics/household/reviews" element={<ModuleRoute moduleId="media_server_analytics"><HouseholdReviewPage /></ModuleRoute>} />
+                      <Route path="/media-server-analytics/household/networks" element={<ModuleRoute moduleId="media_server_analytics"><HouseholdNetworksPage /></ModuleRoute>} />
                       <Route
                         path="/media-server-analytics/import"
                         element={

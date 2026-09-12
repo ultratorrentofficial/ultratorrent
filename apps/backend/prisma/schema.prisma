@@ -1686,6 +1686,131 @@ model MediaStreamEnforcementEvent {
   @@map("media_stream_enforcement_events")
 }
 
+/// Household & Sharing — one profile per canonical household subject.
+///
+/// The subject is the SAME effective identity Stream Control uses:
+/// `groupId ?? MediaAnalyticsUser.id`, stored here as `subjectKey`. Linked
+/// accounts (Plex + Jellyfin) therefore share one profile. This is an advisory
+/// evidence/classification/review record — it never terminates a stream.
+model MediaHouseholdProfile {
+  id             String    @id @default(uuid())
+  /// `groupId ?? mediaAnalyticsUserId` — the effective person.
+  subjectKey     String    @unique
+  /// Cached display name for the admin UI.
+  displayName    String?
+  /// The inferred home network (a `MediaHouseholdNetwork.id`), or null while learning.
+  homeNetworkId  String?
+  /// 0–100 confidence in the inferred home.
+  homeConfidence Int       @default(0)
+  /// Admin locked the home — auto-learning must not replace it.
+  homeLocked     Boolean   @default(false)
+  /// 0–100 account-sharing risk and its level (none|low|medium|high|critical).
+  riskScore      Int       @default(0)
+  riskLevel      String    @default("none")
+  /// Structured, localized-client-side reason trace for the current risk.
+  reasons        Json?
+  firstObservedAt DateTime?
+  lastEvaluatedAt DateTime?
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  networks MediaHouseholdNetwork[]
+  signals  MediaSharingSignal[]
+  reviews  MediaSharingReview[]
+
+  @@map("media_household_profiles")
+}
+
+/// A logical network a household has appeared from — a cluster, NOT one exact IP.
+/// `fingerprint` = normalize(ASN‖ISP, country, region, city); a dynamic /24 within
+/// the same ISP+city stays ONE network. Scoped to a profile, so two customers of
+/// the same ISP are never collapsed into one household.
+model MediaHouseholdNetwork {
+  id                 String   @id @default(uuid())
+  profileId          String
+  fingerprint        String
+  /// A representative address/prefix, kept as evidence only (never the key).
+  representativeIp   String?
+  asn                Int?
+  isp                String?
+  countryCode        String?
+  country            String?
+  region             String?
+  city               String?
+  latitude           Float?
+  longitude          Float?
+  /// residential | mobile | hosting | vpn_proxy | unknown
+  networkType        String   @default("unknown")
+  /// auto | admin_override — provenance of `networkType`.
+  classificationSource String @default("auto")
+  playCount          Int      @default(0)
+  watchSeconds       Int      @default(0)
+  distinctDays       Int      @default(0)
+  uniqueDevices      Int      @default(0)
+  confidence         Int      @default(0)
+  trusted            Boolean  @default(false)
+  ignored            Boolean  @default(false)
+  /// null | travel | mobile — an admin disposition on this network.
+  disposition        String?
+  firstSeenAt        DateTime?
+  lastSeenAt         DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  profile MediaHouseholdProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, fingerprint])
+  @@index([profileId])
+  @@index([fingerprint])
+  @@map("media_household_networks")
+}
+
+/// One piece of explainable evidence contributing to a profile's risk. Aggregated
+/// (first/last occurrence + count) so an evaluation does not spam identical rows.
+model MediaSharingSignal {
+  id            String    @id @default(uuid())
+  profileId     String
+  /// Reason code, e.g. `simultaneous_residential_networks`.
+  signalType    String
+  severity      String    @default("moderate")
+  scoreDelta    Int       @default(0)
+  /// Structured evidence (network ids, timestamps, distances) — never raw blobs of history.
+  evidence      Json?
+  occurrences   Int       @default(1)
+  firstOccurred DateTime  @default(now())
+  lastOccurred  DateTime  @default(now())
+
+  profile MediaHouseholdProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, signalType])
+  @@index([profileId])
+  @@map("media_sharing_signals")
+}
+
+/// A human review case for a profile. One OPEN case per profile (updated, not spammed).
+model MediaSharingReview {
+  id          String    @id @default(uuid())
+  profileId   String
+  /// open | acknowledged | trusted | travel | mobile | confirmed_sharing | dismissed
+  status      String    @default("open")
+  riskScore   Int       @default(0)
+  riskLevel   String    @default("none")
+  /// Snapshot of the reason trace when the case was raised/last updated.
+  reasons     Json?
+  reviewedBy  String?
+  reviewedAt  DateTime?
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  profile MediaHouseholdProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@index([status])
+  @@map("media_sharing_reviews")
+}
+
 /// A provider sync run — libraries + users refreshed from a connection (Phase 6e).
 model MediaProviderSyncRun {
   id              String    @id @default(uuid())

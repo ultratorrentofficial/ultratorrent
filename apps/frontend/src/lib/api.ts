@@ -5552,6 +5552,30 @@ export const api = {
         return request(`/media-server-analytics/stream-control/events${q ? `?${q}` : ''}`);
       },
     },
+    household: {
+      overview: (): Promise<HouseholdOverview> => request('/media-server-analytics/household/overview'),
+      users: (page = 1): Promise<{ items: HouseholdUserRow[]; total: number; page: number; pageSize: number }> =>
+        request(`/media-server-analytics/household/users?page=${page}`),
+      user: (id: string): Promise<HouseholdUserDetail | null> => request(`/media-server-analytics/household/users/${id}`),
+      reviews: (params: Record<string, string> = {}): Promise<HouseholdReviewRow[]> => {
+        const q = new URLSearchParams(params).toString();
+        return request(`/media-server-analytics/household/reviews${q ? `?${q}` : ''}`);
+      },
+      networks: (): Promise<HouseholdNetworkAgg[]> => request('/media-server-analytics/household/networks'),
+      settings: (): Promise<HouseholdSettings> => request('/media-server-analytics/household/settings'),
+      updateSettings: (patch: Partial<HouseholdSettings>): Promise<HouseholdSettings> =>
+        request('/media-server-analytics/household/settings', { method: 'PUT', body: patch }),
+      setHome: (id: string, networkId: string) => request(`/media-server-analytics/household/users/${id}/set-home`, { method: 'POST', body: { networkId } }),
+      lockHome: (id: string) => request(`/media-server-analytics/household/users/${id}/lock-home`, { method: 'POST' }),
+      unlockHome: (id: string) => request(`/media-server-analytics/household/users/${id}/unlock-home`, { method: 'POST' }),
+      relearn: (id: string) => request(`/media-server-analytics/household/users/${id}/relearn`, { method: 'POST' }),
+      evaluate: (id: string) => request(`/media-server-analytics/household/users/${id}/evaluate`, { method: 'POST' }),
+      trustNetwork: (id: string, trusted: boolean) => request(`/media-server-analytics/household/networks/${id}/trust`, { method: 'POST', body: { trusted } }),
+      ignoreNetwork: (id: string, ignored: boolean) => request(`/media-server-analytics/household/networks/${id}/ignore`, { method: 'POST', body: { ignored } }),
+      classifyNetwork: (id: string, networkType: HouseholdNetworkType) => request(`/media-server-analytics/household/networks/${id}/classification`, { method: 'POST', body: { networkType } }),
+      dispositionNetwork: (id: string, disposition: 'travel' | 'mobile' | null) => request(`/media-server-analytics/household/networks/${id}/disposition`, { method: 'POST', body: { disposition } }),
+      reviewDisposition: (id: string, status: string, notes?: string) => request(`/media-server-analytics/household/reviews/${id}/disposition`, { method: 'POST', body: { status, notes } }),
+    },
     /** Now-playing poster for a session, proxied through the provider's auth (bearer-fetched blob). */
     async liveArtwork(sessionId: string): Promise<Blob> {
       const token = getAccessToken();
@@ -6438,6 +6462,61 @@ export interface StreamCandidate {
   kind: string;
   providerUserId: string;
   displayName: string | null;
+}
+
+// --- Household & Sharing ------------------------------------------------------
+export type HouseholdRiskLevel = 'none' | 'low' | 'medium' | 'high' | 'critical';
+export type HouseholdNetworkType = 'residential' | 'mobile' | 'hosting' | 'vpn_proxy' | 'unknown';
+
+export interface HouseholdReason { code: string; delta: number; details?: Record<string, unknown> }
+
+export interface HouseholdOverview {
+  usersMonitored: number; homesEstablished: number; needingReview: number; likelySharing: number;
+  highRisk: number; mobileNetworks: number; newResidential: number; unknownNetworks: number;
+}
+
+export interface HouseholdUserRow {
+  profileId: string; subjectKey: string; displayName: string | null;
+  homeLocation: string | null; homeIsp: string | null; homeConfidence: number;
+  additionalNetworks: number; riskScore: number; riskLevel: HouseholdRiskLevel;
+  hasOpenReview: boolean; lastEvaluatedAt: string | null;
+}
+
+export interface HouseholdNetworkRow {
+  id: string; fingerprint: string; asn: number | null; isp: string | null;
+  countryCode: string | null; country: string | null; region: string | null; city: string | null;
+  networkType: HouseholdNetworkType; classificationSource: string;
+  playCount: number; watchSeconds: number; distinctDays: number; uniqueDevices: number;
+  confidence: number; trusted: boolean; ignored: boolean; disposition: string | null;
+  firstSeenAt: string | null; lastSeenAt: string | null;
+}
+
+export interface HouseholdReviewRow {
+  id: string; profileId: string; subjectKey: string; displayName: string | null;
+  status: string; riskScore: number; riskLevel: HouseholdRiskLevel; reasons: HouseholdReason[] | null;
+  reviewedBy: string | null; reviewedAt: string | null; createdAt: string;
+}
+
+export interface HouseholdUserDetail {
+  id: string; subjectKey: string; displayName: string | null; homeNetworkId: string | null;
+  homeConfidence: number; homeLocked: boolean; riskScore: number; riskLevel: HouseholdRiskLevel;
+  reasons: HouseholdReason[] | null; firstObservedAt: string | null; lastEvaluatedAt: string | null; notes: string | null;
+  networks: HouseholdNetworkRow[];
+  signals: Array<{ id: string; signalType: string; severity: string; scoreDelta: number; evidence: unknown; lastOccurred: string }>;
+  reviews: HouseholdReviewRow[];
+  linkedAccounts: Array<{ kind: string; providerUserId: string; displayName: string | null }>;
+}
+
+export interface HouseholdNetworkAgg {
+  fingerprint: string; asn: number | null; isp: string | null; location: string | null;
+  networkType: HouseholdNetworkType; users: number; plays: number; watchSeconds: number;
+  firstSeen: string | null; lastSeen: string | null; trusted: boolean; ignored: boolean;
+}
+
+export interface HouseholdSettings {
+  enabled: boolean; notify: boolean; notifyLevel: HouseholdRiskLevel;
+  minHomeAgeDays: number; minHomeDistinctDays: number; minHomePlays: number; minHomeWatchSeconds: number;
+  secondaryResidentialDays: number; largeSeparationKm: number; reviewLevel: HouseholdRiskLevel;
 }
 
 export interface MediaServerWatchHistoryRow {

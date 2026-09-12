@@ -32,6 +32,13 @@ export const DOMAIN_EVENTS = {
   MEDIA_SERVER_USER_STOPPED_WATCHING: 'media_server.user_stopped_watching',
   MEDIA_SERVER_REFRESH_FAILED: 'media_server.refresh_failed',
 
+  // --- Household & Sharing (advisory; state transitions only) --------------
+  MEDIA_SERVER_HOUSEHOLD_HOME_ESTABLISHED: 'media_server.household.home_established',
+  MEDIA_SERVER_HOUSEHOLD_HOME_CHANGED: 'media_server.household.home_changed',
+  MEDIA_SERVER_HOUSEHOLD_RISK_CHANGED: 'media_server.household.risk_changed',
+  MEDIA_SERVER_HOUSEHOLD_REVIEW_REQUIRED: 'media_server.household.review_required',
+  MEDIA_SERVER_HOUSEHOLD_SHARING_LIKELY: 'media_server.household.sharing_likely',
+
   // --- Torrents ------------------------------------------------------------
   /*
    * File-level facts, published by whatever moved the bytes.

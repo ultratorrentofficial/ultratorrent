@@ -106,7 +106,11 @@
     "IP Geolocation": "IP Geolocation",
     "Stream Limits": "Stream Limits",
     "Stream Control": "Stream Control",
-    "Enforcement History": "Enforcement History"
+    "Enforcement History": "Enforcement History",
+    "Household & Sharing": "Household & Sharing",
+    "Household Users": "Household Users",
+    "Review Queue": "Review Queue",
+    "Household Networks": "Household Networks"
   },
   "descriptions": {
     "Acquisition Intelligence": "Smart acquisition and upgrades",
@@ -192,7 +196,11 @@
     "IP Geolocation": "IP Geolocation",
     "Stream Limits": "Per-user concurrent-stream limits",
     "Stream Control": "Global concurrent-stream enforcement settings",
-    "Enforcement History": "Record of stream-limit enforcement"
+    "Enforcement History": "Record of stream-limit enforcement",
+    "Household & Sharing": "Possible account-sharing detection",
+    "Household Users": "Households and their inferred home",
+    "Review Queue": "Sharing cases needing review",
+    "Household Networks": "Networks seen across households"
   },
   "details": {
     "Account": "Account",

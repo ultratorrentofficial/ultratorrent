@@ -67,6 +67,9 @@ Under `/api/media-server-analytics`:
 | `PUT/DELETE /stream-control/policies/:mediaUserId` · `PATCH /policies/:mediaUserId/exempt` | `…stream_limits.manage` | Set/clear a user's override; toggle exempt. |
 | `POST /stream-control/link` · `POST /policies/:mediaUserId/unlink` | `…stream_limits.manage` | Link accounts as one person / unlink. |
 | `GET /stream-control/status` · `/stream-control/events` | `…enforcement.read` | Live enforcement state / enforcement history. |
+| `GET /household/{overview,users[/:id],reviews,networks,settings}` | `…household.read` | Household & Sharing read views. |
+| `PUT /household/settings` · `POST /household/users/:id/{set-home,lock-home,unlock-home,relearn}` · `/household/networks/:id/{trust,ignore,classification,disposition}` | `…household.manage` | Home + network config. |
+| `POST /household/reviews/:id/disposition` | `…household.review` | Disposition a review case. |
 | `GET /watch-history` | `…view_history` | Completed playback. |
 | `GET /reports/usage` · `/users` · `/libraries` · `/playback` · `/top-media` · `/devices` · `/heatmap` · `/trends` · `/resolutions` · `/library-growth` · `/bandwidth` | `…view_reports` | Analytics aggregations. |
 | `GET /export/watch-history` | `…export` | Export watch history. |
@@ -175,6 +178,44 @@ linking so one person's Plex **and** Jellyfin streams count together.
   email — and **Unlink** dissolves it. `POST /stream-control/link` /
   `…/policies/:id/unlink`, audited.
 
+## Household & Sharing
+
+Advisory detection of possible account sharing — **explainable, conservative, and
+it never terminates a stream** (Stream Control remains the only enforcer). It
+reuses the canonical identity (`groupId ?? MediaAnalyticsUser.id`), the existing
+watch-history + live sessions, and offline GeoIP; there is no second poller, no
+second identity model, no external IP lookup.
+
+- **Home network is a cluster, not one IP.** A residential ISP hands out dynamic
+  addresses, so "most-used exact IP = home" is wrong. The fingerprint keys on
+  `(ASN‖ISP, country, region, city)` — a changing /24 within the same ISP+city is
+  ONE network — and is scoped per household, so two customers of the same ISP are
+  never treated as one home. Home is *learned* only from **residential** networks
+  with enough evidence (age, distinct days, plays, watch time); mobile/hosting/VPN
+  can never become or replace a home.
+- **Networks are classified** residential / mobile / hosting / VPN-or-proxy /
+  unknown (offline, from ISP/ASN; broad when uncertain). An admin can override the
+  class, trust or ignore a network, or mark it travel/mobile.
+- **Risk is derived from multiple explainable signals**, 0–100 with a reason trace
+  (every case shows *why*): **mobile is neutral** (recorded, never raises risk),
+  travel and trusted are discounted, VPN/hosting is review-worthy but not proof, a
+  persistent second residential network is strong, and **simultaneous** residential
+  streams (real time overlap, not just close timestamps) dominate. Dynamic-IP,
+  CGNAT, IPv6 rotation, mobile and travel are handled so they don't create false
+  "sharing" alerts. Wording favours **review**, never accusation.
+- **Review workflow.** Cases that cross the review threshold open in a **Review
+  Queue**; an admin can trust, mark travel/mobile, dismiss, or **confirm sharing**.
+  Home can be **set / locked / unlocked / relearned** — a locked home is never
+  auto-replaced; the learner's suggestion is surfaced instead.
+- **Advisory by default:** analysis runs when data exists, notifications are off,
+  and there is no enforcement coupling — upgrading never terminates anything.
+  Evaluation runs as a bounded, idempotent background reconciliation (backfill of
+  existing history included).
+
+Permissions: `household.read` (view), `household.review` (disposition cases),
+`household.manage` (home/network config + settings). Every admin action is audited;
+meaningful transitions emit `media_server.household.*` domain/WS events (deduped).
+
 ## Metadata sync
 
 A second job (`media_server_metadata_sync`, hourly and on demand via `POST
@@ -198,7 +239,9 @@ Every run is recorded as a `MediaProviderSyncRun`; one bad server never aborts t
 `manage_newsletters`, `send_newsletters`, `manage_imports`, `run_imports`,
 `manage_settings`, `admin`, `sessions.terminate` (stop a live session — a stronger
 grant than viewing activity), `stream_limits.read`/`stream_limits.manage` (view/edit
-concurrent-stream limits), `enforcement.read` (view enforcement state + history).
+concurrent-stream limits), `enforcement.read` (view enforcement state + history),
+`household.read`/`household.review`/`household.manage` (Household & Sharing: view /
+disposition review cases / configure home + networks).
 Enforced server-side (`@RequirePermissions`) and
 frontend-side (nav/route gating). Auto-synced to the `Permission` table at boot.
 

@@ -19,6 +19,11 @@ import { StreamControlSettingsService } from './stream-control/stream-control-se
 import { StreamPolicyService } from './stream-control/stream-policy.service';
 import { StreamEnforcementService } from './stream-control/stream-enforcement.service';
 import { StreamControlController } from './stream-control/stream-control.controller';
+import { HouseholdSettingsService } from './household/household-settings.service';
+import { HouseholdService } from './household/household.service';
+import { HouseholdQueryService } from './household/household-query.service';
+import { HouseholdBackfillService } from './household/household-backfill.service';
+import { HouseholdController } from './household/household.controller';
 
 /**
  * Media Server Analytics (`media_server_analytics`). A core module that reuses
@@ -45,10 +50,15 @@ import { SystemModule } from '../system/system.module';
     StreamControlSettingsService,
     StreamPolicyService,
     StreamEnforcementService,
+    HouseholdSettingsService,
+    HouseholdService,
+    HouseholdQueryService,
+    HouseholdBackfillService,
   ],
   controllers: [
     NewsletterUnsubscribeController, MediaServerAnalyticsController, NewsletterImageController,
     StreamControlController,
+    HouseholdController,
   ],
   // Exported for the operations module's Live Activity projection. It reuses
   // `liveActivity()` precisely because that method is already the redaction

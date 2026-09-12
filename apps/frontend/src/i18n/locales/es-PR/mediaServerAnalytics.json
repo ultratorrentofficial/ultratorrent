@@ -690,5 +690,131 @@
       "empty": "No hay más espectadores para agregar.",
       "loadError": "No se pudieron cargar los espectadores."
     }
+  },
+  "household": {
+    "title": "Hogar y uso compartido",
+    "subtitle": "Detección basada en evidencia de posible uso compartido de cuentas — conservadora, explicable y solo consultiva.",
+    "loadError": "No se pudieron cargar los datos del hogar.",
+    "advisoryNote": "Solo consultivo: nunca detiene una transmisión. La aplicación (si se activa) permanece en Control de transmisiones.",
+    "prev": "Anterior",
+    "next": "Siguiente",
+    "kpi": {
+      "monitored": "Usuarios monitoreados",
+      "homes": "Redes de hogar establecidas",
+      "review": "Usuarios por revisar",
+      "likelySharing": "Uso compartido probable",
+      "mobile": "Redes móviles",
+      "newResidential": "Nuevas residenciales (7d)",
+      "highRisk": "Usuarios de alto riesgo",
+      "unknown": "Redes desconocidas"
+    },
+    "risk": {
+      "none": "Ninguno",
+      "low": "Bajo",
+      "medium": "Medio",
+      "high": "Alto",
+      "critical": "Crítico"
+    },
+    "networkType": {
+      "residential": "Residencial",
+      "mobile": "Móvil",
+      "hosting": "Alojamiento",
+      "vpn_proxy": "VPN / proxy",
+      "unknown": "Desconocido"
+    },
+    "disposition": {
+      "dismissed": "Descartar",
+      "trusted": "Confiar",
+      "travel": "Viaje",
+      "mobile": "Móvil",
+      "confirmed_sharing": "Confirmar uso compartido",
+      "acknowledged": "Reconocer"
+    },
+    "reason": {
+      "none": "Sin señales de riesgo.",
+      "mobile_networks_present": "Se vio una red móvil (no cuenta como uso compartido)",
+      "travel_network": "Red marcada como viaje (descontada)",
+      "trusted_network": "Red de confianza (riesgo reducido)",
+      "vpn_or_hosting_network": "Red VPN o de alojamiento — revisar, no es prueba",
+      "new_residential_network": "Se vio una nueva red residencial",
+      "persistent_secondary_residential_network": "Una segunda red residencial vista en varios días",
+      "simultaneous_residential_networks": "Transmisiones simultáneas desde dos redes residenciales",
+      "repeated_simultaneous_usage": "Uso simultáneo repetido en varios días",
+      "concurrent_different_devices": "Familias de dispositivos distintas activas al mismo tiempo",
+      "large_geographic_separation": "Gran separación geográfica entre redes (aproximada)"
+    },
+    "settings": {
+      "title": "Ajustes",
+      "enabled": "Análisis de hogar activado",
+      "enabledHint": "Aprende redes de hogar y califica el riesgo. Solo consultivo.",
+      "notify": "Enviar notificaciones",
+      "notifyHint": "Desactivado por defecto. Notificar solo en transiciones significativas.",
+      "reviewLevel": "Abrir revisión en",
+      "minDays": "Días mín. de hogar",
+      "minAge": "Edad mín. de hogar (días)",
+      "save": "Guardar",
+      "saving": "Guardando…",
+      "saved": "Ajustes guardados."
+    },
+    "users": {
+      "title": "Usuarios del hogar",
+      "subtitle": "Cada persona canónica, su hogar inferido y el riesgo de uso compartido.",
+      "empty": "Aún no hay hogares",
+      "emptyHint": "Los hogares se aprenden del historial de reproducción.",
+      "colUser": "Usuario",
+      "colHome": "Hogar",
+      "colConfidence": "Confianza",
+      "colNetworks": "Otras redes",
+      "colRisk": "Riesgo",
+      "open": "Abrir",
+      "learning": "Aprendiendo…"
+    },
+    "networks": {
+      "title": "Redes del hogar",
+      "subtitle": "Redes vistas en todos los hogares — para detectar salida móvil, infraestructura VPN o una puerta de enlace compartida.",
+      "empty": "Aún no se observan redes",
+      "note": "Que varios usuarios compartan un ISP o ASN no es por sí solo evidencia de nada.",
+      "colLocation": "Ubicación",
+      "colIsp": "ISP / org",
+      "colType": "Tipo",
+      "colUsers": "Usuarios",
+      "colPlays": "Reprod.",
+      "colWatch": "Visto"
+    },
+    "review": {
+      "title": "Cola de revisión",
+      "subtitle": "Solo casos que merecen una mirada humana. Nada aquí es una acusación.",
+      "empty": "Nada por revisar",
+      "emptyHint": "Los casos aparecen cuando la evidencia supera tu umbral de revisión.",
+      "saved": "Revisión actualizada.",
+      "openProfile": "Abrir perfil"
+    },
+    "detail": {
+      "back": "Volver a usuarios",
+      "saved": "Guardado.",
+      "loadError": "No se pudo cargar este hogar.",
+      "relearn": "Reaprender hogar",
+      "lock": "Bloquear hogar",
+      "unlock": "Desbloquear hogar",
+      "home": "Red del hogar",
+      "reasons": "Por qué este riesgo",
+      "confidence": "{{pct}}% de confianza",
+      "locked": "bloqueado",
+      "autoLearned": "auto-aprendido",
+      "noHome": "Aún no se aprende un hogar — se necesita más historial.",
+      "unplaced": "Ubicación desconocida",
+      "network": "Red",
+      "type": "Tipo",
+      "days": "Días",
+      "plays": "Reprod.",
+      "watch": "Visto",
+      "setHome": "Fijar como hogar",
+      "trust": "Confiar",
+      "untrust": "No confiar",
+      "travel": "Viaje",
+      "ignore": "Ignorar",
+      "unignore": "No ignorar",
+      "trusted": "de confianza"
+    }
   }
 }
