@@ -3,7 +3,7 @@ import { StreamControlSettingsService, StreamControlSettings } from './stream-co
 
 const SETTINGS: StreamControlSettings = {
   enabled: true, defaultLimit: 2, defaultAction: 'terminate_newest',
-  gracePeriodSeconds: 10, countPaused: true, pausedExpirationMinutes: 5, scope: 'all_servers',
+  gracePeriodSeconds: 60, countPaused: true, pausedExpirationMinutes: 5, scope: 'all_servers',
 };
 
 const user = (over: Partial<{ exemptFromLimits: boolean }> = {}) => ({
@@ -61,7 +61,7 @@ describe('StreamPolicyService.effectivePolicy (spec §9 priority)', () => {
   it('an override inherits unset fields (action/grace) from the global default', () => {
     const eff = svc.effectivePolicy(user(), pol({ maxConcurrentStreams: 1, enforcementAction: null, gracePeriodSeconds: null }), null, null, SETTINGS);
     expect(eff.action).toBe('terminate_newest');
-    expect(eff.gracePeriodSeconds).toBe(10);
+    expect(eff.gracePeriodSeconds).toBe(60);
   });
 });
 

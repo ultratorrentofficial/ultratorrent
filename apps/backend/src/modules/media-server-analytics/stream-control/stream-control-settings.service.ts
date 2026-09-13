@@ -32,7 +32,10 @@ const DEFAULTS: StreamControlSettings = {
   enabled: false,
   defaultLimit: null,
   defaultAction: 'terminate_newest',
-  gracePeriodSeconds: 10,
+  // 60s so a transient over-limit — a pause registering, a device handoff whose old
+  // session is still winding down (marked ended after ~4 missed polls ≈ 60s), a
+  // brief re-buffer — resolves before we ever terminate.
+  gracePeriodSeconds: 60,
   countPaused: true,
   pausedExpirationMinutes: 5,
   scope: 'all_servers',
