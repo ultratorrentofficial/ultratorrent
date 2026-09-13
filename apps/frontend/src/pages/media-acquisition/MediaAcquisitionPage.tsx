@@ -2190,11 +2190,14 @@ function SettingsTab() {
       autoSearchMissing: current.autoSearchMissing,
       searchIntervalMinutes: current.searchIntervalMinutes,
       maxSearchesPerSweep: current.maxSearchesPerSweep,
+      packBackfill: current.packBackfill,
     });
   };
 
   const update = (patch: Partial<AcquisitionSettings>) =>
     setForm({ ...(form ?? settingsQuery.data!), ...patch });
+  const updatePack = (patch: Partial<AcquisitionSettings['packBackfill']>) =>
+    update({ packBackfill: { ...current.packBackfill, ...patch } });
 
   return (
     <div className="space-y-4">
@@ -2303,6 +2306,91 @@ function SettingsTab() {
                 </div>
               </div>
             )}
+
+            <div className="space-y-3 rounded-lg border border-white/10 p-4">
+              <label className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={current.packBackfill?.enabled ?? true}
+                  disabled={!canManage}
+                  onChange={(e) => updatePack({ enabled: e.target.checked })}
+                  className="mt-0.5 h-4 w-4 rounded border-input bg-white/[0.02]"
+                />
+                <span>
+                  <span className="text-sm font-medium">{t('acquisition.settings.packEnabled')}</span>
+                  <span className="block text-xs text-muted-foreground">{t('acquisition.settings.packEnabledHint')}</span>
+                </span>
+              </label>
+
+              {(current.packBackfill?.enabled ?? true) && (
+                <>
+                  <label className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={current.packBackfill?.seriesPacks ?? true}
+                      disabled={!canManage}
+                      onChange={(e) => updatePack({ seriesPacks: e.target.checked })}
+                      className="mt-0.5 h-4 w-4 rounded border-input bg-white/[0.02]"
+                    />
+                    <span>
+                      <span className="text-sm font-medium">{t('acquisition.settings.packSeries')}</span>
+                      <span className="block text-xs text-muted-foreground">{t('acquisition.settings.packSeriesHint')}</span>
+                    </span>
+                  </label>
+
+                  <label className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={current.packBackfill?.wholeSeriesForSeriesPack ?? true}
+                      disabled={!canManage || !(current.packBackfill?.seriesPacks ?? true)}
+                      onChange={(e) => updatePack({ wholeSeriesForSeriesPack: e.target.checked })}
+                      className="mt-0.5 h-4 w-4 rounded border-input bg-white/[0.02]"
+                    />
+                    <span>
+                      <span className="text-sm font-medium">{t('acquisition.settings.packWholeSeries')}</span>
+                      <span className="block text-xs text-muted-foreground">{t('acquisition.settings.packWholeSeriesHint')}</span>
+                    </span>
+                  </label>
+
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="set-pack-threshold">{t('acquisition.settings.packThreshold')}</Label>
+                      <Input
+                        id="set-pack-threshold"
+                        type="number"
+                        min={1}
+                        max={100}
+                        value={String(Math.round((current.packBackfill?.seasonMissingThreshold ?? 1) * 100))}
+                        disabled={!canManage}
+                        onChange={(e) => updatePack({ seasonMissingThreshold: Math.min(100, Math.max(1, Number(e.target.value) || 100)) / 100 })}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="set-pack-season-gb">{t('acquisition.settings.packSeasonGb')}</Label>
+                      <Input
+                        id="set-pack-season-gb"
+                        type="number"
+                        min={1}
+                        value={String(current.packBackfill?.maxSeasonPackGb ?? 30)}
+                        disabled={!canManage}
+                        onChange={(e) => updatePack({ maxSeasonPackGb: Number(e.target.value) || 0 })}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="set-pack-series-gb">{t('acquisition.settings.packSeriesGb')}</Label>
+                      <Input
+                        id="set-pack-series-gb"
+                        type="number"
+                        min={1}
+                        value={String(current.packBackfill?.maxSeriesPackGb ?? 150)}
+                        disabled={!canManage || !(current.packBackfill?.seriesPacks ?? true)}
+                        onChange={(e) => updatePack({ maxSeriesPackGb: Number(e.target.value) || 0 })}
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
 
             {canManage && (
               <div className="flex justify-end">

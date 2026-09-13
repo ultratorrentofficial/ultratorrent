@@ -39,6 +39,8 @@ function harness(
     freshStatus?: Record<string, string>; // per-id status at re-read time
     outcomes?: Record<string, string>; // per-id searchStatus
     activeJob?: { id: string } | null;
+    packConfig?: any;
+    packs?: any;
   } = {},
 ) {
   const wantedFindMany = jest.fn().mockResolvedValue(opts.rows ?? [{ id: 'e1' }, { id: 'e2' }, { id: 'e3' }]);
@@ -50,7 +52,17 @@ function harness(
         excludedFromScope: false,
       })),
     },
+    mediaAcquisitionWatchlistItem: {
+      findUnique: jest.fn().mockResolvedValue({ id: 'wl1', title: 'Show', titleAliases: [], year: null, rssRuleId: null, targetLibraryId: null, libraryShowId: null, priority: 100 }),
+    },
     platformJob: { findFirst: jest.fn().mockResolvedValue(opts.activeJob ?? null) },
+  };
+  // Packs off by default so existing tests exercise only the per-episode path.
+  const packs: any = {
+    config: jest.fn().mockResolvedValue(opts.packConfig ?? { enabled: false, seriesPacks: true, seasonMissingThreshold: 1, wholeSeriesForSeriesPack: true, maxSeasonPackGb: 30, maxSeriesPackGb: 150 }),
+    trySeasonPack: jest.fn().mockResolvedValue({ grabbed: false, covered: 0 }),
+    trySeriesPack: jest.fn().mockResolvedValue({ grabbed: false, covered: 0 }),
+    ...(opts.packs ?? {}),
   };
   const registry: any = { has: jest.fn().mockReturnValue(false), register: jest.fn() };
   const platformJobs: any = {
@@ -67,8 +79,8 @@ function harness(
   };
   const realtime: any = { broadcast: jest.fn() };
 
-  const svc = new SeriesBackfillService(prisma, registry, platformJobs, search, realtime);
-  return { svc, prisma, search, platformJobs, wantedFindMany, realtime };
+  const svc = new SeriesBackfillService(prisma, registry, platformJobs, search, packs, realtime);
+  return { svc, prisma, search, platformJobs, wantedFindMany, realtime, packs };
 }
 
 const input: SeriesBackfillInput = {
@@ -145,11 +157,69 @@ describe('SeriesBackfillService.execute', () => {
       { has: () => false, register: () => {} } as any,
       { runDetached: jest.fn() } as any,
       search,
+      { config: async () => ({ enabled: false }) } as any,
       { broadcast: jest.fn() } as any,
     );
     const { result, warnings } = await svc2.execute(input, fakeCtx());
     expect(result?.failed).toBe(1);
     expect(warnings).toBeDefined();
+  });
+});
+
+describe('SeriesBackfillService pack pre-pass', () => {
+  const ON = { enabled: true, seriesPacks: true, seasonMissingThreshold: 1, wholeSeriesForSeriesPack: true, maxSeasonPackGb: 30, maxSeriesPackGb: 150 };
+
+  it('whole series missing → grabs a series pack and skips the per-episode loop', async () => {
+    const { svc, search, packs, wantedFindMany } = harness({
+      packConfig: ON,
+      packs: { trySeriesPack: jest.fn().mockResolvedValue({ grabbed: true, covered: 3 }) },
+    });
+    wantedFindMany
+      .mockResolvedValueOnce([
+        { id: 'e1', seasonNumber: 1, status: 'missing', searchStatus: 'idle' },
+        { id: 'e2', seasonNumber: 1, status: 'missing', searchStatus: 'idle' },
+        { id: 'e3', seasonNumber: 2, status: 'missing', searchStatus: 'idle' },
+      ])
+      .mockResolvedValueOnce([]); // queue: everything now grabbed-via-pack
+    const { result } = await svc.execute(input, fakeCtx());
+    expect(packs.trySeriesPack).toHaveBeenCalledTimes(1);
+    expect(packs.trySeasonPack).not.toHaveBeenCalled();
+    expect(search.searchEpisode).not.toHaveBeenCalled();
+    expect(result?.seriesPackGrabbed).toBe(true);
+  });
+
+  it('a fully-missing season (with another partial) → season pack, rest per-episode', async () => {
+    const { svc, search, packs, wantedFindMany } = harness({
+      packConfig: ON,
+      packs: { trySeasonPack: jest.fn().mockResolvedValue({ grabbed: true, covered: 2 }) },
+    });
+    wantedFindMany
+      .mockResolvedValueOnce([
+        { id: 'e1', seasonNumber: 1, status: 'missing', searchStatus: 'idle' },
+        { id: 'e2', seasonNumber: 1, status: 'missing', searchStatus: 'idle' },
+        { id: 'e3', seasonNumber: 2, status: 'owned', searchStatus: 'idle' },
+        { id: 'e4', seasonNumber: 2, status: 'missing', searchStatus: 'idle' },
+      ])
+      .mockResolvedValueOnce([{ id: 'e4' }]); // queue: only the partial season's gap
+    const { result } = await svc.execute(input, fakeCtx());
+    expect(packs.trySeriesPack).not.toHaveBeenCalled(); // not every season fully missing
+    expect(packs.trySeasonPack).toHaveBeenCalledWith(expect.anything(), 'tt100', 1, ['e1', 'e2'], 'u1');
+    expect(search.searchEpisode).toHaveBeenCalledWith('e4', 'u1');
+    expect(result?.seasonPacksGrabbed).toBe(1);
+  });
+
+  it('a partially-owned season attempts no pack (per-episode only)', async () => {
+    const { svc, search, packs, wantedFindMany } = harness({ packConfig: ON });
+    wantedFindMany
+      .mockResolvedValueOnce([
+        { id: 'e1', seasonNumber: 1, status: 'owned', searchStatus: 'idle' },
+        { id: 'e2', seasonNumber: 1, status: 'missing', searchStatus: 'idle' },
+      ])
+      .mockResolvedValueOnce([{ id: 'e2' }]);
+    await svc.execute(input, fakeCtx());
+    expect(packs.trySeasonPack).not.toHaveBeenCalled();
+    expect(packs.trySeriesPack).not.toHaveBeenCalled();
+    expect(search.searchEpisode).toHaveBeenCalledWith('e2', 'u1');
   });
 });
 

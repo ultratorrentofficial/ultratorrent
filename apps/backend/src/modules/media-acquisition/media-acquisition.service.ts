@@ -13,6 +13,19 @@ const DEFAULT_SETTINGS = {
   searchIntervalMinutes: 60,
   missingSearchProfileId: null as string | null,
   maxSearchesPerSweep: 50,
+  // Pack-aware backfill: when a whole season (or series) is missing, grab ONE
+  // season/series pack instead of per-episode searches that can't match packs.
+  // Conservative defaults — only fires on fully-missing seasons.
+  packBackfill: {
+    enabled: true,
+    seriesPacks: true,
+    /** Fraction of a season that must be missing to try a season pack (1.0 = 100%). */
+    seasonMissingThreshold: 1.0,
+    /** Only grab a full-series pack when EVERY in-scope season is fully missing. */
+    wholeSeriesForSeriesPack: true,
+    maxSeasonPackGb: 30,
+    maxSeriesPackGb: 150,
+  },
 };
 
 /** Aggregation: overview, evaluations list, recommendations, history, settings, export. */

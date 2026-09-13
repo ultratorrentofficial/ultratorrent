@@ -1643,7 +1643,16 @@
         "saveFailed": "Could not save settings",
         "exported": "Export downloaded",
         "exportFailed": "Export failed"
-      }
+      },
+      "packEnabled": "Pack-aware backfill",
+      "packEnabledHint": "When a whole season (or series) is missing, grab one season/series pack instead of per-episode searches that can’t match packs. Intake fans it out to the episodes.",
+      "packSeries": "Allow complete-series packs",
+      "packSeriesHint": "Grab a single complete-series pack when the entire series is missing (can be very large).",
+      "packWholeSeries": "Series pack only when the whole series is missing",
+      "packWholeSeriesHint": "Otherwise fill season by season. Avoids a huge series pack for a few missing episodes.",
+      "packThreshold": "Season missing % to try a pack",
+      "packSeasonGb": "Max season pack (GB)",
+      "packSeriesGb": "Max series pack (GB)"
     },
     "librarySeries": {
       "title": "Add series from your libraries",

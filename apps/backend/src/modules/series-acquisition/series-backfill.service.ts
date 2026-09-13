@@ -3,6 +3,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { MissingEpisodeSearchService } from '../media-acquisition/missing-episode-search.service';
+import { PackAcquisitionService, type PackItem } from '../media-acquisition/pack-acquisition.service';
 import { JobRegistry } from '../jobs/platform/job-registry.service';
 import { PlatformJobService } from '../jobs/platform/platform-job.service';
 import { ACTIVE_STATUSES } from '../jobs/platform/job-status';
@@ -43,6 +44,8 @@ export interface SeriesBackfillSummary {
   noResults: number;
   failed: number;
   skipped: number;
+  seasonPacksGrabbed: number;
+  seriesPackGrabbed: boolean;
 }
 
 /**
@@ -71,6 +74,7 @@ export class SeriesBackfillService implements OnModuleInit {
     private readonly registry: JobRegistry,
     private readonly platformJobs: PlatformJobService,
     private readonly search: MissingEpisodeSearchService,
+    private readonly packs: PackAcquisitionService,
     private readonly realtime: RealtimeGateway,
   ) {}
 
@@ -194,27 +198,45 @@ export class SeriesBackfillService implements OnModuleInit {
 
     await ctx.setPhase('backfill', 'jobs.seriesBackfill.phase');
 
+    const summary: SeriesBackfillSummary = {
+      total: 0,
+      grabbed: 0,
+      pendingApproval: 0,
+      noResults: 0,
+      failed: 0,
+      skipped: 0,
+      seasonPacksGrabbed: 0,
+      seriesPackGrabbed: false,
+    };
+
+    // Pack-first: when a whole season (or series) is missing, grab ONE pack and let
+    // intake fan it out — cheaper and it matches pack-only releases that per-episode
+    // search never can. Episodes a pack covers are marked `grabbed`, so the loop below
+    // skips them. Only runs on a first pass (no checkpoint), so a resumed job does not
+    // re-grab a pack already in flight.
+    if (done.size === 0) {
+      try {
+        await this.runPackPrepass(input, summary, ctx.runAsUserId ?? undefined);
+      } catch (err) {
+        await ctx.warn('jobs.seriesBackfill.packFailed', { error: (err as Error).message });
+      }
+    }
+
     const rows = await this.prisma.wantedEpisode.findMany({
       where: {
         watchlistItemId: input.watchlistItemId,
         status: 'missing',
         excludedFromScope: false,
+        // Episodes a pack (or the RSS rule) already grabbed are no longer searchable.
+        searchStatus: { notIn: ['grabbed', 'pending_approval', 'searching'] },
         ...(input.seasons ? { seasonNumber: { in: input.seasons } } : {}),
       },
       orderBy: [{ seasonNumber: 'asc' }, { episodeNumber: 'asc' }],
       select: { id: true },
     });
     const total = rows.length;
+    summary.total = total;
     const queue = rows.map((r) => r.id).filter((id) => !done.has(id));
-
-    const summary: SeriesBackfillSummary = {
-      total,
-      grabbed: 0,
-      pendingApproval: 0,
-      noResults: 0,
-      failed: 0,
-      skipped: 0,
-    };
     let current = done.size;
     await ctx.progress({ current, total, unit: 'episodes', messageKey: 'jobs.seriesBackfill.phase' });
 
@@ -279,7 +301,76 @@ export class SeriesBackfillService implements OnModuleInit {
         noResults: summary.noResults,
         failed: summary.failed,
         skipped: summary.skipped,
+        seasonPacksGrabbed: summary.seasonPacksGrabbed,
       },
     };
+  }
+
+  /**
+   * Pack pre-pass: try a series pack when EVERY in-scope season is fully missing
+   * (per config), else a season pack for each fully-missing season. A grabbed pack
+   * marks its episodes `grabbed`, so the per-episode loop then skips them. Any season
+   * below the threshold, or where no pack was found, is left for per-episode search.
+   */
+  private async runPackPrepass(input: SeriesBackfillInput, summary: SeriesBackfillSummary, userId?: string): Promise<void> {
+    const cfg = await this.packs.config();
+    if (!cfg.enabled) return;
+
+    const item = await this.prisma.mediaAcquisitionWatchlistItem.findUnique({ where: { id: input.watchlistItemId } });
+    if (!item) return;
+
+    const eps = await this.prisma.wantedEpisode.findMany({
+      where: {
+        watchlistItemId: input.watchlistItemId,
+        excludedFromScope: false,
+        ...(input.seasons ? { seasonNumber: { in: input.seasons } } : {}),
+      },
+      select: { id: true, seasonNumber: true, status: true, searchStatus: true },
+    });
+
+    // Per season: catalogue total (excluding operator-ignored) and the still-missing,
+    // not-yet-grabbed episode ids.
+    const bySeason = new Map<number, { total: number; missingIds: string[] }>();
+    for (const e of eps) {
+      if (e.status === 'ignored') continue;
+      const s = bySeason.get(e.seasonNumber) ?? { total: 0, missingIds: [] };
+      s.total += 1;
+      if (e.status === 'missing' && !['grabbed', 'pending_approval', 'searching'].includes(e.searchStatus)) {
+        s.missingIds.push(e.id);
+      }
+      bySeason.set(e.seasonNumber, s);
+    }
+    if (bySeason.size === 0) return;
+
+    const packItem: PackItem = {
+      id: item.id,
+      title: item.title,
+      titleAliases: item.titleAliases,
+      year: item.year,
+      rssRuleId: item.rssRuleId,
+      targetLibraryId: item.targetLibraryId,
+      libraryShowId: item.libraryShowId,
+      priority: item.priority,
+    };
+    const fullyMissing = (s: { total: number; missingIds: string[] }) => s.total > 0 && s.missingIds.length / s.total >= cfg.seasonMissingThreshold;
+    const entries = [...bySeason.entries()];
+
+    // Whole series missing → one series pack covers everything.
+    if (cfg.seriesPacks && cfg.wholeSeriesForSeriesPack && entries.every(([, s]) => fullyMissing(s))) {
+      const neededSeasons = entries.map(([n]) => n).sort((a, b) => a - b);
+      const allMissing = entries.flatMap(([, s]) => s.missingIds);
+      const r = await this.packs.trySeriesPack(packItem, input.seriesTconst, neededSeasons, allMissing, userId);
+      if (r.grabbed) {
+        summary.seriesPackGrabbed = true;
+        return; // covered episodes are now `grabbed`; no season/episode passes needed
+      }
+    }
+
+    // Otherwise a season pack per fully-missing season.
+    for (const [season, s] of entries) {
+      if (!fullyMissing(s) || s.missingIds.length === 0) continue;
+      const r = await this.packs.trySeasonPack(packItem, input.seriesTconst, season, s.missingIds, userId);
+      if (r.grabbed) summary.seasonPacksGrabbed += 1;
+    }
   }
 }

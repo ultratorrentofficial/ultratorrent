@@ -17,6 +17,7 @@ import { MissingEpisodesService } from './missing-episodes.service';
 import { MissingMoviesService } from './missing-movies.service';
 import { MissingEpisodeSearchService } from './missing-episode-search.service';
 import { AcquisitionMatchPreferenceService } from './acquisition-match-preference.service';
+import { PackAcquisitionService } from './pack-acquisition.service';
 import { MediaAcquisitionController } from './media-acquisition.controller';
 
 /**
@@ -94,6 +95,7 @@ export class MediaAcquisitionScheduler {
     MissingMoviesService,
     MissingEpisodeSearchService,
     AcquisitionMatchPreferenceService,
+    PackAcquisitionService,
     MediaAcquisitionScheduler,
   ],
   controllers: [MediaAcquisitionController],
@@ -110,6 +112,7 @@ export class MediaAcquisitionScheduler {
     AcquisitionWatchlistService,
     MissingEpisodesService,
     MissingEpisodeSearchService,
+    PackAcquisitionService,
   ],
 })
 export class MediaAcquisitionModule {}

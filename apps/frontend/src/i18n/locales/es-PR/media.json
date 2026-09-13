@@ -1643,7 +1643,16 @@
         "saveFailed": "No se pudo guardar la configuración",
         "exported": "Exportación descargada",
         "exportFailed": "La exportación falló"
-      }
+      },
+      "packEnabled": "Descarga por paquetes",
+      "packEnabledHint": "Cuando falta una temporada (o serie) completa, descarga un paquete de temporada/serie en vez de buscar episodio por episodio (que no encuentra paquetes). La ingesta lo reparte en episodios.",
+      "packSeries": "Permitir paquetes de serie completa",
+      "packSeriesHint": "Descarga un paquete de serie completa cuando falta toda la serie (puede ser muy grande).",
+      "packWholeSeries": "Paquete de serie solo si falta la serie completa",
+      "packWholeSeriesHint": "De lo contrario, llena temporada por temporada. Evita un paquete enorme por unos pocos episodios.",
+      "packThreshold": "% de temporada faltante para probar un paquete",
+      "packSeasonGb": "Máx. paquete de temporada (GB)",
+      "packSeriesGb": "Máx. paquete de serie (GB)"
     },
     "librarySeries": {
       "title": "Agregar series desde tus bibliotecas",

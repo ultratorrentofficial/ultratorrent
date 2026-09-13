@@ -436,6 +436,27 @@ export class MissingEpisodeSearchService {
    * the grab, because falling through to the engine's default would scatter
    * episodes loose in the download root instead of the show's folder.
    */
+  /**
+   * Public: the show folder a grabbed release should save into, reusing the exact
+   * rule/library resolution the per-episode grab uses. The pack-backfill path calls
+   * this so a season/series pack lands in the same directory as its episodes (and is
+   * refused when nothing resolves, never dropped into the engine's default root).
+   */
+  resolveShowSavePath(
+    item: {
+      id?: string;
+      rssRuleId: string | null;
+      libraryShowId?: string | null;
+      title: string;
+      titleAliases?: string[] | null;
+      year: number | null;
+      targetLibraryId: string | null;
+    },
+    seriesTconst?: string | null,
+  ): Promise<{ path?: string; intakeRuleId: string | null }> {
+    return this.resolveSavePath(item, seriesTconst);
+  }
+
   private async resolveSavePath(
     item: {
       id?: string;

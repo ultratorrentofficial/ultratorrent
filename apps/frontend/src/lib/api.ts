@@ -3159,6 +3159,15 @@ export interface AcquisitionSettings {
   searchIntervalMinutes: number;
   missingSearchProfileId: string | null;
   maxSearchesPerSweep: number;
+  // Pack-aware backfill (when a whole season/series is missing, grab one pack).
+  packBackfill: {
+    enabled: boolean;
+    seriesPacks: boolean;
+    seasonMissingThreshold: number;
+    wholeSeriesForSeriesPack: boolean;
+    maxSeasonPackGb: number;
+    maxSeriesPackGb: number;
+  };
 }
 
 export interface AcquisitionExportInput {

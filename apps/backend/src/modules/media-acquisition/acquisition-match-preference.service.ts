@@ -8,6 +8,7 @@ import type {
 } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { parseTorrentName } from '../rss/torrent-name-parser';
+import { classifyPack, packTitleRegion, seriesPackCovers } from './pack-detect';
 import {
   evaluatePreferenceList,
   normalize,
@@ -356,6 +357,64 @@ export class AcquisitionMatchPreferenceService implements OnModuleInit {
       });
     }
 
+    if (scored.length === 0) return null;
+    const magnetRank = (c: IndexerCandidate) => (c.downloadUrl?.startsWith('magnet:') ? 0 : 1);
+    scored.sort(
+      (a, b) =>
+        a.matchedPriority - b.matchedPriority ||
+        magnetRank(a.candidate) - magnetRank(b.candidate) ||
+        (b.candidate.seeders ?? -1) - (a.candidate.seeders ?? -1),
+    );
+    return scored[0];
+  }
+
+  /**
+   * Select the best SEASON or COMPLETE-SERIES pack from a candidate list. Mirrors
+   * {@link select} (title-anchor + the match preferences' QUALITY rules + magnet/
+   * seeder ranking) but for a pack: the release must classify as the requested pack
+   * ({@link classifyPack}) covering the target season(s), and the single-episode SIZE
+   * cap is dropped in favour of the caller's pack cap (a pack is legitimately far
+   * larger). Returns null when nothing qualifies — the caller then falls back to
+   * per-episode search.
+   */
+  selectPack(
+    candidates: IndexerCandidate[],
+    prefs: MatchCandidateInput[],
+    showTitle: string,
+    target: { type: 'season'; season: number } | { type: 'series'; seasons: number[] },
+    maxBytes: number,
+    titleAliases: string[] = [],
+  ): SelectedRelease | null {
+    if (prefs.length === 0) return null;
+    const patterns = [showTitle, ...titleAliases]
+      .map((t) => showPattern(t ?? ''))
+      .filter((t) => t.length > 0);
+    if (patterns.length === 0) return null;
+    // Apply the prefs' QUALITY and term rules, but neutralise the episode-matching
+    // core (`smart_episode_match` never matches a season pack) and drop the
+    // single-episode size cap — the title/season are already anchored above, and the
+    // pack size cap is enforced separately.
+    const qualityPrefs = prefs.map((p) => ({ ...p, sizeRules: undefined, matchType: 'wildcard' as const, pattern: '*' }));
+    const scored: SelectedRelease[] = [];
+    for (const c of candidates) {
+      if (!c.downloadUrl) continue;
+      if (maxBytes > 0 && c.sizeBytes != null && c.sizeBytes > maxBytes) continue;
+      const pk = classifyPack(c.title);
+      if (target.type === 'season') {
+        if (pk.type !== 'season' || pk.season !== target.season) continue;
+      } else if (!seriesPackCovers(pk, target.seasons)) {
+        continue;
+      }
+      if (!patterns.some((p) => showTitleMatch(p, packTitleRegion(c.title)))) continue;
+      const res = evaluatePreferenceList(qualityPrefs, { title: c.title, sizeBytes: c.sizeBytes ?? null });
+      if (!res.matched) continue;
+      const matched = res.candidates.find((r) => r.result === 'matched');
+      scored.push({
+        candidate: c,
+        matchedPriority: res.matchedCandidatePriority ?? Number.MAX_SAFE_INTEGER,
+        reason: `matched pack “${matched?.name ?? 'preference'}”`,
+      });
+    }
     if (scored.length === 0) return null;
     const magnetRank = (c: IndexerCandidate) => (c.downloadUrl?.startsWith('magnet:') ? 0 : 1);
     scored.sort(
