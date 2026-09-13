@@ -30,8 +30,23 @@ interface SessionRow {
 /** A live session enriched with its server kind, terminability, and canonical subject. */
 type EnrichedSession = SessionRow & { kind: string; canTerminate: boolean; subject: MediaAnalyticsUser };
 
+/**
+ * A "content unit" — one continued viewing, which may span more than one session
+ * when a person hands the SAME title off to another device (Roku → phone). Those
+ * count as ONE stream, not two, so a device handoff never trips the limit.
+ */
+interface ContentUnit {
+  key: string;
+  sessions: EnrichedSession[];
+  /** When this content began — the earliest of its sessions, so a handoff does
+   *  not reset the viewing's age (used for oldest/newest victim selection). */
+  startedAt: Date;
+}
+
 /** One counted group: a person (possibly several linked subjects), optionally
- * scoped to a server, with its combined policy. `subject` is a representative. */
+ * scoped to a server, with its combined policy. `subject` is a representative.
+ * `units` collapses same-title sessions (device handoffs) — the count against the
+ * limit is `units.length`, not `counted.length`. */
 interface Group {
   subject: MediaAnalyticsUser;
   kind: string;
@@ -39,6 +54,7 @@ interface Group {
   eff: EffectivePolicy;
   sessions: EnrichedSession[];
   counted: EnrichedSession[];
+  units: ContentUnit[];
 }
 
 const INTERVAL_MS = 5_000;
@@ -112,7 +128,7 @@ export class StreamEnforcementService {
       // Only groups with an actual numeric limit can be over it.
       if (g.eff.exempt || g.eff.limit == null) continue;
       const key = `${g.subject.id}:${g.serverId ?? 'all'}`;
-      const overBy = g.counted.length - g.eff.limit;
+      const overBy = g.units.length - g.eff.limit;
       if (overBy <= 0) {
         this.pending.delete(key);
         continue;
@@ -130,7 +146,7 @@ export class StreamEnforcementService {
     // Warn/log actions never terminate — record the observation and (for warn)
     // tell the operator, then leave the streams alone.
     if (g.eff.action === 'warn' || g.eff.action === 'log') {
-      await this.record(g, limit, g.counted.length, g.eff.action, 'skipped', this.describeReason(g, 'soft action — not terminated'));
+      await this.record(g, limit, g.units.length, g.eff.action, 'skipped', this.describeReason(g, 'soft action — not terminated'));
       if (g.eff.action === 'warn') this.emitExceeded(g, limit);
       return;
     }
@@ -157,26 +173,32 @@ export class StreamEnforcementService {
         this.pending.delete(key);
         return;
       }
-      const stillOver = current.counted.length - (current.eff.limit as number);
+      const stillOver = current.units.length - (current.eff.limit as number);
       if (stillOver <= 0) {
         this.pending.delete(key);
         return;
       }
-      const victims = this.selectVictims(current.counted, current.eff.limit as number, current.eff.action);
+      const victims = this.selectVictims(current.units, current.eff.limit as number, current.eff.action);
       for (const v of victims) {
-        await this.terminate(current, v, current.eff.limit as number, current.counted.length);
+        await this.terminate(current, v, current.eff.limit as number, current.units.length);
       }
       this.pending.delete(key);
     });
   }
 
-  /** Choose exactly the excess sessions to stop, oldest preserved (newest) or vice versa. */
-  private selectVictims(counted: Group['counted'], limit: number, action: string): Group['counted'] {
-    const overBy = counted.length - limit;
+  /**
+   * Choose exactly the excess viewings to stop (oldest preserved for terminate_newest,
+   * newest preserved for terminate_oldest) and return every session behind them. A
+   * unit spanning devices (a handoff) is stopped on all its devices together — but a
+   * handoff is one unit, so it only stops when the person is genuinely over the limit
+   * on OTHER content.
+   */
+  private selectVictims(units: ContentUnit[], limit: number, action: string): EnrichedSession[] {
+    const overBy = units.length - limit;
     if (overBy <= 0) return [];
-    const byStart = [...counted].sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime());
-    // terminate_newest: keep the oldest `limit`, stop the newest excess.
-    return action === 'terminate_oldest' ? byStart.slice(0, overBy) : byStart.slice(byStart.length - overBy);
+    const byStart = [...units].sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime());
+    const chosen = action === 'terminate_oldest' ? byStart.slice(0, overBy) : byStart.slice(byStart.length - overBy);
+    return chosen.flatMap((u) => u.sessions);
   }
 
   private async terminate(g: Group, victim: Group['counted'][number], limit: number, observed: number): Promise<void> {
@@ -216,22 +238,23 @@ export class StreamEnforcementService {
    */
   private describeReason(g: Group, prefix?: string): string {
     const src = SOURCE_LABEL[g.eff.source] ?? g.eff.source;
-    const streams = g.sessions
-      .map((s) => {
-        const counted = g.counted.some((c) => c.id === s.id);
-        const where = s.client ?? s.device ?? 'device';
-        return `“${s.title}” (${where}, ${s.playbackState ?? 'unknown'}${counted ? '' : ', not counted'})`;
-      })
-      .join('; ');
-    const head = `${g.counted.length} of ${g.sessions.length} stream(s) counted against a limit of ${g.eff.limit} (${src}).`;
-    return `${prefix ? `${prefix} — ` : ''}${head} ${streams}`;
+    const units = g.units.map((u) => {
+      const where = u.sessions.map((s) => `${s.client ?? s.device ?? 'device'}, ${s.playbackState ?? 'unknown'}`).join(' + ');
+      const handoff = u.sessions.length > 1 ? ' [same title across devices → counted once]' : '';
+      return `“${u.sessions[0].title}” (${where})${handoff}`;
+    });
+    const excluded = g.sessions
+      .filter((s) => !g.counted.some((c) => c.id === s.id))
+      .map((s) => `“${s.title}” (${s.client ?? s.device ?? 'device'}, ${s.playbackState ?? 'unknown'}, not counted)`);
+    const head = `${g.units.length} distinct stream(s) counted against a limit of ${g.eff.limit} (${src}).`;
+    return `${prefix ? `${prefix} — ` : ''}${head} ${[...units, ...excluded].join('; ')}`;
   }
 
   private emitExceeded(g: Group, limit: number): void {
     this.realtime.broadcast('media_server.stream_limit.exceeded', {
       mediaAnalyticsUserId: g.subject.id,
       displayName: g.subject.displayName,
-      activeStreams: g.counted.length,
+      activeStreams: g.units.length,
       limit,
       serverId: g.serverId,
     });
@@ -342,10 +365,27 @@ export class StreamEnforcementService {
       for (const b of buckets) {
         const eff = b.serverId === null ? combinedAll : this.policy.combineEffective(members.map((m) => memberEff(m, b.serverId)));
         const counted = b.rows.filter((r) => this.isCountable(r, eff, now));
-        groups.push({ subject: members[0], kind: b.rows[0].kind, serverId: b.serverId, eff, sessions: b.rows, counted });
+        // Collapse a device handoff (the same title on more than one device) into
+        // one unit, so switching devices mid-stream is not counted as two.
+        const units: ContentUnit[] = [...groupBy(counted, (s) => this.contentKey(s)).entries()].map(([key, sessions]) => ({
+          key,
+          sessions,
+          startedAt: sessions.reduce((min, s) => (s.startedAt < min ? s.startedAt : min), sessions[0].startedAt),
+        }));
+        groups.push({ subject: members[0], kind: b.rows[0].kind, serverId: b.serverId, eff, sessions: b.rows, counted, units });
       }
     }
     return groups;
+  }
+
+  /**
+   * The content-identity of a session — same subject + same title is treated as one
+   * continued viewing across devices. Uses the title the media server reports; two
+   * devices playing the same episode carry the same title, so a handoff collapses,
+   * while genuinely different content stays separate.
+   */
+  private contentKey(s: SessionRow): string {
+    return (s.title ?? '').trim().toLowerCase();
   }
 
   private isCountable(row: SessionRow, eff: EffectivePolicy, now: number): boolean {
@@ -371,7 +411,7 @@ export class StreamEnforcementService {
     const sessionMap: Record<string, { activeStreams: number; limit: number | null; overLimit: boolean; exempt: boolean; canEnforce: boolean }> = {};
 
     for (const g of groups) {
-      const count = g.counted.length;
+      const count = g.units.length;
       const overLimit = g.eff.limit != null && count > g.eff.limit;
       subjects.push({
         mediaAnalyticsUserId: g.subject.id, displayName: g.subject.displayName, kind: g.kind,

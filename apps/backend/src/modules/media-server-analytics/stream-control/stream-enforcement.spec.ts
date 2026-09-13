@@ -58,7 +58,9 @@ const SETTINGS = (over: Partial<StreamControlSettings> = {}): StreamControlSetti
 
 const session = (over: any) => ({
   id: over.id, connectionId: over.connectionId ?? 'plex1', providerSessionId: over.providerSessionId ?? over.id,
-  providerUserId: over.providerUserId ?? '100', userName: over.userName ?? 'John', title: over.title ?? 'Movie',
+  // Distinct default title per session, so two sessions are two viewings unless a
+  // test deliberately shares a title (a device handoff — counted once).
+  providerUserId: over.providerUserId ?? '100', userName: over.userName ?? 'John', title: over.title ?? `Title-${over.id}`,
   device: 'Roku', client: 'Plex', ipAddress: '1.2.3.4', playbackState: over.playbackState ?? 'playing',
   startedAt: over.startedAt ?? new Date(), updatedAt: over.updatedAt ?? new Date(),
 });
@@ -161,6 +163,35 @@ describe('StreamEnforcementService.enforce', () => {
     });
     await svc.enforce(); // first pass only arms the grace — a just-paused/moved stream may not be reflected yet
     expect(terminate).not.toHaveBeenCalled();
+  });
+
+  it('treats the same title on two devices as ONE stream (device handoff, not over limit)', async () => {
+    const { svc, terminate } = build({
+      settings: SETTINGS({ defaultLimit: 1 }),
+      sessions: [
+        session({ id: 'roku', providerSessionId: 'sRoku', title: 'The Same Movie', startedAt: new Date('2026-01-01T18:00:00Z') }),
+        session({ id: 'phone', providerSessionId: 'sPhone', title: 'The Same Movie', startedAt: new Date('2026-01-01T18:05:00Z') }),
+      ],
+    });
+    await enforceAndAct(svc);
+    // One continued viewing across two devices → 1 counted → within the limit of 1.
+    expect(terminate).not.toHaveBeenCalled();
+  });
+
+  it('still stops the excess when the extra stream is DIFFERENT content', async () => {
+    const { svc, terminate } = build({
+      settings: SETTINGS({ defaultLimit: 1 }),
+      sessions: [
+        session({ id: 'roku', providerSessionId: 'sRoku', title: 'Movie A', startedAt: new Date('2026-01-01T18:00:00Z') }),
+        session({ id: 'phone', providerSessionId: 'sPhone', title: 'Movie A', startedAt: new Date('2026-01-01T18:05:00Z') }),
+        session({ id: 'tv', providerSessionId: 'sTv', title: 'Movie B', startedAt: new Date('2026-01-01T18:30:00Z') }),
+      ],
+    });
+    await enforceAndAct(svc);
+    // Two distinct viewings (A handed off across two devices = 1, plus B = 1) over a
+    // limit of 1 → the newest DIFFERENT content (Movie B) is stopped; the handoff is kept.
+    expect(terminate).toHaveBeenCalledTimes(1);
+    expect(terminate).toHaveBeenCalledWith('plex1', 'sTv', expect.anything());
   });
 
   it('records a reason with each stream’s playback state (diagnosable)', async () => {
