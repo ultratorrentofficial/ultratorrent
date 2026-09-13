@@ -45,6 +45,13 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.93.8] - 2026-09-13
+
+### Fixed
+- Stream Control: enforcement records a diagnosable reason (each stream's title/device/playback-state and whether it counted) surfaced as a collapsible reason in Enforcement History; and enforcement now waits at least one poll cycle before acting so a just-paused or just-handed-off stream settles in a fresh snapshot first (fixes an actively-watched stream being terminated because a stale/under-reported paused stream still counted).
+- Stream Control: a device handoff no longer counts as two streams — enforcement counts distinct content (same subject + same title across devices = one continued viewing), so switching devices mid-stream never trips the limit; genuinely different content still counts separately, and a selected over-limit viewing is stopped on all its devices.
+- Stream Control: raise the default enforcement grace period from 10s to 60s, so a transient over-limit (a pause registering, a device handoff whose old session is still winding down, a re-buffer) resolves before any termination.
+
 ## [0.93.7] - 2026-09-12
 
 ### Fixed
