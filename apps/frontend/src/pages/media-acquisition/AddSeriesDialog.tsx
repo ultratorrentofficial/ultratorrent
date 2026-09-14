@@ -1,7 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { PERMISSIONS } from '@ultratorrent/shared';
 import {
   ApiError,
   api,
@@ -9,13 +8,11 @@ import {
   type SeriesAcquisitionMode,
   type SeriesSearchHit,
 } from '@/lib/api';
-import { usePermission } from '@/auth/AuthContext';
 import { useToast } from '@/components/ui/toast';
 import { Dialog, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
 import { CenteredSpinner, EmptyState } from '@/components/ui/feedback';
 
 const MODES: SeriesAcquisitionMode[] = ['backfill_and_monitor', 'backfill_only', 'monitor_new_only'];
@@ -49,7 +46,6 @@ export function AddSeriesDialog({ open, onClose }: { open: boolean; onClose: () 
   const { t } = useTranslation('seriesAcquisition');
   const toast = useToast();
   const queryClient = useQueryClient();
-  const canOverride = usePermission(PERMISSIONS.MEDIA_ACQUISITION_OVERRIDE);
 
   const [term, setTerm] = useState('');
   const [year, setYear] = useState('');
@@ -57,7 +53,6 @@ export function AddSeriesDialog({ open, onClose }: { open: boolean; onClose: () 
   const [selected, setSelected] = useState<SeriesSearchHit | null>(null);
   const [mode, setMode] = useState<SeriesAcquisitionMode>('backfill_and_monitor');
   const [seasonsText, setSeasonsText] = useState('');
-  const [inactiveConfirm, setInactiveConfirm] = useState(false);
 
   const reset = () => {
     setTerm('');
@@ -66,7 +61,6 @@ export function AddSeriesDialog({ open, onClose }: { open: boolean; onClose: () 
     setSelected(null);
     setMode('backfill_and_monitor');
     setSeasonsText('');
-    setInactiveConfirm(false);
   };
   const close = () => {
     reset();
@@ -89,9 +83,8 @@ export function AddSeriesDialog({ open, onClose }: { open: boolean; onClose: () 
       externalIds: selected.externalIds,
       mode,
       seasons: parseSeasons(seasonsText),
-      allowInactiveShowMonitoring: inactiveConfirm || undefined,
     };
-  }, [selected, mode, seasonsText, inactiveConfirm, yearNum]);
+  }, [selected, mode, seasonsText, yearNum]);
 
   const plan = useQuery({
     queryKey: ['seriesAcquisition', 'plan', input],
@@ -114,12 +107,15 @@ export function AddSeriesDialog({ open, onClose }: { open: boolean; onClose: () 
 
   const manualHit = hitFromId(term);
   const p = plan.data;
-  const needsConfirm = p?.requiresInactiveConfirmation ?? false;
-  // Ready to provision: the plan says ready, OR the only blocker is the inactive
-  // confirmation and the operator (with permission) has ticked it.
-  const canProvision =
-    !!p &&
-    (p.ready || (needsConfirm && inactiveConfirm && canOverride && p.blockers.length <= 1));
+  // An ended/canceled show cannot be monitored — only backfilled. Once the plan
+  // reports the show inactive, restrict the choice to Backfill Only, and switch to
+  // it if a monitoring mode was selected.
+  const inactive = p?.showStatus?.inactive ?? false;
+  const availableModes = inactive ? (['backfill_only'] as SeriesAcquisitionMode[]) : MODES;
+  useEffect(() => {
+    if (inactive && mode !== 'backfill_only') setMode('backfill_only');
+  }, [inactive, mode]);
+  const canProvision = !!p && p.ready;
 
   return (
     <Dialog open={open} onClose={close} title={t('addSeries.title')}>
@@ -200,7 +196,7 @@ export function AddSeriesDialog({ open, onClose }: { open: boolean; onClose: () 
           <div>
             <label className="block text-sm font-medium">{t('addSeries.mode.label')}</label>
             <div className="mt-2 space-y-2">
-              {MODES.map((m) => (
+              {availableModes.map((m) => (
                 <button
                   type="button"
                   key={m}
@@ -246,13 +242,20 @@ export function AddSeriesDialog({ open, onClose }: { open: boolean; onClose: () 
             ) : p ? (
               <div className="mt-2 space-y-1 text-xs text-muted-foreground">
                 {p.template && <div>{t('addSeries.plan.template', { name: p.template.name })}</div>}
-                <div>{t('addSeries.plan.matchPreferences', { reason: p.readiness.reason })}</div>
+                {/* A monitoring add builds a rule from the template's match
+                    preferences; a Backfill-Only add grabs through the global
+                    Auto-Download preferences instead. */}
+                {p.willMonitor ? (
+                  <div>{t('addSeries.plan.matchPreferences', { reason: p.readiness.reason })}</div>
+                ) : (
+                  <div>{t('addSeries.plan.usesAutoDownload')}</div>
+                )}
                 <div>
                   {p.existing.watchlistItemId
                     ? t('addSeries.plan.existingLinked', { status: p.existing.status ?? '' })
                     : t('addSeries.plan.existingNew')}
                 </div>
-                <div>{p.willMonitor ? t('addSeries.plan.willMonitor') : t('addSeries.plan.noBackfill')}</div>
+                <div>{p.willMonitor ? t('addSeries.plan.willMonitor') : t('addSeries.plan.monitorOff')}</div>
                 {p.willBackfill && <div>{t('addSeries.plan.willBackfill')}</div>}
                 {p.showStatus && (
                   <div>
@@ -266,27 +269,15 @@ export function AddSeriesDialog({ open, onClose }: { open: boolean; onClose: () 
                   </div>
                 )}
 
-                {/* Ended/canceled show: warning + confirm */}
-                {needsConfirm && (
+                {/* Ended/canceled: monitoring is not offered — Backfill Only. */}
+                {inactive && (
                   <div className="mt-2 rounded-md border border-warning/30 bg-warning/10 p-2 text-warning">
-                    <div>{t('addSeries.inactive.warning')}</div>
-                    {canOverride ? (
-                      <label className="mt-2 flex cursor-pointer items-center gap-2">
-                        <Checkbox
-                          checked={inactiveConfirm}
-                          onCheckedChange={setInactiveConfirm}
-                          aria-label={t('addSeries.inactive.confirm')}
-                        />
-                        <span className="text-xs">{t('addSeries.inactive.confirm')}</span>
-                      </label>
-                    ) : (
-                      <div className="mt-1 text-xs">{t('addSeries.inactive.needsPermission')}</div>
-                    )}
+                    {t('addSeries.inactive.onlyBackfill')}
                   </div>
                 )}
 
-                {/* Remaining hard blockers (other than the inactive confirm) */}
-                {p.blockers.length > 0 && !(needsConfirm && p.blockers.length === 1) && (
+                {/* Hard blockers. */}
+                {p.blockers.length > 0 && (
                   <div className="mt-2 text-destructive">
                     <div>{t('addSeries.plan.blockers')}</div>
                     <ul className="ml-4 list-disc">

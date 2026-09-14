@@ -49,9 +49,10 @@
       "blockers": "Resuelve esto primero:",
       "willMonitor": "Mantendrá la regla de adquisición activa para los lanzamientos nuevos.",
       "willBackfill": "Iniciará una búsqueda del catálogo anterior.",
-      "noBackfill": "Sin búsqueda del catálogo anterior (solo nuevos).",
+      "monitorOff": "No monitoreará por lanzamientos nuevos.",
       "template": "Plantilla de adquisición: {{name}}",
       "matchPreferences": "Preferencias de coincidencia: {{reason}}",
+      "usesAutoDownload": "Usa tus preferencias de descarga automática para tomar los lanzamientos — no se crea ninguna regla ni preferencias de coincidencia.",
       "existingNew": "Todavía no está en tu lista — se creará una entrada nueva.",
       "existingLinked": "Ya está en tu lista ({{status}}) — se enlazará, no se duplicará.",
       "statusReturning": "Este programa aún está al aire.",
@@ -60,9 +61,7 @@
       "statusUnknown": "Estado de emisión desconocido."
     },
     "inactive": {
-      "warning": "Este programa ha terminado o fue cancelado. Monitorearlo por lanzamientos nuevos puede que nunca produzca nada.",
-      "confirm": "Sí, monitorear este programa terminado de todas formas.",
-      "needsPermission": "Monitorear un programa terminado requiere el permiso de anulación. Pídeselo a un administrador."
+      "onlyBackfill": "Este programa ha terminado o fue cancelado, así que no hay episodios nuevos que monitorear — solo se puede rellenar el catálogo."
     },
     "provision": {
       "button": "Añadir serie",

@@ -1,6 +1,5 @@
 import {
   IsArray,
-  IsBoolean,
   IsIn,
   IsInt,
   IsObject,
@@ -26,9 +25,6 @@ export class SeriesAcquisitionDto {
 
   /** Seasons to acquire; omit/empty = all. */
   @IsOptional() @IsArray() @IsInt({ each: true }) @Min(0, { each: true }) seasons?: number[];
-
-  /** Explicit confirmation to monitor an ended/canceled show. */
-  @IsOptional() @IsBoolean() allowInactiveShowMonitoring?: boolean;
 
   @IsOptional() @IsString() templateId?: string | null;
 

@@ -2,7 +2,6 @@ import {
   BadRequestException,
   Body,
   Controller,
-  ForbiddenException,
   Get,
   Param,
   Post,
@@ -12,7 +11,7 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { PERMISSIONS, SystemRole } from '@ultratorrent/shared';
+import { PERMISSIONS } from '@ultratorrent/shared';
 
 import { AuthenticatedUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -65,14 +64,9 @@ export class SeriesAcquisitionController {
   @Post('provision')
   @RequirePermissions(P.MEDIA_ACQUISITION_MANAGE_WATCHLIST)
   provision(@Body() dto: SeriesAcquisitionDto, @CurrentUser() u: AuthenticatedUser, @Req() req: Request) {
-    // Monitoring an ended/canceled show is a deliberate override and needs the
-    // override permission in addition to watchlist-management — a normal operator
-    // cannot commit the system to watching a show that will never air again.
-    if (dto.allowInactiveShowMonitoring && !this.holds(u, P.MEDIA_ACQUISITION_OVERRIDE)) {
-      throw new ForbiddenException(
-        `Monitoring an ended or canceled show requires the "${P.MEDIA_ACQUISITION_OVERRIDE}" permission.`,
-      );
-    }
+    // Monitoring an ended/canceled show is no longer offered — such a show can only
+    // be backfilled (enforced in the provisioning service), so there is no
+    // inactive-monitoring override to gate here.
     return this.provisioning.provisionSeriesAcquisition(dto, u?.id, reqAuditContext(req));
   }
 
@@ -98,10 +92,5 @@ export class SeriesAcquisitionController {
       case 'cancel':
         return { ok: await this.backfill.cancel(jobId) };
     }
-  }
-
-  private holds(u: AuthenticatedUser, permission: string): boolean {
-    if (u?.roles?.includes(SystemRole.SUPER_ADMIN)) return true;
-    return Boolean(u?.permissions?.includes(permission));
   }
 }

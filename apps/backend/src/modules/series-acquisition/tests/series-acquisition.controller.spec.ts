@@ -1,5 +1,5 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
-import { PERMISSIONS, SystemRole } from '@ultratorrent/shared';
+import { BadRequestException } from '@nestjs/common';
+import { PERMISSIONS } from '@ultratorrent/shared';
 
 import { SeriesAcquisitionController } from '../series-acquisition.controller';
 
@@ -28,38 +28,6 @@ describe('SeriesAcquisitionController', () => {
     await ctrl.provision(
       { title: 'Show', mode: 'backfill_and_monitor' } as any,
       user([PERMISSIONS.MEDIA_ACQUISITION_MANAGE_WATCHLIST]),
-      req,
-    );
-    expect(provisioning.provisionSeriesAcquisition).toHaveBeenCalled();
-  });
-
-  it('refuses to monitor an ended show without the override permission', async () => {
-    const { ctrl, provisioning } = make();
-    expect(() =>
-      ctrl.provision(
-        { title: 'Show', mode: 'backfill_and_monitor', allowInactiveShowMonitoring: true } as any,
-        user([PERMISSIONS.MEDIA_ACQUISITION_MANAGE_WATCHLIST]),
-        req,
-      ),
-    ).toThrow(ForbiddenException);
-    expect(provisioning.provisionSeriesAcquisition).not.toHaveBeenCalled();
-  });
-
-  it('allows the inactive-show override when the permission is held', async () => {
-    const { ctrl, provisioning } = make();
-    await ctrl.provision(
-      { title: 'Show', mode: 'backfill_and_monitor', allowInactiveShowMonitoring: true } as any,
-      user([PERMISSIONS.MEDIA_ACQUISITION_MANAGE_WATCHLIST, PERMISSIONS.MEDIA_ACQUISITION_OVERRIDE]),
-      req,
-    );
-    expect(provisioning.provisionSeriesAcquisition).toHaveBeenCalled();
-  });
-
-  it('super admin bypasses the override permission check', async () => {
-    const { ctrl, provisioning } = make();
-    await ctrl.provision(
-      { title: 'Show', mode: 'backfill_and_monitor', allowInactiveShowMonitoring: true } as any,
-      user([], [SystemRole.SUPER_ADMIN]),
       req,
     );
     expect(provisioning.provisionSeriesAcquisition).toHaveBeenCalled();

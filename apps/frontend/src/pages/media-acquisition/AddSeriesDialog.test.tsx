@@ -11,11 +11,6 @@ vi.mock('@/lib/api', () => ({
   api: { seriesAcquisition: { search: vi.fn(), plan: vi.fn(), provision: vi.fn() } },
 }));
 
-// Most tests run as an operator who holds the override permission; the
-// no-permission case overrides this per-test.
-let hasPermission = true;
-vi.mock('@/auth/AuthContext', () => ({ usePermission: () => hasPermission }));
-
 const hit = { provider: 'imdb', externalIds: { imdb: 'tt3230854' }, title: 'The Expanse', year: 2015 };
 
 const readyPlan = {
@@ -28,7 +23,6 @@ const readyPlan = {
   requestedSeasons: null,
   willMonitor: true,
   willBackfill: true,
-  requiresInactiveConfirmation: false,
   blockers: [],
   ready: true,
 };
@@ -46,7 +40,6 @@ function wrap() {
 describe('AddSeriesDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    hasPermission = true;
   });
 
   it('searches, selects, previews readiness, and provisions', async () => {
@@ -82,14 +75,31 @@ describe('AddSeriesDialog', () => {
     expect(body).toMatchObject({ title: 'The Expanse', mode: 'backfill_and_monitor', externalIds: { imdb: 'tt3230854' } });
   });
 
-  it('an ended show blocks provisioning until the override is confirmed', async () => {
+  it('an ended show offers only Backfill Only, and provisions as backfill_only', async () => {
     vi.mocked(api.seriesAcquisition.search).mockResolvedValue([hit] as never);
-    vi.mocked(api.seriesAcquisition.plan).mockResolvedValue({
-      ...readyPlan,
-      showStatus: { normalizedStatus: 'ended', inactive: true },
-      requiresInactiveConfirmation: true,
-      blockers: ['"The Expanse" has ended or been canceled — confirm monitoring for new releases before proceeding.'],
-      ready: false,
+    // Status is independent of the chosen mode: a monitoring mode is blocked, but
+    // Backfill Only is ready. The dialog auto-switches to backfill_only.
+    vi.mocked(api.seriesAcquisition.plan).mockImplementation((async (input: any) =>
+      input.mode === 'backfill_only'
+        ? {
+            ...readyPlan,
+            mode: 'backfill_only',
+            showStatus: { normalizedStatus: 'ended', inactive: true },
+            willMonitor: false,
+            willBackfill: true,
+            blockers: [],
+            ready: true,
+          }
+        : {
+            ...readyPlan,
+            showStatus: { normalizedStatus: 'ended', inactive: true },
+            willMonitor: true,
+            blockers: ['"The Expanse" has ended or been canceled — monitoring is not available; add it as Backfill Only.'],
+            ready: false,
+          }) as never);
+    vi.mocked(api.seriesAcquisition.provision).mockResolvedValue({
+      watchlistItemId: 'wl1', rssRuleId: null, ruleEnabled: false, alreadyExisted: false,
+      scan: null, excludedFromScope: 0, backfillJobId: 'job1', notes: [],
     } as never);
 
     wrap();
@@ -97,33 +107,14 @@ describe('AddSeriesDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
     fireEvent.click(await screen.findByText('The Expanse'));
 
-    // The ended-show warning + confirm checkbox are shown; provision is disabled.
-    await waitFor(() => expect(screen.getByText(/has ended or been canceled/i)).toBeInTheDocument());
-    expect(screen.getByRole('button', { name: 'Add series' })).toBeDisabled();
+    // The ended-show note is shown, and provisioning becomes available (as backfill_only).
+    await waitFor(() => expect(screen.getByText(/can only be backfilled/i)).toBeInTheDocument());
+    const provisionBtn = screen.getByRole('button', { name: 'Add series' });
+    await waitFor(() => expect(provisionBtn).not.toBeDisabled());
+    fireEvent.click(provisionBtn);
 
-    // Ticking the confirmation enables provisioning.
-    fireEvent.click(screen.getByLabelText(/monitor this ended show/i));
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Add series' })).not.toBeDisabled());
-  });
-
-  it('without the override permission, an ended show cannot be confirmed', async () => {
-    hasPermission = false;
-    vi.mocked(api.seriesAcquisition.search).mockResolvedValue([hit] as never);
-    vi.mocked(api.seriesAcquisition.plan).mockResolvedValue({
-      ...readyPlan,
-      showStatus: { normalizedStatus: 'ended', inactive: true },
-      requiresInactiveConfirmation: true,
-      blockers: ['ended'],
-      ready: false,
-    } as never);
-
-    wrap();
-    fireEvent.change(screen.getByPlaceholderText(/paste an IMDb/i), { target: { value: 'The Expanse' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
-    fireEvent.click(await screen.findByText('The Expanse'));
-
-    await waitFor(() => expect(screen.getByText(/requires the override permission/i)).toBeInTheDocument());
-    expect(screen.queryByLabelText(/monitor this ended show/i)).toBeNull();
-    expect(screen.getByRole('button', { name: 'Add series' })).toBeDisabled();
+    await waitFor(() => expect(api.seriesAcquisition.provision).toHaveBeenCalledTimes(1));
+    const body = vi.mocked(api.seriesAcquisition.provision).mock.calls[0][0];
+    expect(body).toMatchObject({ mode: 'backfill_only' });
   });
 });

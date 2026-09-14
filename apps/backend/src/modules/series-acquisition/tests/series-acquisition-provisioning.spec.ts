@@ -168,12 +168,25 @@ describe('SeriesAcquisitionProvisioningService', () => {
     expect(calls.backfillEnqueue).toHaveLength(1);
   });
 
-  it('backfill_only: rule disabled but a backfill still runs', async () => {
-    const { svc, calls } = harness({ scan: { missing: 4 } });
+  it('backfill_only: NO rule or match preferences created, but a backfill still runs', async () => {
+    const { svc, calls, rules } = harness({ scan: { missing: 4 } });
     const res = await svc.provisionSeriesAcquisition({ ...base, mode: 'backfill_only' });
+    // No monitoring → no RSS rule, no template match-prefs copy, no rule flip.
+    expect(rules.generate).not.toHaveBeenCalled();
+    expect(res.rssRuleId).toBeNull();
     expect(res.ruleEnabled).toBe(false);
-    expect(calls.rssRuleUpdateMany[0].data).toMatchObject({ isEnabled: false });
+    expect(calls.rssRuleUpdateMany).toHaveLength(0);
+    // The back-catalogue run still happens (it uses the global Auto-Download ladder).
     expect(res.backfillJobId).toBe('job1');
+  });
+
+  it('backfill_only does not require the template match preferences to be ready', async () => {
+    const { svc, rules } = harness({ readiness: { ready: false, reason: 'no enabled candidates' } });
+    const res = await svc.provisionSeriesAcquisition({ ...base, mode: 'backfill_only' });
+    // An unready template blocks a MONITORING add, but not a Backfill-Only one.
+    expect(rules.generate).not.toHaveBeenCalled();
+    expect(res.rssRuleId).toBeNull();
+    expect(res.watchlistItemId).toBe('wl1');
   });
 
   it('monitor_new_only: rule enabled, NO backfill, aired-missing marked out of scope', async () => {
@@ -196,31 +209,26 @@ describe('SeriesAcquisitionProvisioningService', () => {
     expect(calls.backfillEnqueue).toHaveLength(0);
   });
 
-  it('ended show + monitor without confirmation: plan flags it and provision refuses', async () => {
+  it('ended show + a monitoring mode: plan blocks it and provision refuses', async () => {
     const { svc } = harness({ status: 'ended' });
-    const plan = await svc.planSeriesAcquisition(base);
-    expect(plan.requiresInactiveConfirmation).toBe(true);
+    const plan = await svc.planSeriesAcquisition(base); // backfill_and_monitor
     expect(plan.ready).toBe(false);
+    expect(plan.blockers.some((b) => /ended or been canceled/i.test(b))).toBe(true);
     await expect(svc.provisionSeriesAcquisition(base)).rejects.toThrow(/ended or been canceled/i);
   });
 
-  it('ended show + confirmation: provisions and allows inactive monitoring on the rule', async () => {
-    const { svc, calls } = harness({ status: 'ended', scan: { missing: 2 } });
-    const res = await svc.provisionSeriesAcquisition({ ...base, allowInactiveShowMonitoring: true });
-    expect(res.ruleEnabled).toBe(true);
-    expect(calls.rssRuleUpdateMany[0].data).toMatchObject({
-      isEnabled: true,
-      allowInactiveShowMonitoring: true,
-    });
-    // The override is audited.
-    expect(calls.audit[0].metadata).toMatchObject({ inactiveShowOverride: true });
+  it('canceled show + monitor_new_only is refused too (monitoring an inactive show is not offered)', async () => {
+    const { svc } = harness({ status: 'canceled' });
+    await expect(
+      svc.provisionSeriesAcquisition({ ...base, mode: 'monitor_new_only' }),
+    ).rejects.toThrow(/ended or been canceled/i);
   });
 
-  it('ended show + backfill_only does NOT require confirmation (no monitoring)', async () => {
+  it('ended show + backfill_only is allowed (no monitoring involved)', async () => {
     const { svc } = harness({ status: 'canceled', scan: { missing: 2 } });
     const plan = await svc.planSeriesAcquisition({ ...base, mode: 'backfill_only' });
-    expect(plan.requiresInactiveConfirmation).toBe(false);
     expect(plan.ready).toBe(true);
+    expect(plan.willMonitor).toBe(false);
   });
 
   it('idempotent: an existing watchlist item is linked, not duplicated', async () => {
@@ -259,7 +267,8 @@ describe('SeriesAcquisitionProvisioningService', () => {
 
   it('a hand-edited rule is left as the operator set it', async () => {
     const { svc } = harness({ ruleStillOurs: false, scan: { missing: 1 } });
-    const res = await svc.provisionSeriesAcquisition({ ...base, mode: 'backfill_only' });
+    // A monitoring mode is what creates/touches the rule.
+    const res = await svc.provisionSeriesAcquisition(base); // backfill_and_monitor
     // updateMany matched nothing; the rule keeps its own enabled state (mocked true).
     expect(res.ruleEnabled).toBe(true);
     expect(res.notes.some((n) => /hand-edited/i.test(n))).toBe(true);

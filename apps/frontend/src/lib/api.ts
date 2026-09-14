@@ -3686,7 +3686,6 @@ export interface SeriesAcquisitionInput {
   mediaType?: string;
   mode: SeriesAcquisitionMode;
   seasons?: number[];
-  allowInactiveShowMonitoring?: boolean;
   templateId?: string | null;
   targetLibraryId?: string | null;
 }
@@ -3701,7 +3700,6 @@ export interface SeriesAcquisitionPlan {
   requestedSeasons: number[] | null;
   willMonitor: boolean;
   willBackfill: boolean;
-  requiresInactiveConfirmation: boolean;
   blockers: string[];
   ready: boolean;
 }

@@ -35,8 +35,6 @@ export interface SeriesAcquisitionInput {
   mode: SeriesAcquisitionMode;
   /** Seasons to acquire; omit or empty = every season. */
   seasons?: number[];
-  /** Explicit confirmation to monitor an ended/canceled show (audited). */
-  allowInactiveShowMonitoring?: boolean;
   /** Pin a specific discovery template carrier; else the default enabled one. */
   templateId?: string | null;
   /** Override the storage profile's target library for this media type. */
@@ -79,8 +77,6 @@ export interface SeriesAcquisitionPlan {
   willMonitor: boolean;
   /** This mode enqueues a back-catalogue job. */
   willBackfill: boolean;
-  /** Monitoring an ended/canceled show: needs `allowInactiveShowMonitoring`. */
-  requiresInactiveConfirmation: boolean;
   /** Reasons provisioning would refuse right now (empty = ready to act). */
   blockers: string[];
   ready: boolean;
@@ -163,11 +159,19 @@ export class SeriesAcquisitionProvisioningService {
         'No discovery template is configured with a feed and a storage profile, so there is nothing to build an acquisition rule from.',
       );
     }
-    if (!resolved.readiness.ready) throw new BadRequestException(resolved.readiness.reason);
-    if (plan.requiresInactiveConfirmation && !input.allowInactiveShowMonitoring) {
+    const inactive = resolved.showStatus?.inactive ?? false;
+    // Monitoring an ended/canceled show is not offered — there are no new episodes
+    // to catch. Such a show can only be backfilled.
+    if (plan.willMonitor && inactive) {
       throw new BadRequestException(
-        `"${input.title}" has ended or been canceled. Confirm monitoring it for new releases (allowInactiveShowMonitoring) — there may be none.`,
+        `"${input.title}" has ended or been canceled — monitoring for new releases is not available. Add it as Backfill Only.`,
       );
+    }
+    // The template's match preferences only gate a MONITORING rule. A Backfill-Only
+    // add grabs through the global Auto-Download preferences instead, so it does not
+    // need the template to carry a candidate ladder.
+    if (plan.willMonitor && !resolved.readiness.ready) {
+      throw new BadRequestException(resolved.readiness.reason);
     }
 
     const { media, template, profile } = resolved;
@@ -192,85 +196,92 @@ export class SeriesAcquisitionProvisioningService {
     const alreadyExisted = link.outcome !== 'created';
     if (link.note) notes.push(link.note);
 
-    // 2. Save path + rule (ensure), mirroring DiscoveryEvaluationService.act().
-    const pathTokens: PathTokens = {
-      title: media.title,
-      tvshow: media.title,
-      movie: null,
-      year: media.year,
-    };
-    const libraryPaths = [profile?.movieLibrary?.path, profile?.tvLibrary?.path].filter(
-      (p): p is string => Boolean(p),
-    );
-    let savePath: string | null = null;
-    if (profile && template.pathTemplate) {
-      try {
-        savePath = renderTargetPath({
-          stagingRoot: profile.stagingRoot,
-          pathTemplate: template.pathTemplate,
-          tokens: pathTokens,
-          libraryPaths,
-        });
-      } catch (err) {
-        notes.push(`Target path could not be built: ${(err as Error).message}`);
-      }
-    }
-
+    // Steps 2–4 build a MONITORING rule from the template — its match candidates,
+    // its save path, its staging directory, and its enabled state. A Backfill-Only
+    // add needs none of it: it has no new episodes to monitor, and the back-catalogue
+    // grab (step 7) searches through the global Auto-Download preferences and files
+    // into the show's library folder directly. So the RSS rule, the template match
+    // preferences and the intake directory are created ONLY when the mode monitors.
     let rssRuleId: string | null = null;
-    try {
-      const acquisition = template.acquisitionTemplateId
-        ? await this.prisma.acquisitionRuleTemplate.findUnique({
-            where: { id: template.acquisitionTemplateId },
-            include: { candidates: true },
-          })
-        : null;
-      const generated = await this.rules.generate(
-        { media, template: { id: template.id, rssFeedId: template.rssFeedId, storageProfileId: template.storageProfileId }, acquisition, savePath },
-        userId,
+    let ruleEnabled = false;
+    if (willMonitor) {
+      // 2. Save path + rule (ensure), mirroring DiscoveryEvaluationService.act().
+      const pathTokens: PathTokens = {
+        title: media.title,
+        tvshow: media.title,
+        movie: null,
+        year: media.year,
+      };
+      const libraryPaths = [profile?.movieLibrary?.path, profile?.tvLibrary?.path].filter(
+        (p): p is string => Boolean(p),
       );
-      rssRuleId = generated.ruleId;
-      if (generated.reason) notes.push(generated.reason);
-      if (generated.ruleId) {
-        await this.watchlist.linkOrCreate(media, { rssRuleId: generated.ruleId }, userId);
+      let savePath: string | null = null;
+      if (profile && template.pathTemplate) {
+        try {
+          savePath = renderTargetPath({
+            stagingRoot: profile.stagingRoot,
+            pathTemplate: template.pathTemplate,
+            tokens: pathTokens,
+            libraryPaths,
+          });
+        } catch (err) {
+          notes.push(`Target path could not be built: ${(err as Error).message}`);
+        }
       }
-    } catch (err) {
-      notes.push(`Rule generation failed: ${(err as Error).message}`);
-    }
 
-    // 3. Intake directory (ensure).
-    if (savePath && profile && template.pathTemplate) {
       try {
-        const provisioned = await this.intake.provision({
-          stagingRoot: profile.stagingRoot,
-          pathTemplate: template.pathTemplate,
-          tokens: pathTokens,
-          libraryPaths,
-        });
-        if (!provisioned.ok) notes.push(`Intake directory: ${provisioned.detail}`);
+        const acquisition = template.acquisitionTemplateId
+          ? await this.prisma.acquisitionRuleTemplate.findUnique({
+              where: { id: template.acquisitionTemplateId },
+              include: { candidates: true },
+            })
+          : null;
+        const generated = await this.rules.generate(
+          { media, template: { id: template.id, rssFeedId: template.rssFeedId, storageProfileId: template.storageProfileId }, acquisition, savePath },
+          userId,
+        );
+        rssRuleId = generated.ruleId;
+        if (generated.reason) notes.push(generated.reason);
+        if (generated.ruleId) {
+          await this.watchlist.linkOrCreate(media, { rssRuleId: generated.ruleId }, userId);
+        }
       } catch (err) {
-        notes.push(`Intake directory failed: ${(err as Error).message}`);
+        notes.push(`Rule generation failed: ${(err as Error).message}`);
       }
-    }
 
-    // 4. Mode → rule enablement. Only a rule that is still ours to touch (generated
-    //    by automation and never hand-edited) is flipped; an operator's own rule is
-    //    left exactly as they set it. When the operator confirmed monitoring an
-    //    ended/canceled show, the rule also carries `allowInactiveShowMonitoring` so
-    //    the RSS sweep does not skip it for being inactive — generate() never sets it.
-    const allowInactive = plan.requiresInactiveConfirmation && Boolean(input.allowInactiveShowMonitoring);
-    let ruleEnabled = willMonitor;
-    if (rssRuleId) {
-      const { count } = await this.prisma.rssRule.updateMany({
-        where: { id: rssRuleId, generatedByDiscovery: true, userModifiedAt: null },
-        data: { isEnabled: willMonitor, ...(allowInactive ? { allowInactiveShowMonitoring: true } : {}) },
-      });
-      if (!count) {
-        const current = await this.prisma.rssRule.findUnique({
-          where: { id: rssRuleId },
-          select: { isEnabled: true },
+      // 3. Intake directory (ensure).
+      if (savePath && profile && template.pathTemplate) {
+        try {
+          const provisioned = await this.intake.provision({
+            stagingRoot: profile.stagingRoot,
+            pathTemplate: template.pathTemplate,
+            tokens: pathTokens,
+            libraryPaths,
+          });
+          if (!provisioned.ok) notes.push(`Intake directory: ${provisioned.detail}`);
+        } catch (err) {
+          notes.push(`Intake directory failed: ${(err as Error).message}`);
+        }
+      }
+
+      // 4. Enable the rule. Only a rule still ours to touch (generated by automation
+      //    and never hand-edited) is flipped; an operator's own rule is left exactly
+      //    as they set it. Inactive shows never reach here — monitoring them is
+      //    refused above — so there is no inactive-monitoring flag to carry.
+      ruleEnabled = true;
+      if (rssRuleId) {
+        const { count } = await this.prisma.rssRule.updateMany({
+          where: { id: rssRuleId, generatedByDiscovery: true, userModifiedAt: null },
+          data: { isEnabled: true },
         });
-        ruleEnabled = current?.isEnabled ?? willMonitor;
-        notes.push('Existing hand-edited rule left as the operator set it.');
+        if (!count) {
+          const current = await this.prisma.rssRule.findUnique({
+            where: { id: rssRuleId },
+            select: { isEnabled: true },
+          });
+          ruleEnabled = current?.isEnabled ?? true;
+          notes.push('Existing hand-edited rule left as the operator set it.');
+        }
       }
     }
 
@@ -328,7 +339,7 @@ export class SeriesAcquisitionProvisioningService {
         missing: scan?.missing ?? null,
         excludedFromScope,
         backfillJobId,
-        inactiveShowOverride: Boolean(plan.requiresInactiveConfirmation && input.allowInactiveShowMonitoring),
+        ruleCreated: rssRuleId != null,
       },
     });
 
@@ -439,14 +450,18 @@ export class SeriesAcquisitionProvisioningService {
     const willMonitor = input.mode !== 'backfill_only';
     const willBackfill = input.mode !== 'monitor_new_only';
     const inactive = r.showStatus?.inactive ?? false;
-    const requiresInactiveConfirmation = willMonitor && inactive;
 
     const blockers: string[] = [];
     if (!r.template) blockers.push('No discovery template with a feed and a storage profile is configured.');
-    else if (!r.readiness.ready) blockers.push(r.readiness.reason);
-    if (requiresInactiveConfirmation && !input.allowInactiveShowMonitoring) {
+    // The template's match preferences gate only a MONITORING rule; Backfill-Only
+    // grabs through the global Auto-Download preferences, so an empty template
+    // candidate ladder does not block it.
+    else if (willMonitor && !r.readiness.ready) blockers.push(r.readiness.reason);
+    // Monitoring an ended/canceled show is not offered — there are no new episodes
+    // to catch, so such a show can only be backfilled.
+    if (willMonitor && inactive) {
       blockers.push(
-        `"${input.title}" has ended or been canceled — confirm monitoring for new releases before proceeding.`,
+        `"${input.title}" has ended or been canceled — monitoring is not available; add it as Backfill Only.`,
       );
     }
 
@@ -466,7 +481,6 @@ export class SeriesAcquisitionProvisioningService {
       requestedSeasons: r.requestedSeasons,
       willMonitor,
       willBackfill,
-      requiresInactiveConfirmation,
       blockers,
       ready: blockers.length === 0,
     };

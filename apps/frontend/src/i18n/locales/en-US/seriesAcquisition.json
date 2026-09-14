@@ -49,9 +49,10 @@
       "blockers": "Resolve these first:",
       "willMonitor": "Will keep the acquisition rule enabled for new releases.",
       "willBackfill": "Will start a back-catalogue search.",
-      "noBackfill": "No back-catalogue search (monitor-new-only).",
+      "monitorOff": "Won't monitor for new releases.",
       "template": "Acquisition template: {{name}}",
       "matchPreferences": "Match preferences: {{reason}}",
+      "usesAutoDownload": "Uses your Auto-Download preferences for grabbing — no rule or match preferences are created.",
       "existingNew": "Not yet on your watchlist — a new entry will be created.",
       "existingLinked": "Already on your watchlist ({{status}}) — it will be linked, not duplicated.",
       "statusReturning": "This show is still airing.",
@@ -60,9 +61,7 @@
       "statusUnknown": "Airing status unknown."
     },
     "inactive": {
-      "warning": "This show has ended or been canceled. Monitoring it for new releases may never produce anything.",
-      "confirm": "Yes, monitor this ended show anyway.",
-      "needsPermission": "Monitoring an ended show requires the override permission. Ask an administrator."
+      "onlyBackfill": "This show has ended or been canceled, so there are no new episodes to monitor — it can only be backfilled."
     },
     "provision": {
       "button": "Add series",
