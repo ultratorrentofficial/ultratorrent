@@ -157,11 +157,12 @@ function build(over: {
   const realtime = { broadcast: jest.fn() };
   const eventBus = { emit: jest.fn() };
   const registry = { getStatus: jest.fn(() => ({ enabled: over.enabled ?? true })) };
+  const bus = { publish: jest.fn(() => ({ published: true })) };
   const svc = new MissingEpisodeSearchService(
     prisma as any, indexers as any, evaluator as any, matchPrefs as any, acquisition as any,
-    audit as any, realtime as any, registry as any, profiles as any,
+    audit as any, realtime as any, registry as any, profiles as any, bus as any,
   );
-  return { svc, prisma, indexers, evaluator, matchPrefs, acquisition, audit, realtime, eventBus, updates, profiles };
+  return { svc, prisma, indexers, evaluator, matchPrefs, acquisition, audit, realtime, eventBus, updates, profiles, bus };
 }
 
 describe('MissingEpisodeSearchService.sweep — gating', () => {
@@ -927,5 +928,34 @@ describe('MissingEpisodeSearchService — degraded indexers', () => {
     });
     await svc.sweep();
     expect(evaluator.grabSelected).toHaveBeenCalled();
+  });
+});
+
+describe('MissingEpisodeSearchService — "not found at your preferences" digest', () => {
+  it('publishes one digest when a search finds no acceptable release', async () => {
+    // No candidates at all → no_results after exhausting the preference ladder.
+    const { svc, bus } = build({ candidates: [] });
+    const outcome = await svc.searchEpisode('w1', 'u9');
+    expect(outcome.searchStatus).toBe('no_results');
+    expect(bus.publish).toHaveBeenCalledTimes(1);
+    const env: any = (bus.publish as jest.Mock).mock.calls[0][0];
+    expect(env.eventKey).toBe('media_acquisition.missing_unavailable');
+    expect(env.resourceId).toBe('wl1');
+    expect(env.payload.count).toBe(1);
+    expect(env.payload.items[0].label).toContain('The Wire');
+  });
+
+  it('does NOT publish when a release is grabbed', async () => {
+    const { svc, bus } = build({ candidates: [cand()] });
+    const outcome = await svc.searchEpisode('w1');
+    expect(outcome.searchStatus).toBe('grabbed');
+    expect(bus.publish).not.toHaveBeenCalled();
+  });
+
+  it('suppresses the per-episode digest when the caller opts out (backfill path)', async () => {
+    const { svc, bus } = build({ candidates: [] });
+    const outcome = await svc.searchEpisode('w1', 'u9', { notifyOnNoMatch: false });
+    expect(outcome.searchStatus).toBe('no_results');
+    expect(bus.publish).not.toHaveBeenCalled();
   });
 });

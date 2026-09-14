@@ -232,11 +232,15 @@ export class SeriesBackfillService implements OnModuleInit {
         ...(input.seasons ? { seasonNumber: { in: input.seasons } } : {}),
       },
       orderBy: [{ seasonNumber: 'asc' }, { episodeNumber: 'asc' }],
-      select: { id: true },
+      select: { id: true, seasonNumber: true, episodeNumber: true },
     });
     const total = rows.length;
     summary.total = total;
+    const rowById = new Map(rows.map((r) => [r.id, r]));
     const queue = rows.map((r) => r.id).filter((id) => !done.has(id));
+    // Episodes this run could not find at any preference — emitted as ONE digest
+    // at the end (backfill suppresses per-episode notifications for this reason).
+    const unfound: string[] = [];
     let current = done.size;
     await ctx.progress({ current, total, unit: 'episodes', messageKey: 'jobs.seriesBackfill.phase' });
 
@@ -262,10 +266,10 @@ export class SeriesBackfillService implements OnModuleInit {
           summary.skipped += 1;
         } else {
           try {
-            const outcome = await this.search.searchEpisode(id, ctx.runAsUserId ?? undefined);
+            const outcome = await this.search.searchEpisode(id, ctx.runAsUserId ?? undefined, { notifyOnNoMatch: false });
             if (outcome.searchStatus === 'grabbed') summary.grabbed += 1;
             else if (outcome.searchStatus === 'pending_approval') summary.pendingApproval += 1;
-            else if (outcome.searchStatus === 'no_results') summary.noResults += 1;
+            else if (outcome.searchStatus === 'no_results') { summary.noResults += 1; unfound.push(id); }
             else if (outcome.searchStatus === 'failed') summary.failed += 1;
           } catch (err) {
             if (err instanceof JobPausedError || err instanceof JobCancelledError) throw err;
@@ -283,6 +287,20 @@ export class SeriesBackfillService implements OnModuleInit {
 
     await Promise.all(Array.from({ length: concurrency }, () => worker()));
     await ctx.saveCheckpoint({ doneIds: [...done] } satisfies BackfillCheckpoint);
+
+    // One "not found at your preferences" digest for the whole backfill run,
+    // named by the show. Pack-covered and grabbed episodes are not in `unfound`.
+    if (unfound.length) {
+      this.search.emitNoMatchDigest(
+        input.title,
+        input.watchlistItemId,
+        unfound.map((id) => {
+          const r = rowById.get(id);
+          return { showTitle: input.title, seasonNumber: r?.seasonNumber ?? undefined, episodeNumber: r?.episodeNumber ?? undefined };
+        }),
+        ctx.runAsUserId ?? undefined,
+      );
+    }
 
     this.realtime.broadcast('media_acquisition.series.backfill_completed', {
       watchlistItemId: input.watchlistItemId,

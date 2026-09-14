@@ -192,6 +192,12 @@
         "title": "Falló la actualización de un proveedor de descubrimiento",
         "description": "No se pudo actualizar el catálogo de un proveedor. Se conservó el catálogo anterior."
       }
+    },
+    "media_acquisition": {
+      "missing_unavailable": {
+        "title": "Episodios no encontrados según tus preferencias",
+        "description": "Una búsqueda de episodios faltantes terminó con episodios que ningún lanzamiento pudo satisfacer en ninguna preferencia de descarga automática. Resumido por ejecución de búsqueda."
+      }
     }
   },
   "inbox": {

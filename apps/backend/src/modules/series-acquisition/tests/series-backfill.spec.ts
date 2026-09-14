@@ -35,7 +35,7 @@ function fakeCtx(over: Partial<JobExecutionContext> = {}): JobExecutionContext {
 
 function harness(
   opts: {
-    rows?: Array<{ id: string; seasonNumber?: number }>;
+    rows?: Array<{ id: string; seasonNumber?: number; episodeNumber?: number }>;
     freshStatus?: Record<string, string>; // per-id status at re-read time
     outcomes?: Record<string, string>; // per-id searchStatus
     activeJob?: { id: string } | null;
@@ -76,6 +76,7 @@ function harness(
       wantedEpisodeId: id,
       searchStatus: opts.outcomes?.[id] ?? 'grabbed',
     })),
+    emitNoMatchDigest: jest.fn(),
   };
   const realtime: any = { broadcast: jest.fn() };
 
@@ -115,7 +116,7 @@ describe('SeriesBackfillService.execute', () => {
     });
     const { result } = await svc.execute(input, fakeCtx());
     expect(search.searchEpisode).toHaveBeenCalledTimes(1);
-    expect(search.searchEpisode).toHaveBeenCalledWith('e1', 'u1');
+    expect(search.searchEpisode).toHaveBeenCalledWith('e1', 'u1', { notifyOnNoMatch: false });
     expect(result).toMatchObject({ skipped: 1, grabbed: 1 });
   });
 
@@ -124,7 +125,7 @@ describe('SeriesBackfillService.execute', () => {
     const ctx = fakeCtx({ loadCheckpoint: jest.fn(async () => ({ doneIds: ['e1', 'e2'] })) as any });
     await svc.execute(input, ctx);
     expect(search.searchEpisode).toHaveBeenCalledTimes(1);
-    expect(search.searchEpisode).toHaveBeenCalledWith('e3', 'u1');
+    expect(search.searchEpisode).toHaveBeenCalledWith('e3', 'u1', { notifyOnNoMatch: false });
   });
 
   it('pauses at a safe boundary: checkpoints then throws JobPausedError', async () => {
@@ -204,7 +205,7 @@ describe('SeriesBackfillService pack pre-pass', () => {
     const { result } = await svc.execute(input, fakeCtx());
     expect(packs.trySeriesPack).not.toHaveBeenCalled(); // not every season fully missing
     expect(packs.trySeasonPack).toHaveBeenCalledWith(expect.anything(), 'tt100', 1, ['e1', 'e2'], 'u1');
-    expect(search.searchEpisode).toHaveBeenCalledWith('e4', 'u1');
+    expect(search.searchEpisode).toHaveBeenCalledWith('e4', 'u1', { notifyOnNoMatch: false });
     expect(result?.seasonPacksGrabbed).toBe(1);
   });
 
@@ -219,7 +220,7 @@ describe('SeriesBackfillService pack pre-pass', () => {
     await svc.execute(input, fakeCtx());
     expect(packs.trySeasonPack).not.toHaveBeenCalled();
     expect(packs.trySeriesPack).not.toHaveBeenCalled();
-    expect(search.searchEpisode).toHaveBeenCalledWith('e2', 'u1');
+    expect(search.searchEpisode).toHaveBeenCalledWith('e2', 'u1', { notifyOnNoMatch: false });
   });
 });
 
@@ -238,5 +239,35 @@ describe('SeriesBackfillService.enqueue', () => {
     expect(platformJobs.runDetached).toHaveBeenCalledTimes(1);
     const arg = platformJobs.runDetached.mock.calls[0][0];
     expect(arg.idempotencyKey).toBe('series-backfill:wl1');
+  });
+});
+
+describe('SeriesBackfillService — not-found digest', () => {
+  it('emits ONE run digest for the unfound episodes and suppresses per-episode notifications', async () => {
+    const { svc, search } = harness({
+      rows: [
+        { id: 'e1', seasonNumber: 1, episodeNumber: 1 },
+        { id: 'e2', seasonNumber: 1, episodeNumber: 2 },
+      ],
+      outcomes: { e1: 'no_results', e2: 'grabbed' },
+    });
+    await svc.execute(input, fakeCtx());
+    // Per-episode notifications are suppressed on the backfill path…
+    expect(search.searchEpisode).toHaveBeenCalledWith('e1', 'u1', { notifyOnNoMatch: false });
+    // …and the run emits a single digest naming only the unfound episode.
+    expect(search.emitNoMatchDigest).toHaveBeenCalledTimes(1);
+    const [title, watchlistItemId, episodes] = search.emitNoMatchDigest.mock.calls[0];
+    expect(title).toBe('Show');
+    expect(watchlistItemId).toBe('wl1');
+    expect(episodes).toEqual([{ showTitle: 'Show', seasonNumber: 1, episodeNumber: 1 }]);
+  });
+
+  it('emits no digest when every episode is grabbed', async () => {
+    const { svc, search } = harness({
+      rows: [{ id: 'e1', seasonNumber: 1, episodeNumber: 1 }],
+      outcomes: { e1: 'grabbed' },
+    });
+    await svc.execute(input, fakeCtx());
+    expect(search.emitNoMatchDigest).not.toHaveBeenCalled();
   });
 });

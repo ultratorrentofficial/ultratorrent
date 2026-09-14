@@ -192,6 +192,12 @@
         "title": "Discovery provider refresh failed",
         "description": "A provider's catalogue could not be refreshed. The previous catalogue was kept."
       }
+    },
+    "media_acquisition": {
+      "missing_unavailable": {
+        "title": "Episodes not found at your preferences",
+        "description": "A missing-episode search finished with episodes that no release could satisfy at any auto-download preference. Summarised per search run."
+      }
     }
   },
   "inbox": {

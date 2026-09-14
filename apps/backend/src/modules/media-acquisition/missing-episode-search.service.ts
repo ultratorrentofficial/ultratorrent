@@ -14,6 +14,8 @@ import { showFolderRoot } from '../media/media-renamer';
 import { showCanonicalKey } from '../media/series-grouping';
 import { normalize } from '../rss/match-engine';
 import { StorageProfileService } from '../media-intake/storage-profile.service';
+import { DOMAIN_EVENTS } from '@ultratorrent/shared';
+import { DomainEventBus } from '../domain-events/domain-event-bus.service';
 
 /** A rule in this mode stages its downloads for the intake pipeline. */
 const MANAGED_RSS_IMPORT_MODE = 'managed_intake';
@@ -38,7 +40,18 @@ export interface EpisodeSearchOutcome {
   searchStatus: WantedSearchStatus;
   releaseTitle?: string;
   evaluationId?: string;
+  // Set on a `no_results` outcome so a run can build the "not found at your
+  // preferences" digest without re-querying: which show, and which episode.
+  showTitle?: string;
+  seasonNumber?: number;
+  episodeNumber?: number;
 }
+
+/** Two-digit season/episode: "S03E07". */
+const pad2 = (n: number): string => String(n).padStart(2, '0');
+
+/** How many episode labels a single "not found" digest carries before "…and N more". */
+const MAX_DIGEST_EPISODES = 20;
 
 /**
  * The missing-episode auto-acquire bridge: for each `missing` WantedEpisode it
@@ -69,10 +82,48 @@ export class MissingEpisodeSearchService {
     private readonly realtime: RealtimeGateway,
     private readonly registry: ModuleRegistryService,
     private readonly profiles: StorageProfileService,
+    private readonly bus: DomainEventBus,
   ) {}
 
   private get enabled(): boolean {
     return this.registry.getStatus(MEDIA_ACQUISITION_MODULE_ID)?.enabled ?? false;
+  }
+
+  /**
+   * Publish ONE "not found at your preferences" digest for a search run — a sweep,
+   * a series search, or an Add-Series backfill — naming a sample of the episodes no
+   * release could satisfy at any auto-download tier. Per run, never per episode: a
+   * run that leaves fifty unfound is one notification. A six-hour dedupe window on
+   * the event (keyed by `resourceId`) collapses a scheduled sweep that keeps
+   * re-deriving the same gap.
+   *
+   * Public so the Add-Series backfill can emit its own run's digest through the
+   * same path rather than duplicating the payload shape.
+   */
+  emitNoMatchDigest(
+    contextLabel: string,
+    resourceId: string,
+    episodes: Array<Pick<EpisodeSearchOutcome, 'showTitle' | 'seasonNumber' | 'episodeNumber'>>,
+    userId?: string,
+  ): void {
+    if (episodes.length === 0) return;
+    const label = (e: Pick<EpisodeSearchOutcome, 'showTitle' | 'seasonNumber' | 'episodeNumber'>): string => {
+      const show = (e.showTitle ?? '').trim();
+      const code = e.seasonNumber != null && e.episodeNumber != null ? `S${pad2(e.seasonNumber)}E${pad2(e.episodeNumber)}` : '';
+      return [show, code].filter(Boolean).join(' ') || 'Unknown episode';
+    };
+    this.bus.publish({
+      eventKey: DOMAIN_EVENTS.MEDIA_ACQUISITION_MISSING_UNAVAILABLE,
+      actorUserId: userId,
+      resourceType: 'wanted_episode',
+      resourceId,
+      payload: {
+        context: contextLabel,
+        count: episodes.length,
+        items: episodes.slice(0, MAX_DIGEST_EPISODES).map((e) => ({ label: label(e) })),
+        omitted: Math.max(0, episodes.length - MAX_DIGEST_EPISODES),
+      },
+    });
   }
 
   /**
@@ -105,6 +156,7 @@ export class MissingEpisodeSearchService {
       });
 
       const summary = { scanned: 0, grabbed: 0, pendingApproval: 0, noResults: 0 };
+      const unfound: EpisodeSearchOutcome[] = [];
       for (const row of rows) {
         try {
           const outcome = await this.processEpisode(row, settings.missingSearchProfileId);
@@ -112,6 +164,9 @@ export class MissingEpisodeSearchService {
           if (outcome.searchStatus === 'grabbed') summary.grabbed += 1;
           else if (outcome.searchStatus === 'pending_approval') summary.pendingApproval += 1;
           else summary.noResults += 1;
+          // Strictly `no_results` — an indexer outage is `failed`, a transient
+          // "nothing could look", and must not be reported as unavailable.
+          if (outcome.searchStatus === 'no_results') unfound.push(outcome);
         } catch (err) {
           this.logger.warn(`Search failed for wanted episode ${row.id}: ${(err as Error).message}`);
           await this.setState(row.id, { searchStatus: 'failed', lastSearchedAt: new Date() });
@@ -120,20 +175,39 @@ export class MissingEpisodeSearchService {
       if (summary.scanned) {
         this.logger.log(`Missing-episode sweep: ${summary.scanned} searched, ${summary.grabbed} grabbed, ${summary.pendingApproval} pending approval`);
       }
+      // One digest for the whole sweep. No `context` — the sweep spans shows, so
+      // each item label carries its own show name and the dedupe window keeps a
+      // recurring gap from re-announcing every tick.
+      this.emitNoMatchDigest('', 'missing-episode-sweep', unfound);
       return summary;
     } finally {
       this.searching = false;
     }
   }
 
-  /** Manual: search one wanted episode now (bypasses the autoSearchMissing gate). */
-  async searchEpisode(wantedEpisodeId: string, userId?: string): Promise<EpisodeSearchOutcome> {
+  /**
+   * Manual: search one wanted episode now (bypasses the autoSearchMissing gate).
+   *
+   * A standalone search is a run of one, so a `no_results` outcome emits its own
+   * "not found at your preferences" digest. The Add-Series backfill calls this in a
+   * loop and passes `notifyOnNoMatch: false`, emitting ONE digest for its whole run
+   * instead — otherwise a 45-episode backfill would fire 45 notifications.
+   */
+  async searchEpisode(
+    wantedEpisodeId: string,
+    userId?: string,
+    opts?: { notifyOnNoMatch?: boolean },
+  ): Promise<EpisodeSearchOutcome> {
     if (!this.enabled) throw new BadRequestException('Media Acquisition module is disabled');
     const row = await this.prisma.wantedEpisode.findUnique({ where: { id: wantedEpisodeId } });
     if (!row) throw new NotFoundException('Wanted episode not found');
     if (row.status !== 'missing') throw new BadRequestException(`Episode is "${row.status}", not missing`);
     const settings = await this.acquisition.getSettings();
-    return this.processEpisode(row, settings.missingSearchProfileId, userId);
+    const outcome = await this.processEpisode(row, settings.missingSearchProfileId, userId);
+    if ((opts?.notifyOnNoMatch ?? true) && outcome.searchStatus === 'no_results') {
+      this.emitNoMatchDigest(outcome.showTitle ?? 'This show', row.watchlistItemId, [outcome], userId);
+    }
+    return outcome;
   }
 
   /** Manual: search every missing episode of one monitored series now. */
@@ -153,6 +227,12 @@ export class MissingEpisodeSearchService {
         await this.setState(row.id, { searchStatus: 'failed', lastSearchedAt: new Date() });
         results.push({ wantedEpisodeId: row.id, searchStatus: 'failed' });
       }
+    }
+    // One digest for the whole series run — every unfound episode of this show
+    // under a single heading, not one notification per gap.
+    const unfound = results.filter((r) => r.searchStatus === 'no_results');
+    if (unfound.length) {
+      this.emitNoMatchDigest(unfound[0].showTitle ?? 'This series', watchlistItemId, unfound, userId);
     }
     return { results };
   }
@@ -256,7 +336,7 @@ export class MissingEpisodeSearchService {
       // searchQueriesFor cannot return empty for a titled item, so this means the
       // item has no usable title at all.
       await this.setState(wanted.id, { searchStatus: 'no_results', lastSearchedAt: new Date() });
-      return { wantedEpisodeId: wanted.id, searchStatus: 'no_results' };
+      return { wantedEpisodeId: wanted.id, searchStatus: 'no_results', showTitle: item.title, seasonNumber: wanted.seasonNumber, episodeNumber: wanted.episodeNumber };
     }
     // Every indexer failing is NOT "no results" — it is "nothing could look", and
     // recording it as the former is a lie the operator acts on. Observed live: with
@@ -305,7 +385,7 @@ export class MissingEpisodeSearchService {
     if (!best) {
       // Nothing matched the preferences (e.g. everything over the size cap).
       await this.setState(wanted.id, { searchStatus: 'no_results', lastSearchedAt: new Date() });
-      return { wantedEpisodeId: wanted.id, searchStatus: 'no_results' };
+      return { wantedEpisodeId: wanted.id, searchStatus: 'no_results', showTitle: item.title, seasonNumber: wanted.seasonNumber, episodeNumber: wanted.episodeNumber };
     }
 
     const rel = best.candidate;

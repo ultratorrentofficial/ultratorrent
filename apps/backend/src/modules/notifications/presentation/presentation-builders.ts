@@ -703,6 +703,66 @@ function buildDiscoveryItems(payload: Record<string, unknown>, locale: Presentat
   return usable.length ? usable : null;
 }
 
+/* -------------------------------------------------------- media acquisition */
+
+/**
+ * A missing-episode search found no release matching the operator's preferences.
+ *
+ * A per-run digest, not one card per episode: `context` names the run (a show
+ * title, or "Scheduled search"), `count` is how many episodes had no acceptable
+ * release at any auto-download tier, and `items` carries the first handful as
+ * "Show SxxEyy" labels (with a trailing "…and N more" when the run overflowed the
+ * cap). The reader's next action is always the same — open Missing Episodes — so
+ * there is one action button.
+ */
+const buildAcquisition: PresentationBuilder = (ctx) => {
+  const { envelope, locale, timezone } = ctx;
+  const payload = (envelope.payload ?? {}) as Record<string, unknown>;
+  const count = num(payload, 'count') ?? 0;
+  if (count <= 0) return null; // nothing to report is not a notification
+
+  const context = str(payload, 'context');
+  const omitted = num(payload, 'omitted') ?? 0;
+
+  const raw = Array.isArray(payload.items) ? payload.items : [];
+  const items: PresentationItem[] = [];
+  for (const entry of raw) {
+    const label = str((entry ?? {}) as Record<string, unknown>, 'label');
+    if (label) items.push({ title: label, subtitle: null, synopsis: null, imageUrl: null, facts: [], note: null });
+  }
+  if (omitted > 0) {
+    items.push({ title: s('andMore', locale, { count: String(omitted) }), subtitle: null, synopsis: null, imageUrl: null, facts: [], note: null });
+  }
+
+  const facts: PresentationFact[] = [
+    ...(context ? [{ icon: 'library' as const, label: s('fieldSearch', locale), value: context }] : []),
+    { icon: 'clock' as const, label: s('fieldTime', locale), value: formatWhen(envelope.occurredAt, locale, timezone) },
+  ];
+
+  return {
+    version: PRESENTATION_VERSION,
+    eventKey: envelope.eventKey,
+    accent: 'warning',
+    icon: 'alert',
+    headline: {
+      lead: s('missingUnavailableLead', locale),
+      trail: s('missingUnavailableTrail', locale),
+    },
+    summary: {
+      text: s('missingUnavailableSummary', locale, { count: String(count) }),
+      emphasis: String(count),
+    },
+    avatar: null,
+    artwork: null,
+    facts,
+    progress: null,
+    status: null,
+    items: items.length ? items : null,
+    action: { label: s('viewMissingEpisodes', locale), href: '/media-acquisition/missing-episodes', icon: 'download' },
+    timestamp: envelope.occurredAt,
+  };
+};
+
 /* ---------------------------------------------------------- security/users */
 
 const buildSecurity: PresentationBuilder = (ctx) => {
@@ -796,6 +856,7 @@ const BUILDERS: Record<string, PresentationBuilder> = {
   workflow: buildWorkflow,
   provider: buildProvider,
   discovery: buildDiscovery,
+  acquisition: buildAcquisition,
   security: buildSecurity,
   user: buildUser,
 };

@@ -173,6 +173,16 @@ export const STRINGS = {
   } satisfies Copy,
   fieldTemplate: { 'en-US': 'Template', 'es-PR': 'Plantilla' } satisfies Copy,
   viewDiscover: { 'en-US': 'Open Discover', 'es-PR': 'Abrir Descubrir' } satisfies Copy,
+  // --- media acquisition (missing-episode search found nothing) -------------
+  missingUnavailableLead: { 'en-US': 'Missing Episodes', 'es-PR': 'Episodios faltantes' } satisfies Copy,
+  missingUnavailableTrail: { 'en-US': 'not found at your preferences', 'es-PR': 'no encontrados según tus preferencias' } satisfies Copy,
+  missingUnavailableSummary: {
+    'en-US': "{count} episode(s) couldn't be found matching your download preferences.",
+    'es-PR': 'No se pudo encontrar {count} episodio(s) que coincidan con tus preferencias de descarga.',
+  } satisfies Copy,
+  fieldSearch: { 'en-US': 'Search', 'es-PR': 'Búsqueda' } satisfies Copy,
+  andMore: { 'en-US': '…and {count} more', 'es-PR': '…y {count} más' } satisfies Copy,
+  viewMissingEpisodes: { 'en-US': 'Open Missing Episodes', 'es-PR': 'Abrir Episodios faltantes' } satisfies Copy,
   providerOfflineTrail: { 'en-US': 'Offline', 'es-PR': 'sin conexión' } satisfies Copy,
   providerRecoveredTrail: { 'en-US': 'Recovered', 'es-PR': 'recuperado' } satisfies Copy,
   refreshFailedTrail: { 'en-US': 'Refresh Failed', 'es-PR': 'actualización fallida' } satisfies Copy,

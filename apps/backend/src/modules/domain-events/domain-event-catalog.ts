@@ -218,6 +218,24 @@ const DEFINITIONS: readonly DomainEventDefinition[] = [
     deduplicationWindowSeconds: 21600,
   },
 
+  // --- Media Acquisition (missing-episode search) --------------------------
+  {
+    key: DOMAIN_EVENTS.MEDIA_ACQUISITION_MISSING_UNAVAILABLE,
+    description:
+      'A missing-episode search run left episodes that no release could satisfy at any auto-download preference. Summarised per run, naming a sample of the unfound episodes.',
+    // `count` is the whole fact; `context` (a show title) is present for a series
+    // run but absent for a cross-show sweep, where the item labels carry the names.
+    requiredFields: ['count'],
+    /*
+     * One digest per run, deduplicated for six hours. The scheduled sweep
+     * re-derives the same unfound set every tick (a release genuinely absent
+     * stays absent), so without a window a stuck episode would announce itself
+     * every few minutes. Six hours is long enough that an operator hears about a
+     * gap once and can act on it, matching the discovery review digest.
+     */
+    deduplicationWindowSeconds: 21600,
+  },
+
   // --- Storage -------------------------------------------------------------
   {
     key: DOMAIN_EVENTS.SYSTEM_STORAGE_WARNING,

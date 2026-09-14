@@ -108,6 +108,15 @@ export const DOMAIN_EVENTS = {
   /** A provider's catalogue refresh failed; its previous catalogue was kept. */
   MEDIA_DISCOVERY_PROVIDER_SYNC_FAILED: 'media_discovery.provider_sync_failed',
 
+  // --- Media Acquisition (missing-episode search) --------------------------
+  /**
+   * A missing-episode search run finished with episodes that no release could
+   * satisfy at any auto-download preference. Summarised per RUN — a scheduled
+   * sweep, a manual series search, or an Add-Series backfill — never one per
+   * episode, so a run that leaves fifty unfound is one notification, not fifty.
+   */
+  MEDIA_ACQUISITION_MISSING_UNAVAILABLE: 'media_acquisition.missing_unavailable',
+
   // --- Storage -------------------------------------------------------------
   SYSTEM_STORAGE_WARNING: 'system.storage_warning',
   SYSTEM_STORAGE_CRITICAL: 'system.storage_critical',

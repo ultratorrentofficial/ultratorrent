@@ -134,6 +134,22 @@ const DEFINITIONS: readonly NotificationEventDefinition[] = [
     presentationBuilder: 'provider',
   },
 
+  // --- Media Acquisition (missing-episode search) ---------------------------
+  // Filed under `downloads` like the discovery events: it is about media being
+  // acquired. Gated on the permission that opens Missing Episodes — the reader's
+  // action is to go and look at the gap it reports.
+  {
+    key: DOMAIN_EVENTS.MEDIA_ACQUISITION_MISSING_UNAVAILABLE,
+    category: 'downloads',
+    severity: 'warning',
+    titleKey: 'events.media_acquisition.missing_unavailable.title',
+    descriptionKey: 'events.media_acquisition.missing_unavailable.description',
+    defaultInApp: true,
+    recipientStrategy: 'permission_holders',
+    requiredPermission: PERMISSIONS.MEDIA_ACQUISITION_VIEW,
+    presentationBuilder: 'acquisition',
+  },
+
   {
     key: DOMAIN_EVENTS.MEDIA_SERVER_REFRESH_FAILED,
     category: 'providers',
