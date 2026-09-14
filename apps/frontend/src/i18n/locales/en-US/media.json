@@ -1673,8 +1673,10 @@
       "addFromLibrary": "Add from library"
     },
     "autoDownload": {
-      "intro": "Ranked auto-download preferences: the missing-episode sweep grabs the first release that matches (quality + size cap), top to bottom. Used when a show isn't linked to an RSS rule.",
+      "intro": "Ranked auto-download preferences: every missing-episode and pack search grabs the first release that matches (quality + size cap), walking this ladder top to bottom. Drag a preference by its handle (or use the arrows) to re-rank it without recreating it.",
       "add": "Add preference",
+      "moveUp": "Move “{{name}}” up",
+      "moveDown": "Move “{{name}}” down",
       "loading": "Loading preferences…",
       "error": "Could not load auto-download preferences.",
       "emptyTitle": "No preferences yet",

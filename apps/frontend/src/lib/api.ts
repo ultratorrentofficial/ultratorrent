@@ -5519,6 +5519,10 @@ export const api = {
     removeMatchPreference(id: string): Promise<void> {
       return request<void>(`/media-acquisition/match-preferences/${id}`, { method: 'DELETE' });
     },
+    /** Re-rank the global ladder in place: ids in the new top-to-bottom order. */
+    reorderMatchPreferences(orderedIds: string[]): Promise<AcquisitionMatchCandidate[]> {
+      return request<AcquisitionMatchCandidate[]>('/media-acquisition/match-preferences/reorder', { method: 'PATCH', body: { orderedIds } });
+    },
     /** POST /export → JSON blob; triggers a browser download. */
     async export(body: AcquisitionExportInput): Promise<void> {
       const token = getAccessToken();

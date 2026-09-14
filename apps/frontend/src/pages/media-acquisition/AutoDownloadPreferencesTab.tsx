@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { HardDriveDownload, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, GripVertical, HardDriveDownload, Plus, Trash2 } from 'lucide-react';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import { api, ApiError, type AcquisitionMatchCandidate, type MatchCandidateInput } from '@/lib/api';
 import { useAuth } from '@/auth/AuthContext';
@@ -14,6 +14,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
+import { cn } from '@/lib/utils';
 
 const QK = ['media-acquisition', 'match-preferences'];
 const MB = 1024 * 1024;
@@ -24,8 +25,12 @@ const textToTerms = (s: string) => s.split(',').map((x) => x.trim()).filter(Bool
 
 /**
  * Editor for the global auto-download match preferences — the ranked candidate
- * list (quality + size cap) the missing-episode sweep uses when a show isn't
- * linked to an RSS rule. Same model as RSS rule match candidates.
+ * ladder (quality + size cap) that drives EVERY missing-episode and pack auto-grab.
+ * Walked top-to-bottom: the sweep grabs the release matching the highest rung it
+ * satisfies, falling to the next rung when nothing qualifies. Rows can be re-ranked
+ * in place — drag by the grip handle, or use the up/down arrows (a drag-free path
+ * for keyboard/a11y) — with no delete-and-recreate. Mirrors the RSS rule match
+ * candidate list.
  */
 export function AutoDownloadPreferencesTab() {
   const { t } = useTranslation('media');
@@ -35,6 +40,8 @@ export function AutoDownloadPreferencesTab() {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<AcquisitionMatchCandidate | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
 
   const q = useQuery({ queryKey: QK, queryFn: () => api.mediaAcquisition.matchPreferences() });
   const items = q.data ?? [];
@@ -44,6 +51,52 @@ export function AutoDownloadPreferencesTab() {
     onSuccess: () => { toast.success(t('acquisition.autoDownload.toast.deleted')); queryClient.invalidateQueries({ queryKey: QK }); },
     onError: (e) => toast.error(t('acquisition.autoDownload.toast.saveFailed'), e instanceof ApiError ? e.message : undefined),
   });
+
+  // Persist a new order. Optimistic (like the RSS rule candidate list): renumber
+  // priorityOrder locally so the drop lands instantly, then reconcile with the
+  // server's echo — or roll back on error.
+  const persistReorder = async (orderedIds: string[]) => {
+    const previous = queryClient.getQueryData<AcquisitionMatchCandidate[]>(QK);
+    if (previous) {
+      const byId = new Map(previous.map((c) => [c.id, c]));
+      const optimistic = orderedIds
+        .map((id, idx) => { const c = byId.get(id); return c ? { ...c, priorityOrder: idx } : null; })
+        .filter((c): c is AcquisitionMatchCandidate => c != null);
+      queryClient.setQueryData(QK, optimistic);
+    }
+    try {
+      const updated = await api.mediaAcquisition.reorderMatchPreferences(orderedIds);
+      queryClient.setQueryData(QK, updated);
+    } catch (e) {
+      if (previous) queryClient.setQueryData(QK, previous);
+      toast.error(t('acquisition.autoDownload.toast.saveFailed'), e instanceof ApiError ? e.message : undefined);
+    }
+  };
+
+  // Move `fromId` to `toId`'s slot, preserving the rest of the order.
+  const reorderIds = (ids: string[], fromId: string, toId: string): string[] => {
+    const from = ids.indexOf(fromId);
+    const to = ids.indexOf(toId);
+    if (from < 0 || to < 0 || from === to) return ids;
+    const next = [...ids];
+    next.splice(from, 1);
+    next.splice(to, 0, fromId);
+    return next;
+  };
+
+  // Keyboard/click reorder (the up/down arrows) — a drag-free path for a11y.
+  const move = (index: number, dir: -1 | 1) => {
+    const j = index + dir;
+    if (j < 0 || j >= items.length) return;
+    void persistReorder(reorderIds(items.map((c) => c.id), items[index].id, items[j].id));
+  };
+
+  const handleDrop = (targetId: string) => {
+    if (!dragId || dragId === targetId) { setDragId(null); setOverId(null); return; }
+    void persistReorder(reorderIds(items.map((c) => c.id), dragId, targetId));
+    setDragId(null);
+    setOverId(null);
+  };
 
   return (
     <div className="space-y-4">
@@ -66,8 +119,32 @@ export function AutoDownloadPreferencesTab() {
             <EmptyState icon={<HardDriveDownload className="h-6 w-6" />} title={t('acquisition.autoDownload.emptyTitle')} description={t('acquisition.autoDownload.emptyBody')} />
           ) : (
             <ul className="divide-y divide-border/60">
-              {items.map((c) => (
-                <li key={c.id} className="flex items-start gap-3 px-4 py-3">
+              {items.map((c, i) => (
+                <li
+                  key={c.id}
+                  draggable={canManage}
+                  onDragStart={canManage ? (e) => { e.dataTransfer.effectAllowed = 'move'; setDragId(c.id); } : undefined}
+                  onDragEnter={canManage ? () => setOverId(c.id) : undefined}
+                  onDragOver={canManage ? (e) => e.preventDefault() : undefined}
+                  onDragEnd={canManage ? () => { setDragId(null); setOverId(null); } : undefined}
+                  onDrop={canManage ? (e) => { e.preventDefault(); handleDrop(c.id); } : undefined}
+                  className={cn(
+                    'flex items-start gap-3 px-4 py-3 transition-colors',
+                    dragId === c.id && 'opacity-40',
+                    overId === c.id && dragId !== c.id && 'bg-primary/5 ring-1 ring-inset ring-primary/40',
+                  )}
+                >
+                  {canManage && (
+                    <div className="mt-0.5 flex shrink-0 flex-col items-center">
+                      <span className="cursor-grab text-muted-foreground active:cursor-grabbing" aria-hidden><GripVertical className="h-4 w-4" /></span>
+                      <button type="button" onClick={() => move(i, -1)} disabled={i === 0} aria-label={t('acquisition.autoDownload.moveUp', { name: c.name })} className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30">
+                        <ChevronUp className="h-3.5 w-3.5" />
+                      </button>
+                      <button type="button" onClick={() => move(i, 1)} disabled={i === items.length - 1} aria-label={t('acquisition.autoDownload.moveDown', { name: c.name })} className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30">
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
                   <span className="mt-0.5 w-6 shrink-0 text-center text-xs tabular-nums text-muted-foreground">#{c.priorityOrder}</span>
                   <div className="min-w-0 flex-1">
                     <p className="flex items-center gap-2 text-sm font-medium">

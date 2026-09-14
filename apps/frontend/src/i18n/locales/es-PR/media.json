@@ -1673,8 +1673,10 @@
       "addFromLibrary": "Agregar desde la biblioteca"
     },
     "autoDownload": {
-      "intro": "Preferencias de descarga automática por orden: el barrido de episodios faltantes toma el primer lanzamiento que coincida (calidad + límite de tamaño), de arriba hacia abajo. Se usa cuando un programa no está vinculado a una regla RSS.",
+      "intro": "Preferencias de descarga automática por orden: cada búsqueda de episodios faltantes y de paquetes toma el primer lanzamiento que coincida (calidad + límite de tamaño), recorriendo esta lista de arriba hacia abajo. Arrastra una preferencia por su manija (o usa las flechas) para reordenarla sin volver a crearla.",
       "add": "Agregar preferencia",
+      "moveUp": "Subir «{{name}}»",
+      "moveDown": "Bajar «{{name}}»",
       "loading": "Cargando preferencias…",
       "error": "No se pudieron cargar las preferencias de descarga automática.",
       "emptyTitle": "Aún no hay preferencias",

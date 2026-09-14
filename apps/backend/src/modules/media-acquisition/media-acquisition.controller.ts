@@ -24,6 +24,7 @@ import {
   CreateAcquisitionProfileDto,
   CreateMatchCandidateDto,
   UpdateMatchCandidateDto,
+  ReorderMatchCandidatesDto,
   BulkAddWatchlistDto,
   CreateWatchlistItemDto,
   EvaluateReleaseDto,
@@ -138,9 +139,10 @@ export class MediaAcquisitionController {
     return this.profiles.remove(id, u?.id);
   }
 
-  // --- auto-download match preferences (global defaults) ------------------
-  // The ranked candidate list (quality + size cap) the missing-episode sweep
-  // uses when a show isn't linked to an RSS rule. Same model as RSS rules.
+  // --- auto-download match preferences (global ladder) --------------------
+  // The ranked candidate list (quality + size cap) that drives EVERY
+  // missing-episode and pack auto-grab — the operator's single source of truth
+  // for preferred quality, walked top-to-bottom. Same model as RSS rules.
   @Get('match-preferences')
   @RequirePermissions(P.MEDIA_ACQUISITION_VIEW)
   listMatchPreferences() {
@@ -150,6 +152,12 @@ export class MediaAcquisitionController {
   @RequirePermissions(P.MEDIA_ACQUISITION_MANAGE_PROFILES)
   createMatchPreference(@Body() dto: CreateMatchCandidateDto) {
     return this.matchPrefs.create(dto as never);
+  }
+  // Declared BEFORE `:id` so "reorder" is not captured as an id by the route below.
+  @Patch('match-preferences/reorder')
+  @RequirePermissions(P.MEDIA_ACQUISITION_MANAGE_PROFILES)
+  reorderMatchPreferences(@Body() dto: ReorderMatchCandidatesDto) {
+    return this.matchPrefs.reorder(dto.orderedIds);
   }
   @Patch('match-preferences/:id')
   @RequirePermissions(P.MEDIA_ACQUISITION_MANAGE_PROFILES)

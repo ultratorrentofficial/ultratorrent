@@ -55,6 +55,11 @@ export class CreateMatchCandidateDto {
 }
 export class UpdateMatchCandidateDto extends PartialType(CreateMatchCandidateDto) {}
 
+/** Re-rank the global ladder: the ids in the new top-to-bottom order. */
+export class ReorderMatchCandidatesDto {
+  @IsArray() @IsString({ each: true }) orderedIds!: string[];
+}
+
 export class BulkAddSeriesItemDto {
   @IsString() @MinLength(1) @MaxLength(300) title!: string;
   @IsOptional() @IsInt() year?: number | null;

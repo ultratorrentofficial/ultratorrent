@@ -194,20 +194,35 @@ export class AcquisitionMatchPreferenceService implements OnModuleInit {
   }
 
   /**
-   * Resolve the preference list for a monitored show. RSS match-preference
-   * filters win when the show has any — by explicit `rssRuleId` link, else by an
-   * RSS rule whose **name matches the show title** (the common case: the rule
-   * exists but was never wired to the watchlist item). Falls back to the
-   * auto-download profiles, then to the global defaults.
+   * Resolve the preference list for a monitored show.
+   *
+   * The GLOBAL ordered ladder (the Auto-Download Preferences list) is the primary
+   * source of truth for auto-grab quality: one ranked list, applied to every
+   * missing-episode and pack grab regardless of whether the show has an RSS rule.
+   * This is the operator's single place to say "1080p x265 ≤1 GB, else 1080p x264
+   * ≤1 GB, else 720p x265 ≤500 MB, else 720p x264, else HDTV" — and
+   * {@link evaluatePreferenceList} walks it top-to-bottom, grabbing the release that
+   * matches the highest rung it satisfies.
+   *
+   * The show's RSS rule and the per-media-type profiles are consulted ONLY as a
+   * fallback when the global ladder is empty (an install that has cleared it), so a
+   * fresh or mis-configured system still functions rather than grabbing nothing.
+   *
+   * Show identity and the save path are resolved elsewhere (see
+   * {@link select} and MissingEpisodeSearchService.resolveSavePath) and are
+   * unaffected by this precedence — a show's RSS rule still governs where its files
+   * land, only no longer which quality tier is preferred.
    */
   async resolveCandidates(item: MediaAcquisitionWatchlistItem): Promise<MatchCandidateInput[]> {
+    const ladder = await this.defaults();
+    if (ladder.length) return ladder;
+
+    // No global ladder configured — fall back to the show's own RSS candidates,
+    // then its profiles, so grabbing still works on an install with an empty ladder.
     const rss = await this.rssCandidates(item);
     if (rss.length) return rss;
 
-    const profiles = await this.profileCandidates(item);
-    if (profiles.length) return profiles;
-
-    return this.defaults();
+    return this.profileCandidates(item);
   }
 
   /**
@@ -443,6 +458,22 @@ export class AcquisitionMatchPreferenceService implements OnModuleInit {
   async remove(id: string) {
     await this.prisma.acquisitionMatchCandidate.delete({ where: { id } });
     return { id, deleted: true };
+  }
+
+  /**
+   * Persist a new ranking for the global ladder: each row's `priorityOrder` becomes
+   * its position in `orderedIds`. This lets the operator re-rank by moving rows up or
+   * down without deleting and recreating entries. Callers pass the FULL id list in
+   * the desired order; a single `$transaction` renumbers them atomically so the list
+   * is never briefly seen with two rows sharing a priority.
+   */
+  async reorder(orderedIds: string[]): Promise<AcquisitionMatchCandidate[]> {
+    await this.prisma.$transaction(
+      orderedIds.map((id, index) =>
+        this.prisma.acquisitionMatchCandidate.update({ where: { id }, data: { priorityOrder: index } }),
+      ),
+    );
+    return this.list();
   }
 
   /**

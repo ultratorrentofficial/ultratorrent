@@ -230,21 +230,45 @@ describe('AcquisitionMatchPreferenceService.resolveCandidates', () => {
     return { svc: new AcquisitionMatchPreferenceService(prisma as any), prisma };
   }
 
+  // An install whose operator has cleared the global ladder. RSS/profiles are the
+  // fallback ONLY in this state; a non-empty ladder always wins (see below).
+  const emptyLadder = { acquisitionMatchCandidate: { findMany: jest.fn(async () => [] as any[]) } };
+
   const item = (over: Record<string, any> = {}) =>
     ({ type: 'series', title: 'The Show', rssRuleId: null, ...over }) as any;
 
-  it('uses the linked RSS rule’s candidates when the show has an rssRuleId', async () => {
-    const { svc, prisma } = withPrisma();
+  it('uses the global ladder for every show, ignoring the RSS rule', async () => {
+    // The operator's choice: the ordered Auto-Download Preferences ladder is the
+    // single source of truth for auto-grab quality. Even a show explicitly linked to
+    // an RSS rule (with its own 2160p candidate) grabs by the global ladder (1080p).
+    const { svc } = withPrisma();
+    const prefs = await svc.resolveCandidates(item({ rssRuleId: 'rule-1' }));
+    expect(prefs).toHaveLength(1);
+    expect(prefs[0].qualityRules?.resolution).toBe('1080p'); // the global ladder, not the rule's 2160p
+  });
+
+  it('uses the global ladder even when a rule named after the show exists', async () => {
+    const { svc, prisma } = withPrisma({
+      rssRule: { findMany: jest.fn(async () => [{ id: 'rule-byname', name: 'the show' }]) },
+      mediaAcquisitionProfile: { findMany: jest.fn(async () => [profile1080]) },
+    });
+    const prefs = await svc.resolveCandidates(item());
+    expect(prefs[0].qualityRules?.resolution).toBe('1080p'); // the ladder
+    // The ladder short-circuits: neither the RSS rule nor the profiles are consulted.
+    expect(prisma.rssRuleMatchCandidate.findMany).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the linked RSS rule’s candidates when the ladder is empty', async () => {
+    const { svc, prisma } = withPrisma(emptyLadder);
     const prefs = await svc.resolveCandidates(item({ rssRuleId: 'rule-1' }));
     expect(prisma.rssRuleMatchCandidate.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { rssRuleId: 'rule-1', enabled: true } }));
     expect(prefs).toHaveLength(1);
     expect(prefs[0].qualityRules?.resolution).toBe('2160p'); // came from the RSS rule
   });
 
-  it('finds the RSS rule by name when the show is not explicitly linked', async () => {
-    // The common case: a rule named after the show exists, but the watchlist item
-    // was never wired to it. Its filters must still win over the profiles.
+  it('falls back to an RSS rule found by name when the ladder is empty', async () => {
     const { svc } = withPrisma({
+      ...emptyLadder,
       rssRule: { findMany: jest.fn(async () => [{ id: 'rule-byname', name: 'the show' }]) },
       mediaAcquisitionProfile: { findMany: jest.fn(async () => [profile1080]) },
     });
@@ -253,8 +277,9 @@ describe('AcquisitionMatchPreferenceService.resolveCandidates', () => {
     expect(prefs[0].qualityRules?.resolution).toBe('2160p'); // the RSS rule, not the profile
   });
 
-  it('falls back to the auto-download profiles, ranked 1080p before 720p', async () => {
+  it('falls back to the auto-download profiles (ladder empty), ranked 1080p before 720p', async () => {
     const { svc } = withPrisma({
+      ...emptyLadder,
       mediaAcquisitionProfile: { findMany: jest.fn(async () => [profile720, profile1080]) },
     });
     const prefs = await svc.resolveCandidates(item());
@@ -262,10 +287,10 @@ describe('AcquisitionMatchPreferenceService.resolveCandidates', () => {
     expect(prefs.map((p) => p.priorityOrder)).toEqual([0, 1]);
   });
 
-  it('carries the profile’s required and excluded terms into the preference tier', async () => {
-    // This is the regression: "10bit" was configured on the profile but consulted
-    // by nothing, so a 10bit release could be grabbed anyway.
+  it('carries a fallback profile’s required and excluded terms into the tier', async () => {
+    // With the ladder empty, the profile fallback must still honour "10bit" excludes.
     const { svc } = withPrisma({
+      ...emptyLadder,
       mediaAcquisitionProfile: { findMany: jest.fn(async () => [profile1080]) },
     });
     const [tier] = await svc.resolveCandidates(item());
@@ -274,8 +299,9 @@ describe('AcquisitionMatchPreferenceService.resolveCandidates', () => {
     expect(tier.qualityRules?.codec).toBe('x265');
   });
 
-  it('a profile tier actually rejects the 10bit release it excludes', async () => {
+  it('a fallback profile tier actually rejects the 10bit release it excludes', async () => {
     const { svc } = withPrisma({
+      ...emptyLadder,
       mediaAcquisitionProfile: { findMany: jest.fn(async () => [profile1080]) },
     });
     const prefs = await svc.resolveCandidates(item({ title: 'House of the Dragon' }));
@@ -285,14 +311,15 @@ describe('AcquisitionMatchPreferenceService.resolveCandidates', () => {
     expect(svc.select([tenBit, clean], prefs, 'House of the Dragon', 1, 4)!.candidate.downloadUrl).toBe('magnet:clean');
   });
 
-  it('falls back to the global defaults when there is no rule and no profile', async () => {
-    const { svc } = withPrisma();
+  it('returns nothing when the ladder is empty and there is no rule and no profile', async () => {
+    const { svc } = withPrisma(emptyLadder);
     const prefs = await svc.resolveCandidates(item());
-    expect(prefs[0].qualityRules?.resolution).toBe('1080p'); // the default
+    expect(prefs).toEqual([]);
   });
 
-  it('falls back past a linked rule that has no enabled candidates', async () => {
+  it('falls back past a linked rule with no candidates to the profiles (ladder empty)', async () => {
     const { svc } = withPrisma({
+      ...emptyLadder,
       rssRuleMatchCandidate: { findMany: jest.fn(async () => []) },
       mediaAcquisitionProfile: { findMany: jest.fn(async () => [profile1080]) },
     });
@@ -300,13 +327,34 @@ describe('AcquisitionMatchPreferenceService.resolveCandidates', () => {
     expect(prefs[0].name).toBe('TV 1080p (auto-grab)'); // the profile, not the rule
   });
 
-  it('looks up movie profiles for a movie watchlist item', async () => {
+  it('looks up movie profiles for a movie item when falling back (ladder empty)', async () => {
     const findMany = jest.fn(async () => [] as any[]);
-    const { svc } = withPrisma({ mediaAcquisitionProfile: { findMany } });
+    const { svc } = withPrisma({ ...emptyLadder, mediaAcquisitionProfile: { findMany } });
     await svc.resolveCandidates(item({ type: 'movie' }));
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { enabled: true, mediaType: { in: ['movie', 'any'] } } }),
     );
+  });
+});
+
+describe('AcquisitionMatchPreferenceService.reorder', () => {
+  it('renumbers priorityOrder by position, atomically, and returns the new list', async () => {
+    const update = jest.fn(async () => ({}));
+    const list = [{ id: 'b' }, { id: 'a' }, { id: 'c' }];
+    const prisma = {
+      $transaction: jest.fn(async (ops: unknown[]) => Promise.all(ops as Promise<unknown>[])),
+      acquisitionMatchCandidate: {
+        update,
+        findMany: jest.fn(async () => list),
+      },
+    };
+    const svc = new AcquisitionMatchPreferenceService(prisma as any);
+    const res = await svc.reorder(['b', 'a', 'c']);
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenNthCalledWith(1, { where: { id: 'b' }, data: { priorityOrder: 0 } });
+    expect(update).toHaveBeenNthCalledWith(2, { where: { id: 'a' }, data: { priorityOrder: 1 } });
+    expect(update).toHaveBeenNthCalledWith(3, { where: { id: 'c' }, data: { priorityOrder: 2 } });
+    expect(res).toBe(list);
   });
 });
 
