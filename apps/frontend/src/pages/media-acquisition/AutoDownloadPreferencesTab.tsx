@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronDown, ChevronUp, GripVertical, HardDriveDownload, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Copy, GripVertical, HardDriveDownload, Plus, Trash2 } from 'lucide-react';
 import { PERMISSIONS } from '@ultratorrent/shared';
 import { api, ApiError, type AcquisitionMatchCandidate, type MatchCandidateInput } from '@/lib/api';
 import { useAuth } from '@/auth/AuthContext';
@@ -39,6 +39,7 @@ export function AutoDownloadPreferencesTab() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<AcquisitionMatchCandidate | null>(null);
+  const [duplicating, setDuplicating] = useState<AcquisitionMatchCandidate | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -163,6 +164,9 @@ export function AutoDownloadPreferencesTab() {
                   {canManage && (
                     <div className="flex items-center gap-1">
                       <Button size="sm" variant="outline" onClick={() => setEditing(c)}>{t('acquisition.common.edit')}</Button>
+                      <button type="button" onClick={() => setDuplicating(c)} aria-label={t('acquisition.autoDownload.duplicateName', { name: c.name })} title={t('acquisition.autoDownload.duplicate')} className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+                        <Copy className="h-4 w-4" />
+                      </button>
                       <button type="button" onClick={() => { if (window.confirm(t('acquisition.autoDownload.confirmDelete', { name: c.name }))) removeMutation.mutate(c.id); }} aria-label={t('acquisition.common.deleteName', { name: c.name })} className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive">
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -177,6 +181,7 @@ export function AutoDownloadPreferencesTab() {
 
       {showAdd && <CandidateDialog onClose={() => setShowAdd(false)} nextPriority={items.length} />}
       {editing && <CandidateDialog candidate={editing} onClose={() => setEditing(null)} nextPriority={items.length} />}
+      {duplicating && <CandidateDialog duplicateFrom={duplicating} onClose={() => setDuplicating(null)} nextPriority={items.length} />}
     </div>
   );
 }
@@ -185,23 +190,27 @@ const RESOLUTIONS = ['', '2160p', '1080p', '720p', '480p'];
 const CODECS = ['', 'x265', 'x264'];
 const SOURCES = ['', 'web-dl', 'webrip', 'bluray', 'hdtv'];
 
-function CandidateDialog({ candidate, onClose, nextPriority }: { candidate?: AcquisitionMatchCandidate; onClose: () => void; nextPriority: number }) {
+function CandidateDialog({ candidate, duplicateFrom, onClose, nextPriority }: { candidate?: AcquisitionMatchCandidate; duplicateFrom?: AcquisitionMatchCandidate; onClose: () => void; nextPriority: number }) {
   const { t } = useTranslation('media');
   const toast = useToast();
   const queryClient = useQueryClient();
   const isEdit = Boolean(candidate);
+  // Values to prefill from: the edited row, or the row being duplicated. A
+  // duplicate saves as a NEW entry (no `candidate`), so it appends at the end of
+  // the ladder (nextPriority) rather than reusing the source's rank.
+  const src = candidate ?? duplicateFrom;
 
   const [form, setForm] = useState({
-    name: candidate?.name ?? '',
+    name: candidate?.name ?? (duplicateFrom ? t('acquisition.autoDownload.copyName', { name: duplicateFrom.name }) : ''),
     priorityOrder: candidate?.priorityOrder ?? nextPriority,
-    enabled: candidate?.enabled ?? true,
-    resolution: candidate?.qualityRules.resolution ?? '',
-    codec: candidate?.qualityRules.codec ?? '',
-    source: candidate?.qualityRules.source ?? '',
-    maxMb: bytesToMb(candidate?.sizeRules.maxBytes),
-    minMb: bytesToMb(candidate?.sizeRules.minBytes),
-    requiredTerms: termsToText(candidate?.requiredTerms ?? []),
-    excludedTerms: termsToText(candidate?.excludedTerms ?? []),
+    enabled: src?.enabled ?? true,
+    resolution: src?.qualityRules.resolution ?? '',
+    codec: src?.qualityRules.codec ?? '',
+    source: src?.qualityRules.source ?? '',
+    maxMb: bytesToMb(src?.sizeRules.maxBytes),
+    minMb: bytesToMb(src?.sizeRules.minBytes),
+    requiredTerms: termsToText(src?.requiredTerms ?? []),
+    excludedTerms: termsToText(src?.excludedTerms ?? []),
   });
   useEffect(() => { /* keep dialog controlled to its candidate */ }, [candidate]);
 
@@ -232,7 +241,11 @@ function CandidateDialog({ candidate, onClose, nextPriority }: { candidate?: Acq
     onError: (e) => toast.error(t('acquisition.autoDownload.toast.saveFailed'), e instanceof ApiError ? e.message : undefined),
   });
 
-  const title = isEdit ? t('acquisition.autoDownload.editTitle') : t('acquisition.autoDownload.addTitle');
+  const title = isEdit
+    ? t('acquisition.autoDownload.editTitle')
+    : duplicateFrom
+      ? t('acquisition.autoDownload.duplicateTitle')
+      : t('acquisition.autoDownload.addTitle');
   const resOpts = RESOLUTIONS.map((v) => ({ value: v, label: v || t('acquisition.filter.any') }));
   const codecOpts = CODECS.map((v) => ({ value: v, label: v || t('acquisition.filter.any') }));
   const sourceOpts = SOURCES.map((v) => ({ value: v, label: v || t('acquisition.filter.any') }));
