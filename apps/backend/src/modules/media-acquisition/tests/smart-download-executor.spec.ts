@@ -120,4 +120,35 @@ describe('SmartDownloadExecutorService', () => {
     expect(res.status).toBe('completed');
     expect(prov.addMagnet).toHaveBeenCalledTimes(1);
   });
+
+  it('a staged-for-intake grab records an IntakeIntent (rule-free intake path)', async () => {
+    const prov = makeProvider();
+    const prisma = makeFakePrisma(['mediaAcquisitionAction', 'mediaAcquisitionEvaluation', 'mediaAcquisitionHistory']);
+    const upsert = jest.fn().mockResolvedValue({});
+    (prisma as any).intakeIntent = { upsert };
+    const registry = { getDefault: jest.fn().mockResolvedValue(prov), getDefaultEngineId: jest.fn().mockResolvedValue('engine-1') };
+    const svc = new SmartDownloadExecutorService(prisma as any, registry as any, audit() as any, realtime() as any);
+    const { action } = await seed(prisma, 'download', { downloadUrl: 'magnet:?xt=urn:btih:abc', intakeProfileId: 'sp1' });
+
+    const res = await svc.executeAction(action.id, 'u1');
+
+    expect(res.status).toBe('completed');
+    expect(upsert).toHaveBeenCalledTimes(1);
+    const arg = upsert.mock.calls[0][0];
+    expect(arg.where).toEqual({ engineId_hash: { engineId: 'engine-1', hash: 'new-hash' } });
+    expect(arg.create).toMatchObject({ engineId: 'engine-1', hash: 'new-hash', profileId: 'sp1', createdById: 'u1' });
+  });
+
+  it('a normal grab (no intake profile) records NO IntakeIntent', async () => {
+    const prov = makeProvider();
+    const prisma = makeFakePrisma(['mediaAcquisitionAction', 'mediaAcquisitionEvaluation', 'mediaAcquisitionHistory']);
+    const upsert = jest.fn();
+    (prisma as any).intakeIntent = { upsert };
+    const registry = { getDefault: jest.fn().mockResolvedValue(prov), getDefaultEngineId: jest.fn() };
+    const svc = new SmartDownloadExecutorService(prisma as any, registry as any, audit() as any, realtime() as any);
+    const { action } = await seed(prisma, 'download', { downloadUrl: 'magnet:?xt=urn:btih:abc' });
+
+    await svc.executeAction(action.id, 'u1');
+    expect(upsert).not.toHaveBeenCalled();
+  });
 });

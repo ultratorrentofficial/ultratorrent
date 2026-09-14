@@ -3688,6 +3688,7 @@ export interface SeriesAcquisitionInput {
   seasons?: number[];
   templateId?: string | null;
   targetLibraryId?: string | null;
+  useIntake?: boolean;
 }
 
 export interface SeriesAcquisitionPlan {
@@ -3700,6 +3701,9 @@ export interface SeriesAcquisitionPlan {
   requestedSeasons: number[] | null;
   willMonitor: boolean;
   willBackfill: boolean;
+  targetLibrary: { id: string; name: string } | null;
+  intakeAvailable: boolean;
+  willUseIntake: boolean;
   blockers: string[];
   ready: boolean;
 }

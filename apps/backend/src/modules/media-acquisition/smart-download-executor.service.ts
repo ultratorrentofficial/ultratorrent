@@ -12,6 +12,13 @@ export interface DownloadActionPayload {
   savePath?: string;
   supersedeHash?: string; // existing torrent to remove on an upgrade/replace
   override?: boolean;
+  /**
+   * When set, the download is staged for Media Intake under this storage profile
+   * (rather than filed straight into the library). After the add, an `IntakeIntent`
+   * keyed on `(engineId, hash)` is written so the completion trigger imports it —
+   * the rule-free intake path a Backfill-Only add (no RSS rule) relies on.
+   */
+  intakeProfileId?: string | null;
 }
 
 export interface ExecutionResult {
@@ -88,6 +95,14 @@ export class SmartDownloadExecutorService {
         ? await provider.addMagnet(url, { savePath: payload.savePath })
         : await provider.addTorrentURL(url, { savePath: payload.savePath });
 
+      // A staged-for-intake grab (a Backfill-Only add, which has no RSS rule) records
+      // an intake intent so the completion trigger recognises the download as one of
+      // its own and runs the pipeline — the rule-free provenance path. Best-effort:
+      // the torrent is already added, so a failure here must not fail the grab.
+      if (payload.intakeProfileId) {
+        await this.recordIntakeIntent(payload.intakeProfileId, hash, userId);
+      }
+
       const decision = evaluation?.decision;
       const isUpgrade = decision === 'upgrade_existing' || decision === 'replace_existing';
       let removedHash: string | null = null;
@@ -158,5 +173,27 @@ export class SmartDownloadExecutorService {
     await this.prisma.mediaAcquisitionAction
       .update({ where: { id: actionId }, data: { status: 'failed', completedAt: new Date(), errorMessage } })
       .catch(() => undefined);
+  }
+
+  /**
+   * Record an intake intent for a staged download, keyed on the engine it was added
+   * to plus its hash. Mirrors the torrent client's own intent record — the trigger's
+   * first, rule-free provenance source. Best-effort by design: the torrent is already
+   * in the engine, so a failure is logged and the file simply waits in staging.
+   */
+  private async recordIntakeIntent(profileId: string, hash: string, userId?: string): Promise<void> {
+    try {
+      const engineId = await this.registry.getDefaultEngineId();
+      await this.prisma.intakeIntent.upsert({
+        where: { engineId_hash: { engineId, hash } },
+        create: { engineId, hash, profileId, createdById: userId ?? null },
+        update: { profileId, createdById: userId ?? null, consumedAt: null },
+      });
+    } catch (err) {
+      this.logger.error(
+        `Grab ${hash} was added but its intake intent could not be recorded: ${(err as Error).message}. ` +
+          `It will download to the staging root and wait there.`,
+      );
+    }
   }
 }

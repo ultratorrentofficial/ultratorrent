@@ -8,7 +8,10 @@ import { AddSeriesDialog } from './AddSeriesDialog';
 
 vi.mock('@/lib/api', () => ({
   ApiError: class ApiError extends Error {},
-  api: { seriesAcquisition: { search: vi.fn(), plan: vi.fn(), provision: vi.fn() } },
+  api: {
+    seriesAcquisition: { search: vi.fn(), plan: vi.fn(), provision: vi.fn() },
+    media: { listLibraries: vi.fn() },
+  },
 }));
 
 const hit = { provider: 'imdb', externalIds: { imdb: 'tt3230854' }, title: 'The Expanse', year: 2015 };
@@ -23,6 +26,9 @@ const readyPlan = {
   requestedSeasons: null,
   willMonitor: true,
   willBackfill: true,
+  targetLibrary: { id: 'tv1', name: 'TV Shows' },
+  intakeAvailable: true,
+  willUseIntake: true,
   blockers: [],
   ready: true,
 };
@@ -40,6 +46,10 @@ function wrap() {
 describe('AddSeriesDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(api.media.listLibraries).mockResolvedValue([
+      { id: 'tv1', name: 'TV Shows', kind: 'tv' },
+      { id: 'tv2', name: 'TV Retro', kind: 'tv' },
+    ] as never);
   });
 
   it('searches, selects, previews readiness, and provisions', async () => {

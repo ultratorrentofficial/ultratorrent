@@ -53,6 +53,9 @@
       "template": "Acquisition template: {{name}}",
       "matchPreferences": "Match preferences: {{reason}}",
       "usesAutoDownload": "Uses your Auto-Download preferences for grabbing — no rule or match preferences are created.",
+      "destination": "Destination: {{library}} ({{how}}).",
+      "viaIntake": "via Media Intake",
+      "direct": "direct to library",
       "existingNew": "Not yet on your watchlist — a new entry will be created.",
       "existingLinked": "Already on your watchlist ({{status}}) — it will be linked, not duplicated.",
       "statusReturning": "This show is still airing.",
@@ -62,6 +65,11 @@
     },
     "inactive": {
       "onlyBackfill": "This show has ended or been canceled, so there are no new episodes to monitor — it can only be backfilled."
+    },
+    "destination": {
+      "label": "Destination library",
+      "useIntake": "Process through Media Intake (stage, organize, then file into the library)",
+      "noProfile": "“{{library}}” has no storage profile, so Media Intake isn't available — downloads go straight into the library folder."
     },
     "provision": {
       "button": "Add series",

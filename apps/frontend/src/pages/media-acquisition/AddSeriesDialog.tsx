@@ -13,6 +13,8 @@ import { Dialog, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Select } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { CenteredSpinner, EmptyState } from '@/components/ui/feedback';
 
 const MODES: SeriesAcquisitionMode[] = ['backfill_and_monitor', 'backfill_only', 'monitor_new_only'];
@@ -53,6 +55,8 @@ export function AddSeriesDialog({ open, onClose }: { open: boolean; onClose: () 
   const [selected, setSelected] = useState<SeriesSearchHit | null>(null);
   const [mode, setMode] = useState<SeriesAcquisitionMode>('backfill_and_monitor');
   const [seasonsText, setSeasonsText] = useState('');
+  const [targetLibraryId, setTargetLibraryId] = useState<string | null>(null);
+  const [useIntake, setUseIntake] = useState(true);
 
   const reset = () => {
     setTerm('');
@@ -61,6 +65,8 @@ export function AddSeriesDialog({ open, onClose }: { open: boolean; onClose: () 
     setSelected(null);
     setMode('backfill_and_monitor');
     setSeasonsText('');
+    setTargetLibraryId(null);
+    setUseIntake(true);
   };
   const close = () => {
     reset();
@@ -75,6 +81,14 @@ export function AddSeriesDialog({ open, onClose }: { open: boolean; onClose: () 
     enabled: open && submittedTerm.trim().length > 0,
   });
 
+  // TV/anime libraries the show can be filed into.
+  const libraries = useQuery({
+    queryKey: ['media', 'libraries'],
+    queryFn: () => api.media.listLibraries(),
+    enabled: open,
+  });
+  const tvLibraries = (libraries.data ?? []).filter((l) => l.kind === 'tv' || l.kind === 'anime');
+
   const input: SeriesAcquisitionInput | null = useMemo(() => {
     if (!selected) return null;
     return {
@@ -83,8 +97,10 @@ export function AddSeriesDialog({ open, onClose }: { open: boolean; onClose: () 
       externalIds: selected.externalIds,
       mode,
       seasons: parseSeasons(seasonsText),
+      targetLibraryId: targetLibraryId ?? undefined,
+      useIntake,
     };
-  }, [selected, mode, seasonsText, yearNum]);
+  }, [selected, mode, seasonsText, yearNum, targetLibraryId, useIntake]);
 
   const plan = useQuery({
     queryKey: ['seriesAcquisition', 'plan', input],
@@ -234,6 +250,36 @@ export function AddSeriesDialog({ open, onClose }: { open: boolean; onClose: () 
             <p className="mt-1 text-xs text-muted-foreground">{t('addSeries.seasons.hint')}</p>
           </div>
 
+          {/* Step 2c — destination library + Media Intake */}
+          <div>
+            <label className="block text-sm font-medium">{t('addSeries.destination.label')}</label>
+            <Select
+              className="mt-1"
+              value={targetLibraryId ?? p?.targetLibrary?.id ?? ''}
+              onChange={(e) => setTargetLibraryId(e.target.value || null)}
+              options={tvLibraries.map((l) => ({ value: l.id, label: l.name }))}
+            />
+            {/* Intake is a Backfill-Only choice; monitored shows always stage via their rule. */}
+            {mode === 'backfill_only' && (
+              <>
+                <label className="mt-2 flex items-center gap-2 text-sm">
+                  <Switch
+                    checked={useIntake && (p?.intakeAvailable ?? true)}
+                    disabled={!!p && !p.intakeAvailable}
+                    onCheckedChange={setUseIntake}
+                    aria-label={t('addSeries.destination.useIntake')}
+                  />
+                  <span>{t('addSeries.destination.useIntake')}</span>
+                </label>
+                {p && !p.intakeAvailable && (
+                  <p className="mt-1 text-xs text-warning">
+                    {t('addSeries.destination.noProfile', { library: p.targetLibrary?.name ?? '' })}
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+
           {/* Step 3 — readiness preview */}
           <div className="rounded-md border border-border/60 p-3">
             <div className="text-sm font-medium">{t('addSeries.plan.title')}</div>
@@ -257,6 +303,14 @@ export function AddSeriesDialog({ open, onClose }: { open: boolean; onClose: () 
                 </div>
                 <div>{p.willMonitor ? t('addSeries.plan.willMonitor') : t('addSeries.plan.monitorOff')}</div>
                 {p.willBackfill && <div>{t('addSeries.plan.willBackfill')}</div>}
+                {p.targetLibrary && (
+                  <div>
+                    {t('addSeries.plan.destination', {
+                      library: p.targetLibrary.name,
+                      how: p.willUseIntake ? t('addSeries.plan.viaIntake') : t('addSeries.plan.direct'),
+                    })}
+                  </div>
+                )}
                 {p.showStatus && (
                   <div>
                     {p.showStatus.normalizedStatus === 'ended'

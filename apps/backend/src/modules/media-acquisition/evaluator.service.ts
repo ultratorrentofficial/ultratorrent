@@ -204,6 +204,8 @@ export class AcquisitionEvaluatorService {
       priority?: number;
       reason: string;
       savePath?: string;
+      /** Stage for Media Intake under this storage profile (rule-free intake path). */
+      intakeProfileId?: string | null;
     },
     userId?: string,
   ) {
@@ -242,6 +244,7 @@ export class AcquisitionEvaluatorService {
             releaseName: input.releaseName,
             downloadUrl: input.downloadUrl,
             savePath: input.savePath,
+            intakeProfileId: input.intakeProfileId ?? null,
           } as object,
           createdBy: userId,
         },

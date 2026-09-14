@@ -53,6 +53,9 @@
       "template": "Plantilla de adquisición: {{name}}",
       "matchPreferences": "Preferencias de coincidencia: {{reason}}",
       "usesAutoDownload": "Usa tus preferencias de descarga automática para tomar los lanzamientos — no se crea ninguna regla ni preferencias de coincidencia.",
+      "destination": "Destino: {{library}} ({{how}}).",
+      "viaIntake": "por Media Intake",
+      "direct": "directo a la biblioteca",
       "existingNew": "Todavía no está en tu lista — se creará una entrada nueva.",
       "existingLinked": "Ya está en tu lista ({{status}}) — se enlazará, no se duplicará.",
       "statusReturning": "Este programa aún está al aire.",
@@ -62,6 +65,11 @@
     },
     "inactive": {
       "onlyBackfill": "Este programa ha terminado o fue cancelado, así que no hay episodios nuevos que monitorear — solo se puede rellenar el catálogo."
+    },
+    "destination": {
+      "label": "Biblioteca de destino",
+      "useIntake": "Procesar por Media Intake (preparar, organizar y luego archivar en la biblioteca)",
+      "noProfile": "«{{library}}» no tiene perfil de almacenamiento, así que Media Intake no está disponible — las descargas van directo a la carpeta de la biblioteca."
     },
     "provision": {
       "button": "Añadir serie",

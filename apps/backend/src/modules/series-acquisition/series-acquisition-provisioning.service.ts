@@ -37,8 +37,15 @@ export interface SeriesAcquisitionInput {
   seasons?: number[];
   /** Pin a specific discovery template carrier; else the default enabled one. */
   templateId?: string | null;
-  /** Override the storage profile's target library for this media type. */
+  /** Destination TV/anime library. The storage profile bound to it drives intake. */
   targetLibraryId?: string | null;
+  /**
+   * Process the back catalogue through Media Intake (stage → organise → library)
+   * rather than downloading straight into the library folder. Only meaningful for a
+   * Backfill-Only add and only when the chosen library has a storage profile;
+   * monitoring modes always stage through their rule. Default true.
+   */
+  useIntake?: boolean;
 }
 
 interface ResolvedContext {
@@ -63,6 +70,12 @@ interface ResolvedContext {
   existing: { id: string; status: string; rssRuleId: string | null } | null;
   showStatus: { normalizedStatus: NormalizedShowStatus; inactive: boolean } | null;
   requestedSeasons: number[] | null;
+  /** The chosen destination TV/anime library (input, else the profile's default). */
+  targetLibrary: { id: string; name: string } | null;
+  /** Whether the chosen library has a storage profile, so Media Intake is possible. */
+  intakeAvailable: boolean;
+  /** Effective decision: will this add route its downloads through Media Intake? */
+  willUseIntake: boolean;
 }
 
 export interface SeriesAcquisitionPlan {
@@ -77,6 +90,12 @@ export interface SeriesAcquisitionPlan {
   willMonitor: boolean;
   /** This mode enqueues a back-catalogue job. */
   willBackfill: boolean;
+  /** The destination TV/anime library this add resolves to. */
+  targetLibrary: { id: string; name: string } | null;
+  /** The chosen library has a storage profile, so Media Intake is available. */
+  intakeAvailable: boolean;
+  /** Whether downloads will be routed through Media Intake (vs. straight to library). */
+  willUseIntake: boolean;
   /** Reasons provisioning would refuse right now (empty = ready to act). */
   blockers: string[];
   ready: boolean;
@@ -183,11 +202,17 @@ export class SeriesAcquisitionProvisioningService {
     const link = await this.watchlist.linkOrCreate(
       media,
       {
-        targetLibraryId: input.targetLibraryId ?? profile?.tvLibraryId,
+        targetLibraryId: resolved.targetLibrary?.id ?? profile?.tvLibraryId,
         createSettings: {
           createdBySeriesAcquisition: true,
           seriesAcquisitionMode: input.mode,
           requestedSeasons: resolved.requestedSeasons,
+          // The storage profile a Backfill-Only add stages through — set only when
+          // this add uses Media Intake, so its rule-less grabs route through the
+          // pipeline (see MissingEpisodeSearchService.resolveSavePath). Null means
+          // "download straight into the library folder". Monitoring modes use their
+          // rule for intake and ignore this.
+          storageProfileId: plan.willUseIntake ? profile?.id ?? null : null,
         },
       },
       userId,
@@ -237,7 +262,15 @@ export class SeriesAcquisitionProvisioningService {
             })
           : null;
         const generated = await this.rules.generate(
-          { media, template: { id: template.id, rssFeedId: template.rssFeedId, storageProfileId: template.storageProfileId }, acquisition, savePath },
+          {
+            media,
+            // The feed + match candidates come from the template, but the rule stages
+            // into the CHOSEN library's storage profile — so a monitored show follows
+            // the operator's destination pick, not the template's default library.
+            template: { id: template.id, rssFeedId: template.rssFeedId, storageProfileId: profile?.id ?? template.storageProfileId },
+            acquisition,
+            savePath,
+          },
           userId,
         );
         rssRuleId = generated.ruleId;
@@ -394,12 +427,39 @@ export class SeriesAcquisitionProvisioningService {
       ? await this.templates.acquisitionReadiness(template.acquisitionTemplateId)
       : { ready: false, reason: 'No discovery template with a feed and a storage profile is configured.' };
 
-    const profile = template?.storageProfileId
+    const templateProfile = template?.storageProfileId
       ? await this.prisma.storageProfile.findUnique({
           where: { id: template.storageProfileId },
           include: { movieLibrary: true, tvLibrary: true },
         })
       : null;
+
+    // Destination library: the operator's choice, else the template profile's TV
+    // library, else the first TV/anime library configured.
+    const targetLibraryId = input.targetLibraryId ?? templateProfile?.tvLibraryId ?? null;
+    const targetLib = targetLibraryId
+      ? await this.prisma.mediaLibrary.findUnique({ where: { id: targetLibraryId }, select: { id: true, name: true } })
+      : await this.prisma.mediaLibrary.findFirst({
+          where: { kind: { in: ['tv', 'anime'] } },
+          orderBy: { createdAt: 'asc' },
+          select: { id: true, name: true },
+        });
+
+    // The storage profile bound to the chosen library (one per library) is what
+    // stages/organises intake INTO that library. Falls back to the template's
+    // profile only so the movie/tv paths still resolve; intake is "available" only
+    // when the profile actually targets the chosen library.
+    const profile = targetLib
+      ? ((await this.prisma.storageProfile.findFirst({
+          where: { tvLibraryId: targetLib.id },
+          include: { movieLibrary: true, tvLibrary: true },
+        })) ?? templateProfile)
+      : templateProfile;
+
+    const intakeAvailable = Boolean(profile?.stagingRoot && profile?.tvLibraryId === targetLib?.id);
+    // Monitoring always stages through its managed rule; Backfill-Only honours the
+    // toggle (default on). Either way, intake needs a profile bound to the library.
+    const willUseIntake = intakeAvailable && (input.mode !== 'backfill_only' || (input.useIntake ?? true));
 
     const existing = await this.watchlist.resolveExisting(media);
 
@@ -443,6 +503,9 @@ export class SeriesAcquisitionProvisioningService {
       existing,
       showStatus,
       requestedSeasons: input.seasons && input.seasons.length ? [...new Set(input.seasons)].sort((a, b) => a - b) : null,
+      targetLibrary: targetLib ? { id: targetLib.id, name: targetLib.name } : null,
+      intakeAvailable,
+      willUseIntake,
     };
   }
 
@@ -464,6 +527,13 @@ export class SeriesAcquisitionProvisioningService {
         `"${input.title}" has ended or been canceled — monitoring is not available; add it as Backfill Only.`,
       );
     }
+    // A monitoring rule stages through a storage profile, so the chosen library must
+    // have one. Backfill-Only can still download directly, so it is never blocked.
+    if (willMonitor && r.targetLibrary && !r.intakeAvailable) {
+      blockers.push(
+        `"${r.targetLibrary.name}" has no storage profile, so it cannot monitor. Choose a library with one, or add it as Backfill Only.`,
+      );
+    }
 
     return {
       mode: input.mode,
@@ -481,6 +551,9 @@ export class SeriesAcquisitionProvisioningService {
       requestedSeasons: r.requestedSeasons,
       willMonitor,
       willBackfill,
+      targetLibrary: r.targetLibrary,
+      intakeAvailable: r.intakeAvailable,
+      willUseIntake: r.willUseIntake,
       blockers,
       ready: blockers.length === 0,
     };

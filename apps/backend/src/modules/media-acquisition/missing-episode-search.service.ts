@@ -255,7 +255,7 @@ export class MissingEpisodeSearchService {
     // is mandatory — without it the engine would drop the episode in its default
     // root (loose files at /downloads instead of the show folder), so a grab we
     // cannot place is refused rather than misfiled.
-    const { path: savePath, intakeRuleId } = await this.resolveSavePath(item, wanted.seriesTconst);
+    const { path: savePath, intakeRuleId, intakeProfileId } = await this.resolveSavePath(item, wanted.seriesTconst);
     if (!savePath) {
       const reason =
         `No save path for "${item.title}": no Show Rule savePath, no existing library ` +
@@ -401,6 +401,7 @@ export class MissingEpisodeSearchService {
         priority: item.priority,
         reason: best.reason,
         savePath,
+        intakeProfileId,
       },
       userId,
     );
@@ -533,7 +534,7 @@ export class MissingEpisodeSearchService {
       targetLibraryId: string | null;
     },
     seriesTconst?: string | null,
-  ): Promise<{ path?: string; intakeRuleId: string | null }> {
+  ): Promise<{ path?: string; intakeRuleId: string | null; intakeProfileId?: string | null }> {
     return this.resolveSavePath(item, seriesTconst);
   }
 
@@ -548,7 +549,7 @@ export class MissingEpisodeSearchService {
       targetLibraryId: string | null;
     },
     seriesTconst?: string | null,
-  ): Promise<{ path?: string; intakeRuleId: string | null }> {
+  ): Promise<{ path?: string; intakeRuleId: string | null; intakeProfileId?: string | null }> {
     // 0. The show's own rule, which outranks everything below it.
     const rule = await this.resolveRule(item);
     if (rule) {
@@ -588,8 +589,45 @@ export class MissingEpisodeSearchService {
       }
     }
 
+    // No governing rule. A Backfill-Only add (which deliberately has no RSS rule)
+    // still routes through Media Intake: it carries the storage profile the add was
+    // provisioned with, so the download stages there and the grab records an
+    // IntakeIntent — rather than landing loose in the library folder unprocessed.
+    if (!rule && item.id) {
+      const profileId = await this.intakeProfileIdFor(item.id);
+      if (profileId) {
+        const staging = await this.stagingPathForProfile(profileId, item);
+        if (staging) return { path: staging, intakeRuleId: null, intakeProfileId: profileId };
+      }
+    }
+
     const path = await this.resolveLibraryPath(item, seriesTconst);
     return { path, intakeRuleId: null };
+  }
+
+  /**
+   * The storage profile a rule-less watchlist item was provisioned to stage through,
+   * from its `settings.storageProfileId` (set by Add Series). Only a profile with a
+   * usable staging root counts; anything else means "file into the library".
+   */
+  private async intakeProfileIdFor(watchlistItemId: string): Promise<string | null> {
+    const item = await this.prisma.mediaAcquisitionWatchlistItem
+      .findUnique({ where: { id: watchlistItemId }, select: { settings: true } })
+      .catch(() => null);
+    const id = (item?.settings as { storageProfileId?: string } | null)?.storageProfileId;
+    return typeof id === 'string' && id.length > 0 ? id : null;
+  }
+
+  /** A per-show staging directory under a specific storage profile's staging root. */
+  private async stagingPathForProfile(
+    profileId: string,
+    item: { title: string; year: number | null },
+  ): Promise<string | undefined> {
+    const profile = await this.profiles.get(profileId).catch(() => null);
+    const root = profile?.stagingRoot?.trim().replace(/\/+$/, '');
+    if (!root) return undefined;
+    const folder = item.year ? `${item.title} (${item.year})` : item.title;
+    return `${root}/${folder}`;
   }
 
   /**

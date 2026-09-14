@@ -1,5 +1,6 @@
 import {
   IsArray,
+  IsBoolean,
   IsIn,
   IsInt,
   IsObject,
@@ -29,6 +30,9 @@ export class SeriesAcquisitionDto {
   @IsOptional() @IsString() templateId?: string | null;
 
   @IsOptional() @IsString() targetLibraryId?: string | null;
+
+  /** Route the back catalogue through Media Intake (Backfill-Only). Default true. */
+  @IsOptional() @IsBoolean() useIntake?: boolean;
 }
 
 export class SeriesSearchDto {

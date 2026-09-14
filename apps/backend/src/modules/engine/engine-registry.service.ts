@@ -119,14 +119,24 @@ export class EngineRegistryService implements OnModuleInit {
     return provider;
   }
 
-  async getDefault(): Promise<TorrentEngineProvider> {
+  /**
+   * The id of the default engine — the same one {@link getDefault} resolves a
+   * provider for. Callers that need to record which engine a torrent was added to
+   * (e.g. an intake intent keyed on `(engineId, hash)`) need the id, not the
+   * provider.
+   */
+  async getDefaultEngineId(): Promise<string> {
     const def = await this.prisma.torrentEngine.findFirst({
       where: { isEnabled: true, isDefault: true },
+      select: { id: true },
     });
-    const id =
-      def?.id ?? [...this.providers.keys()][0];
+    const id = def?.id ?? [...this.providers.keys()][0];
     if (!id) throw new NotFoundException('No torrent engine is configured');
-    return this.get(id);
+    return id;
+  }
+
+  async getDefault(): Promise<TorrentEngineProvider> {
+    return this.get(await this.getDefaultEngineId());
   }
 
   /** Resolve a provider, falling back to the default engine when id is absent. */

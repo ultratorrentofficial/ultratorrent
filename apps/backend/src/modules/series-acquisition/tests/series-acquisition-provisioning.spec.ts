@@ -58,7 +58,15 @@ function harness(
       findFirst: jest.fn().mockResolvedValue(opts.template === undefined ? TEMPLATE : opts.template),
       findUnique: jest.fn().mockResolvedValue(opts.template === undefined ? TEMPLATE : opts.template),
     },
-    storageProfile: { findUnique: jest.fn().mockResolvedValue(PROFILE) },
+    storageProfile: {
+      findUnique: jest.fn().mockResolvedValue(PROFILE),
+      // The profile bound to the chosen TV library (PROFILE targets tv1).
+      findFirst: jest.fn().mockResolvedValue(PROFILE),
+    },
+    mediaLibrary: {
+      findUnique: jest.fn(async ({ where }: any) => ({ id: where.id, name: 'TV Shows' })),
+      findFirst: jest.fn().mockResolvedValue({ id: 'tv1', name: 'TV Shows' }),
+    },
     acquisitionRuleTemplate: { findUnique: jest.fn().mockResolvedValue({ id: 'acq1', candidates: [] }) },
     rssRule: {
       updateMany: jest.fn(async (args: any) => {
@@ -272,6 +280,30 @@ describe('SeriesAcquisitionProvisioningService', () => {
     // updateMany matched nothing; the rule keeps its own enabled state (mocked true).
     expect(res.ruleEnabled).toBe(true);
     expect(res.notes.some((n) => /hand-edited/i.test(n))).toBe(true);
+  });
+
+  it('plan exposes the destination library + intake availability', async () => {
+    const { svc } = harness();
+    const plan = await svc.planSeriesAcquisition({ ...base, mode: 'backfill_only' });
+    expect(plan.targetLibrary).toEqual({ id: 'tv1', name: 'TV Shows' });
+    expect(plan.intakeAvailable).toBe(true);
+    expect(plan.willUseIntake).toBe(true);
+  });
+
+  it('backfill_only + intake ON persists the storage profile (rule-free intake routing)', async () => {
+    const { svc, calls } = harness({ scan: { missing: 2 } });
+    await svc.provisionSeriesAcquisition({ ...base, mode: 'backfill_only', useIntake: true });
+    const settings = (calls.linkOrCreate[0].target as any).createSettings;
+    expect(settings.storageProfileId).toBe('sp1');
+  });
+
+  it('backfill_only + intake OFF files directly into the library (no profile persisted)', async () => {
+    const { svc, calls } = harness({ scan: { missing: 2 } });
+    const plan = await svc.planSeriesAcquisition({ ...base, mode: 'backfill_only', useIntake: false });
+    expect(plan.willUseIntake).toBe(false);
+    await svc.provisionSeriesAcquisition({ ...base, mode: 'backfill_only', useIntake: false });
+    const settings = (calls.linkOrCreate[0].target as any).createSettings;
+    expect(settings.storageProfileId).toBeNull();
   });
 
   it('plan() performs no writes', async () => {

@@ -107,7 +107,7 @@ export class PackAcquisitionService {
     if (coveredEpisodeIds.length === 0) return { grabbed: false, covered: 0, reason: 'nothing_to_cover' };
 
     // The pack must land in the show's folder — refuse rather than scatter it loose.
-    const { path: savePath, intakeRuleId } = await this.search.resolveShowSavePath(item, seriesTconst);
+    const { path: savePath, intakeRuleId, intakeProfileId } = await this.search.resolveShowSavePath(item, seriesTconst);
     if (!savePath) {
       this.logger.warn(`No save path for "${item.title}" ${this.label(target)} pack — refusing to grab.`);
       return { grabbed: false, covered: 0, reason: 'no_save_path' };
@@ -139,6 +139,7 @@ export class PackAcquisitionService {
         priority: item.priority ?? 100,
         reason: best.reason,
         savePath,
+        intakeProfileId,
       },
       userId,
     );

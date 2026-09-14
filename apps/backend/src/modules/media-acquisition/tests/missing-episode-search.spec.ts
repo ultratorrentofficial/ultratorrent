@@ -959,3 +959,29 @@ describe('MissingEpisodeSearchService — "not found at your preferences" digest
     expect(bus.publish).not.toHaveBeenCalled();
   });
 });
+
+describe('MissingEpisodeSearchService — Backfill-Only routes through Media Intake', () => {
+  it('a rule-less item with a storage profile stages for intake and passes the profile to the grab', async () => {
+    // A Backfill-Only add carries settings.storageProfileId and has no RSS rule.
+    const { svc, evaluator } = build({
+      item: { settings: { storageProfileId: 'sp1' } },
+      candidates: [cand()],
+    });
+    const outcome = await svc.searchEpisode('w1', 'u9');
+    expect(outcome.searchStatus).toBe('grabbed');
+    const grabArg: any = (evaluator.grabSelected as jest.Mock).mock.calls[0][0];
+    // Staged under the profile's staging root, not filed into the library…
+    expect(grabArg.savePath).toBe('/media/staging/The Wire');
+    // …and the grab carries the profile so the executor can record an IntakeIntent.
+    expect(grabArg.intakeProfileId).toBe('sp1');
+  });
+
+  it('a rule-less item WITHOUT a storage profile files into the library (no intake routing)', async () => {
+    const { svc, evaluator } = build({ candidates: [cand()] });
+    const outcome = await svc.searchEpisode('w1');
+    expect(outcome.searchStatus).toBe('grabbed');
+    const grabArg: any = (evaluator.grabSelected as jest.Mock).mock.calls[0][0];
+    expect(grabArg.savePath).not.toMatch(/\/media\/staging\//);
+    expect(grabArg.intakeProfileId).toBeFalsy();
+  });
+});
