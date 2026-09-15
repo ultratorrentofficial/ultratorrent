@@ -36,7 +36,8 @@ import {
   Users,
 } from 'lucide-react';
 import type { AuditEntry } from './api';
-import { formatBytes, formatDateTime, formatNumber } from './format';
+import { formatBytes } from './format';
+import { formatScalar, isScalar, prettifyKey, type HumanField } from './humanize';
 
 export type AuditTone = 'neutral' | 'positive' | 'info' | 'warning' | 'destructive';
 
@@ -261,57 +262,8 @@ export function describeAudit(entry: AuditEntry): AuditDescription {
 // ---------------------------------------------------------------------------
 
 /** One humanized metadata field for the details table. */
-export interface AuditMetaField {
-  /** Human label derived from the key, e.g. `libraryPath` → "Library path". */
-  label: string;
-  /** Humanized scalar value; `null` when this field is a nested `json` blob. */
-  value: string | null;
-  /** Pretty-printed JSON — the deliberate fallback for nested/complex values. */
-  json?: string;
-  /** Render the value monospaced (hashes, ids, paths). */
-  mono?: boolean;
-}
-
-const META_ACRONYMS: Record<string, string> = {
-  id: 'ID', url: 'URL', ip: 'IP', imdb: 'IMDb', tmdb: 'TMDb', nfo: 'NFO',
-  api: 'API', rss: 'RSS', scgi: 'SCGI', uuid: 'UUID', os: 'OS', db: 'DB',
-  tv: 'TV', hd: 'HD', sd: 'SD', '2fa': '2FA', ok: 'OK',
-};
-
-/** `libraryPath` / `library_path` / `library.path` → "Library path". */
-function prettifyKey(key: string): string {
-  return key
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/[._-]+/g, ' ')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((w, i) => {
-      const fix = META_ACRONYMS[w.toLowerCase()];
-      if (fix) return fix;
-      return i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w.toLowerCase();
-    })
-    .join(' ');
-}
-
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2})/;
-const BYTES_KEY = /bytes|size|freed|reclaimed/i;
-const HASH_LIKE = /^[a-f0-9]{16,}$/i;
-
-/** Format a single scalar value, using the key for unit/format hints. */
-function formatScalar(key: string, v: string | number | boolean): { value: string; mono?: boolean } {
-  if (typeof v === 'boolean') return { value: v ? 'Yes' : 'No' };
-  if (typeof v === 'number') {
-    return { value: BYTES_KEY.test(key) ? formatBytes(v) : formatNumber(v) };
-  }
-  if (ISO_DATE.test(v) && !Number.isNaN(new Date(v).getTime())) {
-    return { value: formatDateTime(v) };
-  }
-  return { value: v, mono: HASH_LIKE.test(v) || v.includes('/') };
-}
-
-const isScalar = (x: unknown): x is string | number | boolean =>
-  x === null || ['string', 'number', 'boolean'].includes(typeof x);
+/** The audit trail's view of a humanized field. Shared shape; see `lib/humanize`. */
+export type AuditMetaField = HumanField;
 
 /**
  * Turn a raw audit `metadata` object into human-readable fields: labels are

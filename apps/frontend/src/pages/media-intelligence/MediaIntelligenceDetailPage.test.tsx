@@ -110,6 +110,17 @@ describe('MediaIntelligenceDetailPage', () => {
     expect(screen.getByText(/no playback has been recorded/i)).toBeInTheDocument();
   });
 
+  it('renders fact fields humanized, never as raw keys or raw booleans', async () => {
+    renderPage();
+    await screen.findByRole('heading', { name: /Breaking Bad/ });
+    // The defect this guards: `Object.entries` printed "measuredFileCount" and
+    // "true" straight to the operator.
+    expect(screen.getByText('Measured file count')).toBeInTheDocument();
+    expect(screen.queryByText('measuredFileCount')).not.toBeInTheDocument();
+    expect(screen.getByText('Poster present')).toBeInTheDocument();
+    expect(screen.queryByText('true')).not.toBeInTheDocument();
+  });
+
   it('shows a finding with the date it was first observed', async () => {
     renderPage();
     expect(await screen.findByText(/Episodes missing/i)).toBeInTheDocument();

@@ -11,12 +11,13 @@ import {
 } from '@ultratorrent/shared';
 
 import { ApiError, api } from '@/lib/api';
-import { formatDate } from '@/lib/format';
+import { formatDateTime, formatRelativeTimeShort } from '@/lib/format';
 import { useToast } from '@/components/ui/toast';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
+import { humanizeFields } from '@/lib/humanize';
 import {
   FACT_STATUS_VARIANT,
   HEALTH_VARIANT,
@@ -101,7 +102,7 @@ export function MediaIntelligenceDetailPage() {
                 : `${t('health.score')}: ${s.health.score}`}
             </span>
             <span className="text-xs text-muted-foreground">
-              {t('detail.assembledAt', { when: formatDate(s.freshness.assembledAt) })}
+              {t('detail.assembledAt', { when: formatDateTime(s.freshness.assembledAt) })}
             </span>
           </div>
         </div>
@@ -169,13 +170,12 @@ function DomainCard({ domain, section }: { domain: MediaIntelligenceDomain; sect
   const status = section?.status ?? 'unknown';
   const reason = section?.unknownReason;
 
-  const entries = Object.entries(section ?? {}).filter(
-    ([k, v]) =>
-      !['status', 'unknownReason', 'observedAt', 'source'].includes(k) &&
-      v !== null &&
-      v !== undefined &&
-      typeof v !== 'object',
-  );
+  /*
+   * Humanized rather than dumped. `Object.entries` gave "measuredFileCount /
+   * 62" and "posterPresent / true", which is a debug view: the envelope keys
+   * are rendered separately above, so they are omitted here.
+   */
+  const fields = humanizeFields(section, ['status', 'unknownReason', 'observedAt', 'source']);
 
   return (
     <Card>
@@ -195,19 +195,23 @@ function DomainCard({ domain, section }: { domain: MediaIntelligenceDomain; sect
           </p>
         ) : null}
 
-        {entries.length > 0 ? (
+        {fields.length > 0 ? (
           <dl className="space-y-1">
-            {entries.slice(0, 8).map(([k, v]) => (
-              <div key={k} className="flex items-baseline justify-between gap-2 text-xs">
-                <dt className="text-muted-foreground">{k}</dt>
-                <dd className="tabular-nums">{String(v)}</dd>
+            {fields.slice(0, 8).map((f) => (
+              <div key={f.label} className="flex items-baseline justify-between gap-2 text-xs">
+                <dt className="text-muted-foreground">{f.label}</dt>
+                <dd className={f.mono ? 'truncate font-mono text-[11px]' : 'tabular-nums'}>
+                  {f.value ?? '—'}
+                </dd>
               </div>
             ))}
           </dl>
         ) : null}
 
         {section?.observedAt ? (
-          <p className="text-[11px] text-muted-foreground">{formatDate(section.observedAt)}</p>
+          <p className="text-[11px] text-muted-foreground" title={formatDateTime(section.observedAt)}>
+            {formatRelativeTimeShort(section.observedAt)}
+          </p>
         ) : null}
       </CardContent>
     </Card>
@@ -216,7 +220,7 @@ function DomainCard({ domain, section }: { domain: MediaIntelligenceDomain; sect
 
 function FindingRow({ finding }: { finding: MediaFinding }) {
   const { t } = useTranslation('mediaIntelligence');
-  const evidence = Object.entries(finding.evidence ?? {}).slice(0, 6);
+  const evidence = humanizeFields(finding.evidence).slice(0, 6);
 
   return (
     <div className="rounded-md border border-border p-3">
@@ -234,9 +238,12 @@ function FindingRow({ finding }: { finding: MediaFinding }) {
 
       {evidence.length > 0 ? (
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-          {evidence.map(([k, v]) => (
-            <span key={k} className="text-xs text-muted-foreground">
-              {k}: <span className="tabular-nums text-foreground">{formatEvidence(v)}</span>
+          {evidence.map((f) => (
+            <span key={f.label} className="text-xs text-muted-foreground">
+              {f.label}:{' '}
+              <span className={f.mono ? 'font-mono text-[11px] text-foreground' : 'tabular-nums text-foreground'}>
+                {f.value ?? '—'}
+              </span>
             </span>
           ))}
         </div>
@@ -244,20 +251,12 @@ function FindingRow({ finding }: { finding: MediaFinding }) {
 
       <div className="mt-2 flex flex-wrap gap-x-4 text-[11px] text-muted-foreground">
         {finding.firstObservedAt ? (
-          <span>{t('detail.since', { when: formatDate(finding.firstObservedAt) })}</span>
+          <span>{t('detail.since', { when: formatDateTime(finding.firstObservedAt) })}</span>
         ) : null}
         {finding.lastObservedAt ? (
-          <span>{t('detail.lastSeen', { when: formatDate(finding.lastObservedAt) })}</span>
+          <span>{t('detail.lastSeen', { when: formatDateTime(finding.lastObservedAt) })}</span>
         ) : null}
       </div>
     </div>
   );
-}
-
-/** Evidence is bounded and machine-shaped; render arrays as a short list. */
-function formatEvidence(value: unknown): string {
-  if (Array.isArray(value)) return value.slice(0, 5).map(String).join(', ');
-  if (value === null || value === undefined) return '—';
-  if (typeof value === 'object') return JSON.stringify(value).slice(0, 80);
-  return String(value);
 }

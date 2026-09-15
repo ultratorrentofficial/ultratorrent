@@ -14,7 +14,7 @@ import {
 } from '@ultratorrent/shared';
 
 import { ApiError, api } from '@/lib/api';
-import { formatBytes, formatDate } from '@/lib/format';
+import { formatBytes, formatDateTime, formatNumber, formatRelativeTimeShort } from '@/lib/format';
 import { useToast } from '@/components/ui/toast';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -186,12 +186,12 @@ export function MediaIntelligencePage() {
 
       {o ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          <StatTile label={t('overview.analyzed')} value={String(o.analyzed)} />
+          <StatTile label={t('overview.analyzed')} value={formatNumber(o.analyzed)} />
           {HEALTH_ORDER.map((s) => (
             <StatTile
               key={s}
               label={t(`health.${s}` as 'health.healthy')}
-              value={String(o.byHealth[s] ?? 0)}
+              value={formatNumber(o.byHealth[s] ?? 0)}
               variant={HEALTH_VARIANT[s]}
               active={health === s}
               onClick={() => withReset(setHealth)(health === s ? '' : s)}
@@ -211,13 +211,13 @@ export function MediaIntelligencePage() {
             <div className="flex flex-wrap gap-2">
               {o.byFindingCode.slice(0, 12).map((f) => (
                 <Badge key={f.code} variant={SEVERITY_VARIANT[f.severity]}>
-                  {t(`finding.${f.code}` as 'finding.EPISODES_MISSING')} · {f.count}
+                  {t(`finding.${f.code}` as 'finding.EPISODES_MISSING')} · {formatNumber(f.count)}
                 </Badge>
               ))}
             </div>
             <p className="text-xs text-muted-foreground">
               {t('overview.lastCalculated')}:{' '}
-              {o.lastCalculatedAt ? formatDate(o.lastCalculatedAt) : t('overview.never')}
+              {o.lastCalculatedAt ? formatDateTime(o.lastCalculatedAt) : t('overview.never')}
             </p>
           </CardContent>
         </Card>
@@ -315,21 +315,27 @@ function IntelligenceRow({ row, onOpen }: { row: MediaIntelligenceSummary; onOpe
         ) : (
           <div className="flex flex-wrap gap-1">
             {present.map((s) => (
-              <Badge key={s} variant={SEVERITY_VARIANT[s as MediaFindingSeverity]}>
-                {counts[s]}
+              <Badge
+                key={s}
+                variant={SEVERITY_VARIANT[s as MediaFindingSeverity]}
+                title={t(`severity.${s}` as 'severity.info')}
+              >
+                {formatNumber(counts[s])}
               </Badge>
             ))}
           </div>
         )}
       </TableCell>
       {/* A null missing count is "not applicable", not zero — never render 0. */}
-      <TableCell className="text-right tabular-nums">{row.missingCount ?? '—'}</TableCell>
+      <TableCell className="text-right tabular-nums">
+        {row.missingCount == null ? '—' : formatNumber(row.missingCount)}
+      </TableCell>
       <TableCell className="text-right tabular-nums">
         {row.totalBytes == null ? '—' : formatBytes(row.totalBytes)}
       </TableCell>
       <TableCell className="text-muted-foreground">{row.libraryName ?? '—'}</TableCell>
-      <TableCell className="text-muted-foreground">
-        {row.lastPlayedAt ? formatDate(row.lastPlayedAt) : t('list.never')}
+      <TableCell className="text-muted-foreground" title={row.lastPlayedAt ? formatDateTime(row.lastPlayedAt) : undefined}>
+        {row.lastPlayedAt ? formatRelativeTimeShort(row.lastPlayedAt) : t('list.never')}
       </TableCell>
     </TableRow>
   );
