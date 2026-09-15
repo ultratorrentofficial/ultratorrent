@@ -433,11 +433,44 @@ function coreMatch(
       // Cycle Rise of the Merlin").
       const titleOk = showTitleMatch(pattern, title);
       if (!titleOk) return { label: 'smart episode', passed: false, detail: `show title “${pattern}” not found` };
+      /*
+       * An EPISODE matcher requires an episode.
+       *
+       * A date-based daily release carries no `SxxEyy` at all
+       * (`Match.Of.The.Day.2026.09.06.720p...`), so `parsed.season`/`parsed.episode`
+       * are both absent. Without this guard the check degenerated into a bare title
+       * test, and anything the title matched was accepted as "an episode". The
+       * importer then derived the SAME destination name for every such release —
+       * `Show - S01E` with an empty number — so each import collided with the last
+       * and was moved aside as `[dup2]`, `[dup3]`. Four grabs, two survivors: the
+       * others were overwritten before anyone saw them.
+       *
+       * Only enforced for a candidate that carries its own title pattern, i.e. an
+       * RSS rule keyed to a show. The acquisition ladder deliberately builds
+       * `smart_episode_match` rungs with `pattern: null` as a quality/size
+       * pass-through, because its bridge has already anchored both the title and
+       * the exact SxxEyy before the engine is ever called; requiring episode
+       * identity there would reject every release it was asked to rank.
+       */
+      if (pattern && (parsed.season == null || parsed.episode == null)) {
+        return {
+          label: 'smart episode',
+          passed: false,
+          detail: 'no season/episode in the release name — an episode rule cannot match a dated or packless release',
+        };
+      }
       if (qr.season != null && parsed.season !== qr.season)
         return { label: 'smart episode', passed: false, detail: `season ${qr.season} not found (got ${parsed.season ?? 'none'})` };
       if (qr.episode != null && parsed.episode !== qr.episode)
         return { label: 'smart episode', passed: false, detail: `episode ${qr.episode} not found (got ${parsed.episode ?? 'none'})` };
-      return { label: 'smart episode', passed: true, detail: `matched S${qr.season}E${qr.episode}` };
+      // Report what the RELEASE actually is. Reading the rule's own constraints
+      // here printed "matched SundefinedEundefined" for every pattern-less rung,
+      // which is what made the original mis-grabs unreadable in the trace.
+      const shown =
+        parsed.season != null && parsed.episode != null
+          ? `S${String(parsed.season).padStart(2, '0')}E${String(parsed.episode).padStart(2, '0')}`
+          : 'quality/size only';
+      return { label: 'smart episode', passed: true, detail: `matched ${shown}` };
     }
     case 'smart_movie_match': {
       // A movie has no SxxEyy, so the show-title region is the whole name; the

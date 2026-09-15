@@ -190,6 +190,67 @@ describe('match types', () => {
     expect(evaluateCandidate(ls, { title: '9-1-1.S01E02.1080p.x265-MeGusta' }).result).toBe('failed');
   });
 
+  /**
+   * The Match of the Day incident, 2026-09-08.
+   *
+   * Two rules ("12 12 12", "Brothers") grabbed four BBC football releases. The
+   * title anchoring that would have stopped them landed later; what remained is
+   * the half nobody tested — every existing case above pins a candidate WITH a
+   * season/episode constraint, so a rule without one was never exercised.
+   *
+   * A dated daily release has no SxxEyy, so the importer derived the same
+   * destination name for all four ("Show - S01E", empty number) and each import
+   * overwrote the last: four grabs, two survivors.
+   */
+  it('refuses a dated daily release: an episode rule requires an episode', () => {
+    const c = cand({ matchType: 'smart_episode_match', pattern: 'Brothers', requiredTerms: ['x265-MeGusta'] });
+    const r = evaluateCandidate(c, { title: 'Brothers.2026.09.06.720p.HEVC.x265-MeGusta[EZTVx.to].mkv' });
+    expect(r.result).toBe('failed');
+    expect(r.reason).toMatch(/no season\/episode/i);
+    // The same rule still matches a real episode of the same show.
+    expect(
+      evaluateCandidate(c, { title: 'Brothers.S01E03.720p.HEVC.x265-MeGusta.mkv' }).result,
+    ).toBe('matched');
+  });
+
+  it('refuses a dated release even when the show title matches exactly', () => {
+    // The wrong-show half is covered by the anchoring tests; this pins the other
+    // half, where the title is genuinely right and the release still is not an
+    // episode.
+    const c = cand({ matchType: 'smart_episode_match', pattern: 'Match of the Day' });
+    expect(
+      evaluateCandidate(c, { title: 'Match.Of.The.Day.2026.09.06.720p.HEVC.x265-MeGusta.mkv' }).result,
+    ).toBe('failed');
+  });
+
+  /**
+   * The acquisition ladder builds `smart_episode_match` rungs with no pattern as
+   * a deliberate quality/size pass-through: its bridge has already anchored the
+   * title and the exact SxxEyy. Requiring episode identity there would reject
+   * every release it was asked to rank, so the guard must not reach it.
+   */
+  it('leaves a pattern-less pass-through rung alone', () => {
+    const rung = cand({
+      matchType: 'smart_episode_match',
+      pattern: null,
+      qualityRules: { resolution: '1080p', codec: 'x265' },
+    });
+    expect(evaluateCandidate(rung, { title: 'Whatever.Show.S02E05.1080p.WEB-DL.x265' }).result).toBe('matched');
+    // Including a release whose name carries no SxxEyy at all — the caller,
+    // not this candidate, is what narrowed it.
+    expect(evaluateCandidate(rung, { title: 'Whatever.Show.2026.09.06.1080p.WEB-DL.x265' }).result).toBe('matched');
+  });
+
+  it('reports the episode the RELEASE has, never the rule\u2019s own undefined constraints', () => {
+    const c = cand({ matchType: 'smart_episode_match', pattern: 'The Example Show' });
+    const r = evaluateCandidate(c, { title: 'The.Example.Show.S02E05.1080p.WEB-DL.x265' });
+    expect(r.result).toBe('matched');
+    const core = r.checks.find((k) => k.label === 'smart episode');
+    expect(core?.detail).toBe('matched S02E05');
+    // The old detail string read "matched SundefinedEundefined".
+    expect(core?.detail).not.toMatch(/undefined/);
+  });
+
   it('smart_episode_match is leading-article insensitive and allows a trailing year', () => {
     const c = cand({ matchType: 'smart_episode_match', pattern: 'The Equalizer', qualityRules: { season: 5, episode: 5 } });
     expect(evaluateCandidate(c, { title: 'The.Equalizer.2021.S05E05.720p.x265-MeGusta' }).result).toBe('matched');
