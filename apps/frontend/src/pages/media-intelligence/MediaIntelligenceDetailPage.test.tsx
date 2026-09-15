@@ -57,6 +57,38 @@ const state = {
     playCount: null,
   },
   storage: { ...known('media_manager'), fileCount: 62 },
+  quality: {
+    owned: {
+      provenance: 'measured', resolutionClass: '1080p', resolutionOrdinal: 4,
+      width: 1920, height: 1080, videoCodec: 'x265', videoBitDepth: 8,
+      hdr: null, hdrFormat: null, audioCodec: 'e-ac-3', audioChannels: 6,
+      bitrateKbps: 4200, frameRate: 23.976, durationSec: 2700, container: 'mkv',
+      sizeBytes: 900_000_000,
+    },
+    ladder: {
+      source: 'global_ladder',
+      sourceLabel: 'Global Auto-Download Preferences',
+      rungs: [
+        { id: 'r0', name: '2160p HEVC', rung: 0, resolution: '2160p', codec: 'x265', source: null, quality: null, requiredTerms: [], excludedTerms: [], maxBytes: null, minBytes: null },
+        { id: 'r1', name: '1080p x265', rung: 1, resolution: '1080p', codec: 'x265', source: null, quality: null, requiredTerms: [], excludedTerms: [], maxBytes: null, minBytes: null },
+      ],
+    },
+    compliance: {
+      status: 'acceptable', matchedRung: 1, matchedRungName: '1080p x265',
+      preferredRung: 0, totalRungs: 2, upgradePotential: true,
+      dimensions: [
+        { dimension: 'resolution', result: 'pass', required: '1080p', actual: '1080p', reason: null },
+        { dimension: 'source', result: 'not_evaluable', required: 'WEB-DL', actual: null, reason: 'release_name_only' },
+      ],
+      reasons: ['matched_fallback_rung'], unknownReason: null,
+      preferenceSource: 'global_ladder', preferenceSourceLabel: 'Global Auto-Download Preferences',
+    },
+    aggregate: {
+      evaluated: 62, preferred: 0, acceptable: 61, belowPreference: 1, unknown: 0,
+      upgradePotential: 61, dominantResolution: '1080p', worstResolution: '720p', mixed: true,
+    },
+    measuredFileCount: 62, totalFileCount: 62,
+  },
   health: {
     status: 'attention',
     score: 70,
@@ -168,5 +200,75 @@ describe('MediaIntelligenceDetailPage', () => {
     renderPage();
     expect(await screen.findByText(/Episodes missing/i)).toBeInTheDocument();
     expect(screen.getByText(/Since/i)).toBeInTheDocument();
+  });
+});
+
+describe('MediaIntelligenceDetailPage — quality compliance', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    intelSpy.detail.mockResolvedValue(state);
+    mediaSpy.showDetail.mockRejectedValue(new Error('no metadata'));
+  });
+
+  it('renders the compliance verdict and the rung it matched', async () => {
+    renderPage();
+    await screen.findByRole('heading', { name: /Breaking Bad/ });
+    expect(screen.getByText('Acceptable')).toBeInTheDocument();
+    expect(screen.getByText('1080p x265')).toBeInTheDocument();
+    expect(screen.getByText(/rung 2 of 2/i)).toBeInTheDocument();
+  });
+
+  it('says POTENTIAL, never that an upgrade is available', async () => {
+    renderPage();
+    await screen.findByRole('heading', { name: /Breaking Bad/ });
+    expect(screen.getAllByText(/Upgrade potential/i).length).toBeGreaterThan(0);
+    // The distinction the whole feature rests on: nothing has been searched for.
+    expect(screen.queryByText(/available/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/not that a better release has been found/i)).toBeInTheDocument();
+  });
+
+  it('names the preference source so the verdict is explainable', async () => {
+    renderPage();
+    await screen.findByRole('heading', { name: /Breaking Bad/ });
+    expect(screen.getAllByText(/Global Auto-Download Preferences/).length).toBeGreaterThan(0);
+  });
+
+  it('shows a dimension it could not evaluate as such, not as a failure', async () => {
+    renderPage();
+    await screen.findByRole('heading', { name: /Breaking Bad/ });
+    expect(screen.getByText(/Source: Cannot tell — describes a release name/i)).toBeInTheDocument();
+  });
+
+  it('keeps the single below-preference episode visible in the aggregate', async () => {
+    renderPage();
+    await screen.findByRole('heading', { name: /Breaking Bad/ });
+    expect(screen.getByText(/Below preference: 1/)).toBeInTheDocument();
+    expect(screen.getByText(/Acceptable: 61/)).toBeInTheDocument();
+    // The outlier must survive the summary.
+    expect(screen.getByText(/Lowest: 720p/)).toBeInTheDocument();
+  });
+
+  it('renders unknown HDR as unknown rather than SDR or false', async () => {
+    renderPage();
+    await screen.findByRole('heading', { name: /Breaking Bad/ });
+    expect(screen.queryByText('SDR')).not.toBeInTheDocument();
+    expect(screen.queryByText('false')).not.toBeInTheDocument();
+  });
+
+  it('explains itself when no preferences apply', async () => {
+    intelSpy.detail.mockResolvedValue({
+      ...state,
+      quality: {
+        ...state.quality,
+        compliance: {
+          ...state.quality.compliance,
+          status: 'unknown', matchedRung: null, upgradePotential: false,
+          unknownReason: 'no_acquisition_preferences',
+        },
+      },
+    });
+    renderPage();
+    await screen.findByRole('heading', { name: /Breaking Bad/ });
+    expect(screen.getByText(/no Auto-Download preferences apply/i)).toBeInTheDocument();
   });
 });

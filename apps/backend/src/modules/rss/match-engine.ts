@@ -133,7 +133,7 @@ export function normalize(input: string): string {
 }
 
 /** Compact form for token-equality comparisons (no spaces). */
-function compact(input: string): string {
+export function compact(input: string): string {
   return normalize(input).replace(/\s+/g, '');
 }
 
@@ -324,7 +324,7 @@ export function parseRelease(title: string): ParsedRelease {
 
 // --- codec equivalence ---------------------------------------------------
 
-function codecEquivalent(a: string, b: string): boolean {
+export function codecEquivalent(a: string, b: string): boolean {
   const norm = (c: string) => {
     const x = compact(c);
     if (['x265', 'h265', 'hevc'].includes(x)) return 'x265';
@@ -334,7 +334,7 @@ function codecEquivalent(a: string, b: string): boolean {
   return norm(a) === norm(b);
 }
 
-function sourceEquivalent(a: string, b: string): boolean {
+export function sourceEquivalent(a: string, b: string): boolean {
   const norm = (s: string) => {
     const x = compact(s);
     if (['webdl', 'web'].includes(x)) return 'webdl';

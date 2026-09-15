@@ -10,6 +10,9 @@ import { MediaLinkageService } from '../media/media-linkage.service';
 import { MissingEpisodesService } from '../media-acquisition/missing-episodes.service';
 import { scoreItem, type HealthFacts } from '../media/health/media-health-score';
 import type { EvaluationInput } from './media-health-evaluator';
+import { QualityPreferenceResolver } from './quality/preference-resolution.service';
+import { representativeQuality } from './quality/owned-quality';
+import { aggregateQuality, evaluateQualityCompliance } from './quality/quality-evaluator';
 
 /**
  * Gathers the facts Media Intelligence reasons over — and owns none of them.
@@ -45,6 +48,7 @@ export class MediaStateAssembler {
     private readonly prisma: PrismaService,
     private readonly linkage: MediaLinkageService,
     private readonly missingEpisodes: MissingEpisodesService,
+    private readonly preferences: QualityPreferenceResolver,
   ) {}
 
   /** Assemble the fact half of a unified state. Health is decided downstream. */
@@ -115,6 +119,22 @@ export class MediaStateAssembler {
       hasMeasuredTech: (technical.measuredFileCount ?? 0) > 0,
       unorganised: false,
     } satisfies HealthFacts);
+
+    // One ladder read per entity; the global ladder short-circuits the rest.
+    const globalLadder = await this.preferences.globalLadder();
+    const ladder = await this.preferences.ladderFor(
+      { imdbId: item.seriesImdbId ?? externalIds.imdb ?? null },
+      globalLadder,
+    );
+    const rep = representativeQuality(files);
+    const quality = {
+      owned: rep.quality,
+      ladder,
+      compliance: evaluateQualityCompliance(rep.quality, ladder),
+      aggregate: null,
+      measuredFileCount: rep.measuredCount,
+      totalFileCount: rep.totalCount,
+    };
 
     const facts = {
       entityType,
@@ -190,6 +210,7 @@ export class MediaStateAssembler {
         embeddedTracksKnown: false,
       },
       acquisition: await this.acquisitionFactsForSeries(item.seriesImdbId, now),
+      quality,
       intake,
       torrent,
       usage,
@@ -263,6 +284,31 @@ export class MediaStateAssembler {
       } satisfies HealthFacts).score,
     );
     const hygiene = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
+
+    /*
+     * Quality per EPISODE, then aggregated. A series is not one file, and
+     * reporting the show's dominant profile as "the" quality would hide the
+     * single 720p episode among sixty-one 1080p ones — the exact thing an
+     * operator opens this page to find.
+     */
+    const globalLadder = await this.preferences.globalLadder();
+    const ladder = await this.preferences.ladderFor(
+      { showId: show.id, imdbId: show.imdbId },
+      globalLadder,
+    );
+    const perEpisode = episodes.map((e) => {
+      const rep = representativeQuality(e.files);
+      return { owned: rep.quality, compliance: evaluateQualityCompliance(rep.quality, ladder) };
+    });
+    const showRep = representativeQuality(allFiles);
+    const quality = {
+      owned: showRep.quality,
+      ladder,
+      compliance: evaluateQualityCompliance(showRep.quality, ladder),
+      aggregate: aggregateQuality(perEpisode),
+      measuredFileCount: showRep.measuredCount,
+      totalFileCount: showRep.totalCount,
+    };
 
     const facts = {
       entityType: 'series' as const,
@@ -339,6 +385,7 @@ export class MediaStateAssembler {
         embeddedTracksKnown: false,
       },
       acquisition: await this.acquisitionFactsForSeries(show.imdbId, now),
+      quality,
       intake: await this.intakeFactsForItems(itemIds, now),
       torrent: await this.torrentFactsForItems(itemIds, now),
       usage: this.usageForEpisodes(episodes.map((e) => e.playbackAggregate), now),
@@ -374,16 +421,67 @@ export class MediaStateAssembler {
 
     // Narrow the series view to one season's completeness; the rest of the
     // sections are already show-scoped facts the season shares.
-    const show = await this.prisma.mediaShow.findUnique({ where: { id: showId }, select: { imdbId: true, title: true } });
+    const show = await this.prisma.mediaShow.findUnique({
+      where: { id: showId },
+      select: { imdbId: true, title: true, libraryId: true, path: true },
+    });
     const seasons = show ? await this.seasonCompleteness(show.imdbId, seasonNumber) : null;
+
+    /*
+     * Quality is re-aggregated over THIS season's episodes.
+     *
+     * Inheriting the series block would report the show's spread — including
+     * every other season's episodes — under a season's name. A season that is
+     * uniformly 1080p must not be coloured by a 720p episode belonging to
+     * season 1, and vice versa: the outlier has to stay attached to the
+     * season that actually owns it.
+     */
+    const quality = show ? await this.seasonQuality(show, showId, seasonNumber) : null;
 
     const facts = {
       ...base.facts,
       entityType: 'season' as const,
       entityId: compositeId,
       ...(seasons ? { completeness: seasons } : {}),
+      ...(quality ? { quality } : {}),
     } as unknown as EvaluationInput['facts'];
     return { facts, hygieneScore: base.hygieneScore };
+  }
+
+  /**
+   * Quality for one season, aggregated over only that season's episodes.
+   *
+   * One query, narrowed by the same path-prefix join the series path uses,
+   * plus the season number — never a fan-out per episode.
+   */
+  private async seasonQuality(
+    show: { imdbId: string | null; libraryId: string; path: string },
+    showId: string,
+    seasonNumber: number,
+  ) {
+    const episodes = await this.prisma.mediaItem.findMany({
+      where: { libraryId: show.libraryId, path: { startsWith: `${show.path}/` }, season: seasonNumber },
+      select: { files: { select: FILE_SELECT } },
+    });
+    if (!episodes.length) return null;
+
+    const globalLadder = await this.preferences.globalLadder();
+    const ladder = await this.preferences.ladderFor({ showId, imdbId: show.imdbId }, globalLadder);
+
+    const perEpisode = episodes.map((e) => {
+      const rep = representativeQuality(e.files);
+      return { owned: rep.quality, compliance: evaluateQualityCompliance(rep.quality, ladder) };
+    });
+    const seasonRep = representativeQuality(episodes.flatMap((e) => e.files));
+
+    return {
+      owned: seasonRep.quality,
+      ladder,
+      compliance: evaluateQualityCompliance(seasonRep.quality, ladder),
+      aggregate: aggregateQuality(perEpisode),
+      measuredFileCount: seasonRep.measuredCount,
+      totalFileCount: seasonRep.totalCount,
+    };
   }
 
   /* ----------------------------------------------------------- fact helpers */

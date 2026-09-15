@@ -11,6 +11,7 @@ import {
   type MediaHealthSummary,
   type MediaIntelligenceDomain,
   type MediaIntelligenceEntityType,
+  type MediaQualityFacts,
   type UnifiedMediaState,
 } from '@ultratorrent/shared';
 
@@ -463,6 +464,7 @@ export function evaluateMediaHealth(input: EvaluationInput): EvaluationResult {
   evaluateIntake(input, findings);
   evaluateTorrent(input, findings);
   evaluateStorage(input, findings);
+  evaluateQuality(input, findings);
 
   // Stable worst-first ordering so a UI never has to sort and two runs over
   // identical facts are byte-comparable.
@@ -484,6 +486,68 @@ export function evaluateMediaHealth(input: EvaluationInput): EvaluationResult {
     },
     findings,
   };
+}
+
+/**
+ * Quality compliance against the operator's OWN acquisition ladder.
+ *
+ * Silent in three cases, all of them deliberate:
+ *
+ *  - **No ladder configured.** Absence of a policy is not a verdict. Saying
+ *    anything here would mean inventing a preference the operator never set.
+ *  - **Nothing measurable.** An unprobed file, or a ladder that only asks for
+ *    release-name facts a renamed file has lost, yields no finding — Phase 1's
+ *    `MEDIA_TECHNICAL_DATA_MISSING` already reports absent measurement, and a
+ *    second finding for the same gap would double-count it.
+ *  - **Preferred rung matched.** Nothing to say.
+ *
+ * The two findings it does emit are graded apart on purpose. Satisfying a
+ * fallback the operator themselves configured is an OPPORTUNITY; satisfying
+ * nothing they configured is a WARNING. Neither is an error: the media plays.
+ */
+function evaluateQuality(input: EvaluationInput, out: MediaFinding[]): void {
+  const q = (input.facts as { quality?: MediaQualityFacts }).quality;
+  if (!q) return;
+  const c = q.compliance;
+  if (c.status === 'unknown' || c.status === 'preferred') return;
+
+  // Only the dimensions that actually decided the verdict, capped — evidence
+  // must explain without becoming a copy of the file's technical profile.
+  const blocking = boundedSample(
+    c.dimensions.filter((d) => d.result === 'fail').map((d) => `${d.dimension}:${d.required ?? '?'}`),
+    5,
+  );
+
+  if (c.status === 'below_preference') {
+    out.push(
+      finding(MEDIA_FINDING_CODES.QUALITY_BELOW_PREFERENCE, input, 'media_acquisition', {
+        ownedResolution: q.owned?.resolutionClass ?? null,
+        ownedCodec: q.owned?.videoCodec ?? null,
+        preferenceSource: c.preferenceSource,
+        totalRungs: c.totalRungs,
+        blockedBy: blocking.sample,
+        ...(blocking.omitted ? { omitted: blocking.omitted } : {}),
+        measuredFileCount: q.measuredFileCount,
+      }),
+    );
+    return;
+  }
+
+  // `acceptable` with a better rung above it.
+  if (c.upgradePotential) {
+    out.push(
+      finding(MEDIA_FINDING_CODES.QUALITY_UPGRADE_POTENTIAL, input, 'media_acquisition', {
+        ownedResolution: q.owned?.resolutionClass ?? null,
+        matchedRung: c.matchedRung,
+        matchedRungName: c.matchedRungName,
+        preferredRung: c.preferredRung,
+        totalRungs: c.totalRungs,
+        preferenceSource: c.preferenceSource,
+        // Named so nobody reads this as "a better release was found".
+        upgradeAvailable: false,
+      }),
+    );
+  }
 }
 
 /** Bound an evidence list so a large series cannot inflate every response. */

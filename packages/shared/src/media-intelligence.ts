@@ -69,6 +69,8 @@ export type MediaFactStatus = (typeof MEDIA_FACT_STATUSES)[number];
  * without string-matching prose, and so a future Attention Center can filter on
  * "everything blocked on an unresolved mapping".
  */
+import type { MediaQualityFacts, MediaQualityStatus } from './media-quality.js';
+
 export const MEDIA_UNKNOWN_REASONS = [
   /** No mediainfo probe has run for these files yet. */
   'not_probed',
@@ -88,6 +90,10 @@ export const MEDIA_UNKNOWN_REASONS = [
   'no_torrent_link',
   /** The torrent engine could not be reached, so live state is genuinely unknown. */
   'engine_unreachable',
+  /** No acquisition preference ladder applies, so policy compliance is undefined. */
+  'no_acquisition_preferences',
+  /** The requirement describes a release name, which a renamed file has lost. */
+  'not_evaluable_from_owned_media',
   /** The section does not apply to this entity type (e.g. episode counts on a movie). */
   'not_applicable',
 ] as const;
@@ -444,6 +450,12 @@ export interface UnifiedMediaState {
   torrent: MediaTorrentFacts;
   usage: MediaUsageFacts;
   storage: MediaStorageFacts;
+  /**
+   * Quality compliance — a CORRELATION of `technical` and `acquisition`, not a
+   * thirteenth fact domain. It introduces no new source of truth: the facts
+   * come from those two sections, and its findings are filed under `technical`.
+   */
+  quality: MediaQualityFacts;
   health: MediaHealthSummary;
   findings: MediaFinding[];
   freshness: MediaFreshness;
@@ -465,6 +477,17 @@ export interface MediaIntelligenceSummary {
   totalBytes: number | null;
   missingCount: number | null;
   lastPlayedAt: string | null;
+  /**
+   * Quality compliance, denormalized for list filtering and sorting only.
+   * Null on a row evaluated before Phase 2 existed — distinct from `unknown`,
+   * which is an actual verdict.
+   */
+  qualityStatus: MediaQualityStatus | null;
+  /**
+   * A better rung exists in the operator's OWN ladder. Potential, never a
+   * claim that such a release has been found — no search has run.
+   */
+  upgradePotential: boolean | null;
   /** When the projection row was computed; stale rows must read as stale. */
   calculatedAt: string;
 }

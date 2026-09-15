@@ -1229,6 +1229,79 @@ pure, deterministic core), `media-state.assembler.ts` (the fan-out),
 `media-intelligence-projection.service.ts` (the derived store),
 `apps/frontend/src/pages/media-intelligence/`.
 
+### Phase 2 — Quality Compliance & Upgrade Potential
+
+**Status: complete, observational.** Answers "does what I own satisfy the
+quality I actually asked for, and could a better release exist within my own
+preferences". It searches nothing, downloads nothing, replaces nothing.
+
+**There is exactly one operator preference vocabulary, and Phase 2 does not own
+it.** `AcquisitionMatchPreferenceService.resolveCandidates()` decides which
+ladder applies; Media Intelligence consumes the result. No
+`MediaIntelligenceQualityProfile` exists and none may be added — a second
+profile system is what would let Acquisition say 1080p while Intelligence says
+2160p. The service is now exported from `MediaAcquisitionModule` for this
+read-only consumer rather than having its cascade re-derived.
+
+**The cascade in this repository is global-first.** The prompt that specified
+Phase 2 assumed rule → profile → global; the code does the opposite, and the
+code is right: the global ordered ladder is primary, with a show's RSS
+candidates and per-media-type profiles consulted only when it is empty. That
+ordering was a deliberate product decision. It also makes the feature cheap —
+one ladder governs nearly every title, so a sweep resolves it once.
+
+**Measured facts only, through a semantic bridge.** `evaluateCandidate` matches
+against a release NAME; owned media has no release name after import and
+rename. Rather than synthesise a fake torrent name from `MediaFile` — which
+would be architecturally dishonest — a small pure evaluator compares measured
+columns against the same `qualityRules`. Resolution comes from measured
+width/height via the existing ordered `classifyResolution` (never the stored
+`resolution` label, which is absent on ~75% of TV rows here); codec reuses the
+exported `codecEquivalent` so `HEVC` and `x265` agree with acquisition.
+
+**Three outcomes per dimension, and the third matters most.** `pass`, `fail`,
+and `not_evaluable`. A `WEB-DL`, `REMUX`, `HDTV`, `PROPER` or release-group
+term describes a release name that no column in this schema preserves — an
+audit of `MediaIntakeJob`, `MediaFile`, `MediaRenameOperation`, RSS history and
+NFO import found no authoritative field that survives import and rename — so
+those are reported as not evaluable, never as failures. `10bit` IS evaluable
+(measured `videoBitDepth`), and so are size caps (measured file size).
+
+**Unknown stays unknown.** No ladder → `no_acquisition_preferences`, never
+"healthy". No measurement → unknown, never SD or SDR. HDR gets three answers,
+not two: `true` when measured, `false` only when the probe demonstrably read
+colour and found none, and `null` when it never read colour at all — a real
+property of this installation's older probe rows.
+
+**Preferred vs acceptable vs below.** The ladder is ordered and is never
+flattened into a minimum resolution. Matching rung 3 of 4 is `acceptable` —
+the operator configured that fallback themselves — and earns
+`QUALITY_UPGRADE_POTENTIAL` at severity `opportunity`, which floors to
+**healthy**. Only satisfying no rung at all yields `QUALITY_BELOW_PREFERENCE`
+at `warning`. Neither is an error: the media plays.
+
+**Upgrade POTENTIAL is not upgrade AVAILABLE.** Potential means a higher rung
+exists in the operator's own ladder. Nothing has asked an indexer whether such
+a release can be obtained; the evidence carries an explicit
+`upgradeAvailable: false` and the UI says so in both locales. Findings point at
+no CAMA capability, because CAMA registers neither an acquisition search nor a
+re-probe — a dangling id would render as a dead control.
+
+**A series is not one file.** Quality is evaluated per episode and aggregated;
+a season re-aggregates over only its own episodes rather than inheriting the
+show's. `worstResolution` and `mixed` exist so one 720p episode among
+sixty-one cannot be rounded away.
+
+**Persistence stays derived.** Two nullable columns (`qualityStatus`,
+`upgradePotential`) on `media_intelligence_projections` for list filtering and
+sorting, plus one index. NULL means "predates Phase 2", deliberately distinct
+from the `unknown` verdict. No MediaFile or rule state is copied.
+
+Key files: `packages/shared/src/media-quality.ts`,
+`apps/backend/src/modules/media-intelligence/quality/` (`owned-quality.ts`,
+`preference-ladder.ts`, `preference-resolution.service.ts`,
+`quality-evaluator.ts`).
+
 ## Event-Driven Architecture
 
 Modules communicate through **domain events**, not tight coupling: a module
@@ -1531,6 +1604,7 @@ append a dated row here.
 
 | Date | Change |
 |------|--------|
+| 2026-09-15 | **Media Intelligence Phase 2: quality compliance and upgrade potential.** Correlates the authoritative acquisition ladder with measured owned-media facts to answer "does what I own satisfy the quality I asked for". **No second quality-profile system**: `AcquisitionMatchPreferenceService.resolveCandidates()` remains the only preference resolver and is now exported for this read-only consumer. **The prompt's assumed cascade was wrong for this repo** — it specified rule → profile → global; the code is global-ladder-first (a deliberate earlier product decision), and the implementation follows the code. Because `evaluateCandidate` matches release NAMES and owned media has none after rename, a pure evaluator compares measured columns against the same `qualityRules` rather than synthesising a fake torrent name; `codecEquivalent`/`compact` are exported and reused so `HEVC`/`x265` agree across layers, and resolution is classified from measured pixels via `classifyResolution` (the stored `resolution` label is null on ~75% of TV rows). Every dimension yields `pass`/`fail`/**`not_evaluable`** — an audit of MediaIntakeJob, MediaFile, MediaRenameOperation, RSS history and NFO import found NO field preserving release provenance through import+rename, so `WEB-DL`/`REMUX`/`HDTV`/release-group terms are never judged; `10bit` (measured `videoBitDepth`) and size caps are. Unknown never becomes failure: no ladder → `no_acquisition_preferences`, and HDR has three answers (`true`/`false`/`null`) because this installation's older probe rows never read colour at all. Ladder order is preserved, never flattened: a matched fallback rung is `acceptable` and raises `QUALITY_UPGRADE_POTENTIAL` at `opportunity` (floors to healthy); satisfying no rung raises `QUALITY_BELOW_PREFERENCE` at `warning`. **Potential ≠ available** — no search runs, evidence carries `upgradeAvailable: false`, and findings point at no CAMA capability because none exists for search or re-probe. Series aggregate per episode (seasons re-aggregate their own), surfacing `worstResolution`/`mixed` so one outlier cannot hide. Additive migration: two nullable projection columns + one index, NULL meaning "predates Phase 2". New list filters (quality, upgrade-potential) are server-side. i18n en-US/es-PR (180 keys). Gates: shared build; backend tsc 0; backend suite 378/5273; frontend tsc 0; frontend vitest; i18n parity; prisma validate + generate; migration verified against `migrate diff --from-empty`. |
 | 2026-09-15 | **Media Intelligence detail shows the title's artwork and metadata — composed, not copied.** The detail page reported *booleans about* art and metadata (`posterPresent`, `hasOverview`) but never showed the poster or the overview itself. Rather than widen the Media Intelligence contracts to carry poster URLs, overview text and genres — which would have put authoritative Media Manager content in this layer, and tempted the materialized projection to store it — the page now **composes** the owning domain's own endpoints alongside the intelligence state: `api.media.showDetail(showId)` for `series`/`season` (season ids split on the last `:`, mirroring the assembler) and `api.media.getItem(id)` for `movie`/`episode`. A new `MediaHeader` renders the poster through the existing shared `MediaPoster` component — which already handles the bearer-authenticated blob fetch for locally-stored art, since `GET /media/artwork/:id/image` is permission-gated and cannot be a plain `<img src>` — plus overview, genres, certification, show status, runtime, rating, network, studio and director, with the provider credited. Poster selection follows the established convention (selected poster → any poster → first artwork), preferring a season-scoped poster for a season. **A missing lookup is never an error**: a title with no metadata is a normal state Intelligence itself reports, so a failed or empty fetch renders nothing rather than putting an error panel over a health verdict that loaded fine. The `useQuery` data type is stated as `ShowDetail \| MediaItemDetail` rather than inferred, since two endpoints back one panel. i18n: new `media.*` block, en-US + es-PR (125 keys each, parity enforced). Gates: frontend tsc 0; frontend vitest 82 files / 753 tests (+2: artwork/metadata rendered, and the verdict surviving a failed metadata lookup); i18n parity + resolution. |
 | 2026-09-15 | **Humanized presentation, shared: `lib/humanize.ts`.** Media Intelligence's detail panels were rendering raw `Object.entries` — "measuredFileCount / 62", "posterPresent / true" — and every timestamp went through `formatDate`, which is **date-only**, so `assembledAt`, `observedAt`, `firstObservedAt` and `lastPlayedAt` silently dropped their time and ignored the user's display timezone. The humanization the audit trail already had (`prettifyKey`, `formatScalar`, acronym table) was private to `lib/audit.ts`, so it was **extracted** to a new `lib/humanize.ts` that both consume rather than cloned into a second divergent copy; `audit.ts` re-imports it and `AuditMetaField` becomes an alias of the shared `HumanField`. New: `prettifyValue` (title-cases free-form enum columns like `matchStatus`/`libraryKind` — these are plain strings, not closed unions, so it title-cases whatever arrives instead of failing silently on an unlisted value) and unit hints for `*Percent` (`96%`), `*Seconds` (`3h 42m`) and `*Id` (monospace handle, never a grouped quantity). Enum title-casing is **opt-in** (`prettifyEnums`, default off in `formatScalar`): the audit trail deliberately shows machine codes verbatim, so the extraction could not impose it on an existing consumer. Instants now use `formatDateTime` (timezone-aware via `setDisplayTimezone`, set from the signed-in user) and narrow table columns use `formatRelativeTimeShort` with the exact instant in a `title`. Counts go through `formatNumber`, so 20837 reads as 20,837. Derived labels stay English by design, matching how the audit trail has always rendered them; the surrounding chrome remains fully localized. Gates: frontend tsc 0; frontend vitest 82 files / 751 tests (+20: 11 new `humanize.spec` incl. a timezone assertion pinning the reported defect, +1 guarding raw keys); `audit.test.ts` 6/6 unchanged, proving the extraction preserved audit behaviour; backend suite 376/5229. |
 | 2026-09-15 | **Media Intelligence (Phase 1): unified media state, health and findings.** A new observational module that correlates facts the media domains already own into one explainable view, and concludes rather than re-states: twelve fact sections (identity, library, completeness, technical, metadata, artwork, subtitles, acquisition, intake, torrent, usage, storage), each answering `known\|partial\|unknown` with an explicit *reason* when unknown, so "measured and empty" never renders as "never looked". Health is a severity-aware floor (`healthy\|attention\|degraded\|critical\|unknown`), never an average. Findings carry stable codes, bounded evidence and a lifecycle — **resolved, never deleted**, preserving `firstObservedAt` and re-opening in place — so "missing since the 3rd" survives re-evaluation. Strictly advisory: no download, delete, transcode, repair, re-tag or unseed, and findings only *point* at existing CAMA capabilities. New shared contracts (`media-intelligence.ts`, `media-intelligence-codes.ts`); two DERIVED tables (`media_intelligence_projections`, `media_intelligence_findings`) with **no FK** to media tables (a season owns no row; the store must be droppable and rebuildable), added by a hand-written additive migration. Detail is assembled live; only the list is materialized, with `calculatedAt`/`unknownDomains` as provenance. Because most media source facts publish no domain event, refresh is a periodic `media_intelligence_reconcile` sweep (module-gated) hinted by the four events that do fire. RBAC borrows `media_manager.view` / `.scan` rather than minting a family that would have locked out existing Power Users. New nav entry + two routes (`/media/intelligence`), i18n en-US/es-PR. Gates: shared build, backend tsc, backend suite 376/5229, frontend tsc 0, frontend vitest 79 files/731 tests, i18n parity, DI application-context boot. |

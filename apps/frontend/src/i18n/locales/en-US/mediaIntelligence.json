@@ -21,6 +21,74 @@
     "seasonLabel": "Season {{number}}",
     "openInLibrary": "Open in Media Manager"
   },
+  "quality": {
+    "heading": "Quality",
+    "current": "Current",
+    "measured": "Measured",
+    "target": "Target",
+    "preferenceSource": "Preference source",
+    "compliance": "Compliance",
+    "matchedRung": "Matched preference",
+    "rungOf": "rung {{rung}} of {{total}}",
+    "upgradePotential": "Upgrade potential",
+    "why": "Why",
+    "noLadder": "No Auto-Download preferences apply to this title, so there is nothing to judge its quality against.",
+    "noMeasurement": "This title has not been measured, so its quality cannot be judged.",
+    "notEvaluable": "These preferences describe release names, which a renamed file no longer carries.",
+    "status": {
+      "preferred": "Preferred",
+      "acceptable": "Acceptable",
+      "below_preference": "Below preference",
+      "unknown": "Unknown"
+    },
+    "yes": "Yes",
+    "no": "No",
+    "provenance": {
+      "measured": "Measured by probe",
+      "inferred": "Guessed from the filename",
+      "unknown": "Never measured"
+    },
+    "probeCoverage": "{{measured}} of {{total}} file(s) measured",
+    "dimension": {
+      "resolution": "Resolution",
+      "codec": "Codec",
+      "source": "Source",
+      "quality": "Quality",
+      "hdr": "HDR",
+      "audio": "Audio",
+      "bitDepth": "Bit depth",
+      "size": "Size",
+      "terms": "Terms"
+    },
+    "result": {
+      "pass": "Met",
+      "fail": "Not met",
+      "not_evaluable": "Cannot tell"
+    },
+    "notEvaluableReason": {
+      "not_measured": "never measured",
+      "release_name_only": "describes a release name",
+      "release_group": "names a release group",
+      "free_text": "free-text release phrase"
+    },
+    "unknownReason": {
+      "no_acquisition_preferences": "no Auto-Download preferences apply",
+      "no_measured_quality": "nothing about this file was measured",
+      "not_evaluable_from_owned_media": "the preferences cannot be checked against a file on disk"
+    },
+    "aggregate": {
+      "heading": "Episode quality",
+      "preferred": "Preferred",
+      "acceptable": "Acceptable",
+      "belowPreference": "Below preference",
+      "unknown": "Unknown",
+      "upgradePotential": "Upgrade potential",
+      "dominant": "Mostly {{resolution}}",
+      "worst": "Lowest: {{resolution}}",
+      "mixed": "Mixed quality"
+    },
+    "advisory": "Upgrade potential means a higher rung exists in your own preferences — not that a better release has been found. Nothing has been searched for."
+  },
   "overview": {
     "analyzed": "Titles analyzed",
     "neverAnalyzed": "No titles have been analyzed yet.",
@@ -59,7 +127,8 @@
       "size": "Size",
       "lastPlayed": "Last played",
       "library": "Library",
-      "evaluated": "Evaluated"
+      "evaluated": "Evaluated",
+      "quality": "Quality"
     },
     "filters": {
       "allTypes": "All types",
@@ -67,7 +136,9 @@
       "allLibraries": "All libraries",
       "allSeverities": "Any severity",
       "allDomains": "Any domain",
-      "hasFindings": "With findings only"
+      "hasFindings": "With findings only",
+      "allQuality": "Any quality",
+      "upgradeOnly": "Upgrade potential only"
     },
     "entityType": {
       "movie": "Movie",

@@ -65,6 +65,10 @@ export interface MediaIntelligenceListQuery {
   severity?: string;
   domain?: string;
   hasFindings?: string;
+  /** Quality-compliance verdict to narrow to. */
+  quality?: string;
+  /** `'true'` for entities where a more preferred rung exists. */
+  upgradePotential?: string;
   sort?: string;
   direction?: string;
   [key: string]: string | undefined;

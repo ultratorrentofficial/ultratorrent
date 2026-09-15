@@ -5,6 +5,7 @@ import {
   MEDIA_HEALTH_STATUSES,
   MEDIA_INTELLIGENCE_DOMAINS,
   MEDIA_INTELLIGENCE_ENTITY_TYPES,
+  MEDIA_QUALITY_STATUSES,
 } from '@ultratorrent/shared';
 
 /**
@@ -26,6 +27,7 @@ export const MEDIA_INTELLIGENCE_SORTS = [
   'missing',
   'findings',
   'lastPlayed',
+  'quality',
 ] as const;
 export type MediaIntelligenceSort = (typeof MEDIA_INTELLIGENCE_SORTS)[number];
 
@@ -46,6 +48,11 @@ export class ListMediaIntelligenceDto {
   @IsOptional() @IsIn(MEDIA_INTELLIGENCE_DOMAINS as unknown as string[]) domain?: string;
   /** `'true'` to show only entities with at least one unresolved finding. */
   @IsOptional() @IsString() @MaxLength(5) hasFindings?: string;
+
+  /** Narrow to a quality-compliance verdict. */
+  @IsOptional() @IsIn(MEDIA_QUALITY_STATUSES as unknown as string[]) quality?: string;
+  /** `'true'` for entities where a more preferred rung exists. */
+  @IsOptional() @IsString() @MaxLength(5) upgradePotential?: string;
 
   @IsOptional() @IsIn(MEDIA_INTELLIGENCE_SORTS as unknown as string[]) sort?: string;
   @IsOptional() @IsIn(['asc', 'desc']) direction?: string;

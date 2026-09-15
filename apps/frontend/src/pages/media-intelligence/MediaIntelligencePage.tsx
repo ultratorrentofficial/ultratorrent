@@ -8,6 +8,7 @@ import {
   MEDIA_HEALTH_STATUSES,
   MEDIA_INTELLIGENCE_DOMAINS,
   MEDIA_INTELLIGENCE_ENTITY_TYPES,
+  MEDIA_QUALITY_STATUSES,
   type MediaFindingSeverity,
   type MediaHealthStatus,
   type MediaIntelligenceSummary,
@@ -31,7 +32,13 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
-import { HEALTH_ORDER, HEALTH_VARIANT, SEVERITY_ORDER, SEVERITY_VARIANT } from './mediaIntelligenceUi';
+import {
+  HEALTH_ORDER,
+  HEALTH_VARIANT,
+  QUALITY_VARIANT,
+  SEVERITY_ORDER,
+  SEVERITY_VARIANT,
+} from './mediaIntelligenceUi';
 
 const PAGE_SIZE = 50;
 
@@ -60,6 +67,8 @@ export function MediaIntelligencePage() {
   const [libraryId, setLibraryId] = useState('');
   const [severity, setSeverity] = useState('');
   const [domain, setDomain] = useState('');
+  const [quality, setQuality] = useState('');
+  const [upgradeOnly, setUpgradeOnly] = useState(false);
 
   const overview = useQuery({
     queryKey: ['mediaIntelligence', 'overview'],
@@ -72,7 +81,7 @@ export function MediaIntelligencePage() {
   });
 
   const list = useQuery({
-    queryKey: ['mediaIntelligence', 'list', { page, q, entityType, health, libraryId, severity, domain }],
+    queryKey: ['mediaIntelligence', 'list', { page, q, entityType, health, libraryId, severity, domain, quality, upgradeOnly }],
     queryFn: () =>
       api.mediaIntelligence.list({
         page: String(page),
@@ -83,6 +92,10 @@ export function MediaIntelligencePage() {
         ...(libraryId ? { libraryId } : {}),
         ...(severity ? { severity } : {}),
         ...(domain ? { domain } : {}),
+        ...(quality ? { quality } : {}),
+        // Server-side: filtering a paginated list in the browser would narrow
+        // one page of 50 and silently hide every other match.
+        ...(upgradeOnly ? { upgradePotential: 'true' } : {}),
       }),
     placeholderData: keepPreviousData,
   });
@@ -145,6 +158,17 @@ export function MediaIntelligencePage() {
     () => [
       { value: '', label: t('list.filters.allDomains') },
       ...MEDIA_INTELLIGENCE_DOMAINS.map((d) => ({ value: d, label: t(`domain.${d}` as 'domain.identity') })),
+    ],
+    [t],
+  );
+
+  const qualityOptions = useMemo(
+    () => [
+      { value: '', label: t('list.filters.allQuality') },
+      ...MEDIA_QUALITY_STATUSES.map((s) => ({
+        value: s,
+        label: t(`quality.status.${s}` as 'quality.status.preferred'),
+      })),
     ],
     [t],
   );
@@ -237,7 +261,18 @@ export function MediaIntelligencePage() {
             <Select options={libraryOptions} value={libraryId} onChange={(e) => withReset(setLibraryId)(e.target.value)} />
             <Select options={severityOptions} value={severity} onChange={(e) => withReset(setSeverity)(e.target.value)} />
             <Select options={domainOptions} value={domain} onChange={(e) => withReset(setDomain)(e.target.value)} />
+            <Select options={qualityOptions} value={quality} onChange={(e) => withReset(setQuality)(e.target.value)} />
           </div>
+
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={upgradeOnly}
+              onChange={(e) => withReset(setUpgradeOnly)(e.target.checked)}
+              className="h-3.5 w-3.5 rounded border-input"
+            />
+            {t('list.filters.upgradeOnly')}
+          </label>
 
           {list.isLoading ? (
             <CenteredSpinner label={t('title')} />
@@ -257,6 +292,7 @@ export function MediaIntelligencePage() {
                     <TableRow>
                       <TableHead>{t('list.columns.title')}</TableHead>
                       <TableHead>{t('list.columns.health')}</TableHead>
+                      <TableHead>{t('list.columns.quality')}</TableHead>
                       <TableHead>{t('list.columns.findings')}</TableHead>
                       <TableHead className="text-right">{t('list.columns.missing')}</TableHead>
                       <TableHead className="text-right">{t('list.columns.size')}</TableHead>
@@ -308,6 +344,23 @@ function IntelligenceRow({ row, onOpen }: { row: MediaIntelligenceSummary; onOpe
         <Badge variant={HEALTH_VARIANT[row.health as MediaHealthStatus]} dot>
           {t(`health.${row.health}` as 'health.healthy')}
         </Badge>
+      </TableCell>
+      <TableCell>
+        {row.qualityStatus ? (
+          <div className="flex flex-wrap items-center gap-1">
+            <Badge variant={QUALITY_VARIANT[row.qualityStatus] ?? 'outline'}>
+              {t(`quality.status.${row.qualityStatus}` as 'quality.status.preferred')}
+            </Badge>
+            {/* Potential, never availability — nothing has been searched for. */}
+            {row.upgradePotential ? (
+              <Badge variant="info" title={t('quality.advisory')}>
+                {t('quality.upgradePotential')}
+              </Badge>
+            ) : null}
+          </div>
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        )}
       </TableCell>
       <TableCell>
         {present.length === 0 ? (

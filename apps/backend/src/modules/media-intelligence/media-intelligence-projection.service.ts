@@ -98,6 +98,8 @@ export class MediaIntelligenceProjectionService {
         findingCounts: countBySeverity(findings),
         summary: this.rowSummary(findings),
         unknownDomains,
+        qualityStatus: f.quality?.compliance?.status ?? null,
+        upgradePotential: f.quality?.compliance?.upgradePotential ?? null,
         calculatedAt: now,
       },
       update: {
@@ -113,6 +115,8 @@ export class MediaIntelligenceProjectionService {
         findingCounts: countBySeverity(findings),
         summary: this.rowSummary(findings),
         unknownDomains,
+        qualityStatus: f.quality?.compliance?.status ?? null,
+        upgradePotential: f.quality?.compliance?.upgradePotential ?? null,
         calculatedAt: now,
       },
     });
@@ -294,6 +298,7 @@ export interface RebuildSummary {
 /** The subset of assembled facts the projection row denormalizes. */
 interface ProjectionFacts {
   identity?: { title: string | null; year: number | null };
+  quality?: { compliance?: { status: string; upgradePotential: boolean } };
   library?: { libraryId: string | null; libraryName: string | null; totalBytes: number | null };
   completeness?: { missing: number | null };
   usage?: { lastPlayedAt: string | null };

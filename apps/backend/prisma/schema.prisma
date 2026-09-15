@@ -4572,6 +4572,15 @@ model MediaIntelligenceProjection {
   missingCount Int?
   lastPlayedAt DateTime?
 
+  /// Quality compliance (Phase 2), denormalized for list filtering/sorting.
+  /// `preferred | acceptable | below_preference | unknown`. NULL means the row
+  /// predates Phase 2 — deliberately distinct from `unknown`, which is a real
+  /// verdict reached against a real ladder.
+  qualityStatus    String?
+  /// A more preferred rung exists in the operator's own ladder. Never a claim
+  /// that a better release was found; no search has been performed.
+  upgradePotential Boolean?
+
   /// Finding counts by severity, e.g. {"warning":2,"error":1}. Stored as JSON so
   /// a new severity is a code change rather than a migration.
   findingCounts Json @default("{}")
@@ -4593,6 +4602,7 @@ model MediaIntelligenceProjection {
   @@index([libraryId])
   /// The list's default ordering and its "worst first" sort.
   @@index([healthStatus, title])
+  @@index([qualityStatus])
   @@index([calculatedAt])
   @@map("media_intelligence_projections")
 }

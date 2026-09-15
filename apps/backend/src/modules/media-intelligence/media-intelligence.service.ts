@@ -11,6 +11,7 @@ import {
   type MediaIntelligenceListResult,
   type MediaIntelligenceOverview,
   type MediaIntelligenceSummary,
+  type MediaQualityStatus,
   type UnifiedMediaState,
 } from '@ultratorrent/shared';
 
@@ -65,6 +66,11 @@ export class MediaIntelligenceService {
     if (query.entityType) where.entityType = query.entityType;
     if (query.health) where.healthStatus = query.health;
     if (query.libraryId) where.libraryId = query.libraryId;
+    if (query.quality) where.qualityStatus = query.quality;
+    // Server-side, like every other filter here: a paginated list must never
+    // be narrowed in the browser, which would filter one page of 50 and
+    // silently hide the rest.
+    if (query.upgradePotential === 'true') where.upgradePotential = true;
     if (query.q?.trim()) where.title = { contains: query.q.trim(), mode: 'insensitive' };
 
     // Narrowing by finding severity/domain/presence: collect the matching
@@ -115,6 +121,10 @@ export class MediaIntelligenceService {
         return [{ missingCount: dir }];
       case 'lastPlayed':
         return [{ lastPlayedAt: dir }];
+      case 'quality':
+        // Text order is meaningless for a verdict, so sort by the thing an
+        // operator actually wants surfaced: upgrade potential first.
+        return [{ upgradePotential: dir }, { title: 'asc' }];
       case 'findings':
       case 'health':
       default:
@@ -137,6 +147,9 @@ export class MediaIntelligenceService {
       totalBytes: row.totalBytes == null ? null : Number(row.totalBytes),
       missingCount: row.missingCount,
       lastPlayedAt: row.lastPlayedAt?.toISOString() ?? null,
+      // Null means the row predates Phase 2, which is not the `unknown` verdict.
+      qualityStatus: (row.qualityStatus as MediaQualityStatus | null) ?? null,
+      upgradePotential: row.upgradePotential ?? null,
       calculatedAt: row.calculatedAt.toISOString(),
     };
   }
@@ -303,5 +316,7 @@ interface ProjectionRow {
   totalBytes: bigint | null;
   missingCount: number | null;
   lastPlayedAt: Date | null;
+  qualityStatus: string | null;
+  upgradePotential: boolean | null;
   calculatedAt: Date;
 }

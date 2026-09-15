@@ -9,6 +9,7 @@ import { MediaIntelligenceController } from './media-intelligence.controller';
 import { MediaIntelligenceProjectionService } from './media-intelligence-projection.service';
 import { MediaIntelligenceService } from './media-intelligence.service';
 import { MediaStateAssembler } from './media-state.assembler';
+import { QualityPreferenceResolver } from './quality/preference-resolution.service';
 
 /** Reconcile the projection this often. */
 const RECONCILE_INTERVAL_MS = 6 * 60 * 60_000;
@@ -109,6 +110,7 @@ export class MediaIntelligenceReconciler implements OnModuleInit {
   controllers: [MediaIntelligenceController],
   providers: [
     MediaStateAssembler,
+    QualityPreferenceResolver,
     MediaIntelligenceProjectionService,
     MediaIntelligenceService,
     MediaIntelligenceReconciler,

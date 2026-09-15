@@ -52,6 +52,15 @@ export const MEDIA_FINDING_CODES = {
   ARTWORK_INCOMPLETE: 'ARTWORK_INCOMPLETE',
   /** Factual coverage gap. Informational: no subtitle policy exists in Phase 1. */
   SUBTITLE_COVERAGE_INCOMPLETE: 'SUBTITLE_COVERAGE_INCOMPLETE',
+  /**
+   * The file satisfies a rung of the operator's own ladder, but not the top
+   * one. An OPPORTUNITY, never a defect: they configured that fallback
+   * themselves, and nothing here has asked an indexer whether a better
+   * release can actually be obtained.
+   */
+  QUALITY_UPGRADE_POTENTIAL: 'QUALITY_UPGRADE_POTENTIAL',
+  /** Measured quality contradicts every rung of the configured ladder. */
+  QUALITY_BELOW_PREFERENCE: 'QUALITY_BELOW_PREFERENCE',
   /** Monitored, but its acquisition rule is disabled or unusable. */
   ACQUISITION_NOT_READY: 'ACQUISITION_NOT_READY',
   /** Searches keep failing — the indexers could not answer, repeatedly. */
@@ -126,6 +135,29 @@ export const MEDIA_FINDING_DEFINITIONS: Readonly<Record<MediaFindingCodeValue, M
     domain: 'storage',
     severity: 'warning',
     actionCapabilityIds: ['duplicates.ignore'],
+  },
+  [MEDIA_FINDING_CODES.QUALITY_UPGRADE_POTENTIAL]: {
+    code: MEDIA_FINDING_CODES.QUALITY_UPGRADE_POTENTIAL,
+    // Filed under `technical`: the subject is the media's own quality, and
+    // acquisition merely supplies the yardstick it is measured against.
+    domain: 'technical',
+    /*
+     * `opportunity`, which floors to HEALTHY. This file states the rule
+     * directly — "a 1080p file when a 2160p release exists" is a preference,
+     * not a defect — and a perfectly playable episode must never rank
+     * alongside a failed intake or missing media.
+     *
+     * No `actionCapabilityIds`: CAMA registers no acquisition-search and no
+     * re-probe capability, and a dangling id renders as a dead control.
+     */
+    severity: 'opportunity',
+  },
+  [MEDIA_FINDING_CODES.QUALITY_BELOW_PREFERENCE]: {
+    code: MEDIA_FINDING_CODES.QUALITY_BELOW_PREFERENCE,
+    domain: 'technical',
+    // Warning, not error: the media plays. It simply satisfies nothing the
+    // operator asked for, which is worth their attention and no more.
+    severity: 'warning',
   },
   [MEDIA_FINDING_CODES.METADATA_INCOMPLETE]: {
     code: MEDIA_FINDING_CODES.METADATA_INCOMPLETE,

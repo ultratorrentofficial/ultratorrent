@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
 import {
   MEDIA_INTELLIGENCE_DOMAINS,
+  type MediaQualityFacts,
   type MediaFinding,
   type MediaIntelligenceDomain,
   type MediaIntelligenceEntityType,
@@ -11,7 +12,7 @@ import {
 } from '@ultratorrent/shared';
 
 import { ApiError, api, type MediaArtwork, type MediaItemDetail, type ShowDetail } from '@/lib/api';
-import { formatDateTime, formatRelativeTimeShort } from '@/lib/format';
+import { formatBytes, formatDateTime, formatNumber, formatRelativeTimeShort } from '@/lib/format';
 import { useToast } from '@/components/ui/toast';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -22,6 +23,8 @@ import { MediaPoster } from '@/components/media/MediaPoster';
 import {
   FACT_STATUS_VARIANT,
   HEALTH_VARIANT,
+  QUALITY_RESULT_VARIANT,
+  QUALITY_VARIANT,
   SEVERITY_ORDER,
   SEVERITY_VARIANT,
 } from './mediaIntelligenceUi';
@@ -115,6 +118,8 @@ export function MediaIntelligenceDetailPage() {
       <p className="text-xs text-muted-foreground">{t('advisory')}</p>
 
       <MediaHeader entityType={entityType} entityId={entityId} />
+
+      <QualityCard state={s} />
 
       <Card>
         <CardContent className="space-y-3 py-4">
@@ -303,6 +308,192 @@ function HeaderFact({ label, value }: { label: string; value: string }) {
       <dd className="truncate text-sm">{value}</dd>
     </div>
   );
+}
+
+/**
+ * Quality compliance.
+ *
+ * Answers, in the order an operator asks them: what do I own, what does my
+ * policy want, which rung does this satisfy, and what stops it satisfying a
+ * better one. Every number is rendered through the shared humanization
+ * helpers — none of this is an `Object.entries` dump.
+ *
+ * The wording is load-bearing. "Upgrade potential" means a higher rung exists
+ * in the operator's OWN ladder; it must never read as "a better release is
+ * available", because nothing here has asked an indexer anything.
+ */
+function QualityCard({ state }: { state: UnifiedMediaState }) {
+  const { t } = useTranslation('mediaIntelligence');
+  const q = (state as unknown as { quality?: MediaQualityFacts }).quality;
+  if (!q) return null;
+
+  const { owned, ladder, compliance: c, aggregate } = q;
+  const top = ladder.rungs[0] ?? null;
+
+  return (
+    <Card>
+      <CardContent className="space-y-4 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold">{t('quality.heading')}</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={QUALITY_VARIANT[c.status] ?? 'outline'} dot>
+              {t(`quality.status.${c.status}` as 'quality.status.preferred')}
+            </Badge>
+            {c.upgradePotential ? (
+              <Badge variant="info">{t('quality.upgradePotential')}</Badge>
+            ) : null}
+          </div>
+        </div>
+
+        {/* The unknown cases say WHY, rather than rendering an empty panel. */}
+        {c.status === 'unknown' && c.unknownReason ? (
+          <p className="text-sm text-muted-foreground">
+            {t(`quality.unknownReason.${c.unknownReason}` as 'quality.unknownReason.no_measured_quality')}
+          </p>
+        ) : null}
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <QualityColumn label={t('quality.current')}>
+            {owned ? (
+              <>
+                <Line value={owned.resolutionClass} />
+                <Line value={owned.videoCodec} />
+                <Line value={owned.hdr == null ? null : owned.hdr ? (owned.hdrFormat ?? 'HDR') : 'SDR'} />
+                <Line value={owned.audioCodec ? `${owned.audioCodec}${owned.audioChannels ? ` ${owned.audioChannels}ch` : ''}` : null} />
+              </>
+            ) : (
+              <span className="text-xs text-muted-foreground">{t('quality.noMeasurement')}</span>
+            )}
+          </QualityColumn>
+
+          <QualityColumn label={t('quality.measured')}>
+            {owned?.width && owned?.height ? <Line value={`${owned.width} × ${owned.height}`} /> : null}
+            {owned?.bitrateKbps ? <Line value={`${formatNumber(owned.bitrateKbps)} kbps`} /> : null}
+            {owned?.frameRate ? <Line value={`${owned.frameRate} fps`} /> : null}
+            {owned?.sizeBytes ? <Line value={formatBytes(owned.sizeBytes)} /> : null}
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {t('quality.probeCoverage', { measured: q.measuredFileCount, total: q.totalFileCount })}
+            </p>
+            {owned ? (
+              <p className="text-[11px] text-muted-foreground">
+                {t(`quality.provenance.${owned.provenance}` as 'quality.provenance.measured')}
+              </p>
+            ) : null}
+          </QualityColumn>
+
+          <QualityColumn label={t('quality.target')}>
+            {top ? (
+              <>
+                <Line value={top.resolution} />
+                <Line value={top.codec} />
+                {top.requiredTerms.slice(0, 3).map((term) => (
+                  <Line key={term} value={term} />
+                ))}
+              </>
+            ) : (
+              <span className="text-xs text-muted-foreground">—</span>
+            )}
+          </QualityColumn>
+
+          <QualityColumn label={t('quality.preferenceSource')}>
+            <Line value={c.preferenceSourceLabel} />
+            {c.matchedRung != null ? (
+              <p className="mt-1 text-xs">
+                <span className="font-medium">{c.matchedRungName}</span>{' '}
+                <span className="text-muted-foreground">
+                  {t('quality.rungOf', { rung: c.matchedRung + 1, total: c.totalRungs })}
+                </span>
+              </p>
+            ) : null}
+          </QualityColumn>
+        </div>
+
+        {/* Per-dimension explanation: why this rung, and what could not be judged. */}
+        {c.dimensions.length > 0 ? (
+          <div className="space-y-1">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('quality.why')}</p>
+            <div className="flex flex-wrap gap-2">
+              {c.dimensions.slice(0, 10).map((d, i) => (
+                <Badge key={`${d.dimension}-${i}`} variant={QUALITY_RESULT_VARIANT[d.result] ?? 'outline'}>
+                  {t(`quality.dimension.${d.dimension}` as 'quality.dimension.resolution')}
+                  {': '}
+                  {t(`quality.result.${d.result}` as 'quality.result.pass')}
+                  {d.reason ? ` — ${t(`quality.notEvaluableReason.${d.reason}` as 'quality.notEvaluableReason.not_measured')}` : ''}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {aggregate ? <QualityAggregate aggregate={aggregate} /> : null}
+
+        <p className="text-[11px] text-muted-foreground">{t('quality.advisory')}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Per-episode roll-up for a series or season.
+ *
+ * Shows the outlier explicitly. "61 preferred, 1 below preference" is the
+ * whole point — an aggregate that rounded that to "1080p series" would hide
+ * the one episode the operator came here to find.
+ */
+function QualityAggregate({ aggregate }: { aggregate: NonNullable<MediaQualityFacts['aggregate']> }) {
+  const { t } = useTranslation('mediaIntelligence');
+  const rows: Array<[string, number, string]> = [
+    [t('quality.aggregate.preferred'), aggregate.preferred, 'success'],
+    [t('quality.aggregate.acceptable'), aggregate.acceptable, 'info'],
+    [t('quality.aggregate.belowPreference'), aggregate.belowPreference, 'warning'],
+    [t('quality.aggregate.unknown'), aggregate.unknown, 'outline'],
+  ];
+
+  return (
+    <div className="space-y-2 border-t border-border pt-3">
+      <p className="text-xs uppercase tracking-wide text-muted-foreground">
+        {t('quality.aggregate.heading')}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {rows.map(([label, count, variant]) =>
+          count > 0 ? (
+            <Badge key={label} variant={variant as 'success'}>
+              {label}: {formatNumber(count)}
+            </Badge>
+          ) : null,
+        )}
+        {aggregate.upgradePotential > 0 ? (
+          <Badge variant="info">
+            {t('quality.aggregate.upgradePotential')}: {formatNumber(aggregate.upgradePotential)}
+          </Badge>
+        ) : null}
+      </div>
+      <div className="flex flex-wrap gap-x-4 text-[11px] text-muted-foreground">
+        {aggregate.dominantResolution ? (
+          <span>{t('quality.aggregate.dominant', { resolution: aggregate.dominantResolution })}</span>
+        ) : null}
+        {/* Surfaced separately so a single bad episode cannot hide in the mean. */}
+        {aggregate.mixed && aggregate.worstResolution ? (
+          <span>{t('quality.aggregate.worst', { resolution: aggregate.worstResolution })}</span>
+        ) : null}
+        {aggregate.mixed ? <span>{t('quality.aggregate.mixed')}</span> : null}
+      </div>
+    </div>
+  );
+}
+
+function QualityColumn({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
+      <div className="mt-1 space-y-0.5">{children}</div>
+    </div>
+  );
+}
+
+/** One value line. An absent value is an em dash, never a fabricated zero. */
+function Line({ value }: { value: string | null | undefined }) {
+  return <p className="truncate text-sm">{value ?? '—'}</p>;
 }
 
 /** One fact section, addressed by domain name. */

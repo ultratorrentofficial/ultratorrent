@@ -21,6 +21,74 @@
     "seasonLabel": "Temporada {{number}}",
     "openInLibrary": "Abrir en el Gestor de Medios"
   },
+  "quality": {
+    "heading": "Calidad",
+    "current": "Actual",
+    "measured": "Medido",
+    "target": "Objetivo",
+    "preferenceSource": "Origen de la preferencia",
+    "compliance": "Cumplimiento",
+    "matchedRung": "Preferencia satisfecha",
+    "rungOf": "nivel {{rung}} de {{total}}",
+    "upgradePotential": "Potencial de mejora",
+    "why": "Por qué",
+    "noLadder": "Ninguna preferencia de Descarga Automática aplica a este título, así que no hay con qué comparar su calidad.",
+    "noMeasurement": "Este título no se ha medido, así que no se puede evaluar su calidad.",
+    "notEvaluable": "Estas preferencias describen nombres de lanzamiento, que un archivo renombrado ya no conserva.",
+    "status": {
+      "preferred": "Preferida",
+      "acceptable": "Aceptable",
+      "below_preference": "Por debajo de la preferencia",
+      "unknown": "Desconocido"
+    },
+    "yes": "Sí",
+    "no": "No",
+    "provenance": {
+      "measured": "Medido por análisis",
+      "inferred": "Deducido del nombre del archivo",
+      "unknown": "Nunca medido"
+    },
+    "probeCoverage": "{{measured}} de {{total}} archivo(s) medido(s)",
+    "dimension": {
+      "resolution": "Resolución",
+      "codec": "Códec",
+      "source": "Fuente",
+      "quality": "Calidad",
+      "hdr": "HDR",
+      "audio": "Audio",
+      "bitDepth": "Profundidad de bits",
+      "size": "Tamaño",
+      "terms": "Términos"
+    },
+    "result": {
+      "pass": "Cumple",
+      "fail": "No cumple",
+      "not_evaluable": "No se puede saber"
+    },
+    "notEvaluableReason": {
+      "not_measured": "nunca se midió",
+      "release_name_only": "describe un nombre de lanzamiento",
+      "release_group": "nombra un grupo de lanzamiento",
+      "free_text": "frase libre de lanzamiento"
+    },
+    "unknownReason": {
+      "no_acquisition_preferences": "no aplica ninguna preferencia de Descarga Automática",
+      "no_measured_quality": "no se midió nada de este archivo",
+      "not_evaluable_from_owned_media": "las preferencias no se pueden verificar contra un archivo en disco"
+    },
+    "aggregate": {
+      "heading": "Calidad por episodio",
+      "preferred": "Preferida",
+      "acceptable": "Aceptable",
+      "belowPreference": "Por debajo de la preferencia",
+      "unknown": "Desconocida",
+      "upgradePotential": "Potencial de mejora",
+      "dominant": "Mayormente {{resolution}}",
+      "worst": "Más baja: {{resolution}}",
+      "mixed": "Calidad variada"
+    },
+    "advisory": "Potencial de mejora significa que existe un nivel superior en tus propias preferencias — no que se haya encontrado un lanzamiento mejor. No se ha buscado nada."
+  },
   "overview": {
     "analyzed": "Títulos analizados",
     "neverAnalyzed": "Todavía no se ha analizado ningún título.",
@@ -59,7 +127,8 @@
       "size": "Tamaño",
       "lastPlayed": "Última reproducción",
       "library": "Biblioteca",
-      "evaluated": "Evaluado"
+      "evaluated": "Evaluado",
+      "quality": "Calidad"
     },
     "filters": {
       "allTypes": "Todos los tipos",
@@ -67,7 +136,9 @@
       "allLibraries": "Todas las bibliotecas",
       "allSeverities": "Cualquier severidad",
       "allDomains": "Cualquier dominio",
-      "hasFindings": "Solo con hallazgos"
+      "hasFindings": "Solo con hallazgos",
+      "allQuality": "Cualquier calidad",
+      "upgradeOnly": "Solo con potencial de mejora"
     },
     "entityType": {
       "movie": "Película",

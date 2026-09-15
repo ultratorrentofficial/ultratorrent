@@ -108,6 +108,14 @@ export class MediaAcquisitionScheduler {
   // the back catalogue, rather than reimplementing release selection.
   exports: [
     MediaAcquisitionService,
+    /*
+     * Exported for Media Intelligence's quality compliance, which must judge
+     * owned media against the SAME effective ladder acquisition would use.
+     * Read-only for that consumer: it calls `resolveCandidates`/`defaults` and
+     * never mutates a preference. Exposing the service is the alternative to
+     * re-deriving the cascade, which would let the two layers drift.
+     */
+    AcquisitionMatchPreferenceService,
     AcquisitionEvaluatorService,
     AcquisitionWatchlistService,
     MissingEpisodesService,

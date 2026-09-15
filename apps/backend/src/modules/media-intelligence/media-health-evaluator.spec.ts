@@ -69,6 +69,22 @@ function facts(over: Partial<Facts> = {}): Facts {
       completionPercent: null,
       showStatus: null,
     },
+    quality: {
+      owned: {
+        provenance: 'measured', resolutionClass: '1080p', resolutionOrdinal: 4,
+        width: 1920, height: 1080, videoCodec: 'x265', videoBitDepth: 8,
+        hdr: false, hdrFormat: null, audioCodec: 'e-ac-3', audioChannels: 6,
+        bitrateKbps: 4200, frameRate: 23.976, durationSec: 7000, container: 'mkv',
+        sizeBytes: 900_000_000,
+      },
+      ladder: { source: 'global_ladder', sourceLabel: 'Global', rungs: [] },
+      compliance: {
+        status: 'preferred', matchedRung: 0, matchedRungName: 'top', preferredRung: 0,
+        totalRungs: 2, upgradePotential: false, dimensions: [], reasons: [],
+        unknownReason: null, preferenceSource: 'global_ladder', preferenceSourceLabel: 'Global',
+      },
+      aggregate: null, measuredFileCount: 1, totalFileCount: 1,
+    },
     technical: {
       ...known('media_manager'),
       measuredFileCount: 1,
@@ -343,5 +359,70 @@ describe('evaluateMediaHealth — aggregation and determinism', () => {
       // Codes are machine identities — never localized prose.
       expect(f.code).toMatch(/^[A-Z_]+$/);
     }
+  });
+});
+
+describe('quality compliance', () => {
+  /** The healthy fixture with only the compliance verdict swapped out. */
+  const withCompliance = (over: Record<string, unknown>): Partial<Facts> => {
+    const base = facts().quality as unknown as Record<string, unknown>;
+    return {
+      quality: { ...base, compliance: { ...(base.compliance as object), ...over } },
+    } as unknown as Partial<Facts>;
+  };
+
+  it('says nothing when the preferred rung is matched', () => {
+    const { findings } = evaluate();
+    expect(findings.map((f) => f.code)).not.toContain(MEDIA_FINDING_CODES.QUALITY_UPGRADE_POTENTIAL);
+  });
+
+  it('says nothing when no acquisition preferences exist', () => {
+    // Absence of a policy is not a verdict; inventing one would assert a
+    // preference the operator never expressed.
+    const { findings, health } = evaluate(
+      withCompliance({ status: 'unknown', unknownReason: 'no_acquisition_preferences', matchedRung: null }),
+    );
+    expect(findings.filter((f) => f.code.startsWith('QUALITY_'))).toHaveLength(0);
+    expect(health.status).toBe('healthy');
+  });
+
+  it('opens an OPPORTUNITY for a fallback rung, which never degrades health', () => {
+    const { findings, health } = evaluate(
+      withCompliance({ status: 'acceptable', matchedRung: 2, matchedRungName: '1080p x264', upgradePotential: true }),
+    );
+    const f = findings.find((x) => x.code === MEDIA_FINDING_CODES.QUALITY_UPGRADE_POTENTIAL);
+    expect(f?.severity).toBe('opportunity');
+    // A playable file the operator's own ladder accepts is not a problem.
+    expect(health.status).toBe('healthy');
+    expect(f?.evidence).toMatchObject({ matchedRung: 2, upgradeAvailable: false });
+  });
+
+  it('opens a WARNING when the file satisfies no configured rung', () => {
+    const { findings, health } = evaluate(
+      withCompliance({ status: 'below_preference', matchedRung: null, upgradePotential: false }),
+    );
+    const f = findings.find((x) => x.code === MEDIA_FINDING_CODES.QUALITY_BELOW_PREFERENCE);
+    expect(f?.severity).toBe('warning');
+    expect(health.status).toBe('attention');
+  });
+
+  it('never claims an upgrade is AVAILABLE, only that potential exists', () => {
+    const { findings } = evaluate(
+      withCompliance({ status: 'acceptable', matchedRung: 1, upgradePotential: true }),
+    );
+    const f = findings.find((x) => x.code === MEDIA_FINDING_CODES.QUALITY_UPGRADE_POTENTIAL);
+    expect(f?.evidence.upgradeAvailable).toBe(false);
+    // No capability is pointed at: CAMA registers no acquisition search.
+    expect(f?.actionable).toBe(false);
+  });
+
+  it('bounds the evidence it attaches', () => {
+    const many = Array.from({ length: 20 }, (_, i) => ({
+      dimension: 'terms' as const, result: 'fail' as const, required: `t${i}`, actual: null, reason: null,
+    }));
+    const { findings } = evaluate(withCompliance({ status: 'below_preference', dimensions: many }));
+    const f = findings.find((x) => x.code === MEDIA_FINDING_CODES.QUALITY_BELOW_PREFERENCE);
+    expect((f?.evidence.blockedBy as unknown[]).length).toBeLessThanOrEqual(5);
+    expect(f?.evidence.omitted).toBe(15);
   });
 });

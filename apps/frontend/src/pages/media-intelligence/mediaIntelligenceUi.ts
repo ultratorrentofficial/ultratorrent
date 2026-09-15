@@ -36,3 +36,26 @@ export const FACT_STATUS_VARIANT: Record<'known' | 'partial' | 'unknown', BadgeV
   partial: 'warning',
   unknown: 'outline',
 };
+
+/**
+ * Quality compliance, through the same palette as everything else.
+ *
+ * `acceptable` is deliberately NOT a warning colour: the operator configured
+ * that fallback themselves, so colouring it amber would tell them their own
+ * preference is a problem. `below_preference` is the only quality state that
+ * earns a cautionary colour, and even that is a warning rather than a
+ * destructive red — the media plays.
+ */
+export const QUALITY_VARIANT: Record<string, BadgeVariant> = {
+  preferred: 'success',
+  acceptable: 'info',
+  below_preference: 'warning',
+  unknown: 'outline',
+};
+
+/** Per-dimension verdicts. `not_evaluable` is neutral, never a failure colour. */
+export const QUALITY_RESULT_VARIANT: Record<string, BadgeVariant> = {
+  pass: 'success',
+  fail: 'warning',
+  not_evaluable: 'outline',
+};
