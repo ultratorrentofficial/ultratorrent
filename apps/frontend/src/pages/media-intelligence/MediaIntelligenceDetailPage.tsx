@@ -10,14 +10,15 @@ import {
   type UnifiedMediaState,
 } from '@ultratorrent/shared';
 
-import { ApiError, api } from '@/lib/api';
+import { ApiError, api, type MediaArtwork, type MediaItemDetail, type ShowDetail } from '@/lib/api';
 import { formatDateTime, formatRelativeTimeShort } from '@/lib/format';
 import { useToast } from '@/components/ui/toast';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { CenteredSpinner, EmptyState, ErrorState } from '@/components/ui/feedback';
-import { humanizeFields } from '@/lib/humanize';
+import { humanizeFields, prettifyValue } from '@/lib/humanize';
+import { MediaPoster } from '@/components/media/MediaPoster';
 import {
   FACT_STATUS_VARIANT,
   HEALTH_VARIANT,
@@ -113,6 +114,8 @@ export function MediaIntelligenceDetailPage() {
 
       <p className="text-xs text-muted-foreground">{t('advisory')}</p>
 
+      <MediaHeader entityType={entityType} entityId={entityId} />
+
       <Card>
         <CardContent className="space-y-3 py-4">
           <h2 className="text-sm font-semibold">{t('detail.findings')}</h2>
@@ -140,6 +143,164 @@ export function MediaIntelligenceDetailPage() {
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+/** The poster to show: the selected one, else any poster, else anything. */
+function pickPoster(art: MediaArtwork[] | undefined, seasonNumber: number | null): MediaArtwork | null {
+  const all = art ?? [];
+  // A season asks for its own poster first; a show-level one is the fallback.
+  const scoped = seasonNumber == null ? all : all.filter((a) => a.seasonNumber === seasonNumber);
+  const pool = scoped.length > 0 ? scoped : all.filter((a) => a.seasonNumber == null);
+  return (
+    pool.find((a) => a.type === 'poster' && a.selected) ??
+    pool.find((a) => a.type === 'poster') ??
+    pool[0] ??
+    null
+  );
+}
+
+/** `showId:seasonNumber` — the assembler's composite id, split the same way. */
+function splitSeasonId(entityId: string): { showId: string; seasonNumber: number | null } {
+  const idx = entityId.lastIndexOf(':');
+  if (idx <= 0) return { showId: entityId, seasonNumber: null };
+  const n = Number(entityId.slice(idx + 1));
+  return Number.isInteger(n)
+    ? { showId: entityId.slice(0, idx), seasonNumber: n }
+    : { showId: entityId, seasonNumber: null };
+}
+
+/**
+ * The title's artwork and metadata, read from the domain that owns them.
+ *
+ * Deliberately a SEPARATE fetch rather than new fields on `UnifiedMediaState`.
+ * Media Intelligence owns conclusions, not source facts: a poster and an
+ * overview belong to the Media Manager, and copying them into this layer --
+ * worse, into the materialized projection -- would give the same fact two
+ * homes and two ways to go stale. Composing at render time costs one request
+ * and keeps the ownership boundary honest.
+ *
+ * Its absence is never an error here. A title with no metadata yet is a normal
+ * state (and is itself one of the things Intelligence reports), so a failed or
+ * empty lookup renders nothing rather than an error panel over a page whose
+ * actual subject -- the health verdict -- loaded fine.
+ */
+function MediaHeader({
+  entityType,
+  entityId,
+}: {
+  entityType: MediaIntelligenceEntityType;
+  entityId: string;
+}) {
+  const { t } = useTranslation('mediaIntelligence');
+  const isShowSide = entityType === 'series' || entityType === 'season';
+  const { showId, seasonNumber } = isShowSide
+    ? splitSeasonId(entityId)
+    : { showId: entityId, seasonNumber: null };
+
+  /*
+   * The union is stated, not inferred. Two endpoints back this one panel -- a
+   * show and an item -- and react-query would otherwise fix the data type to
+   * whichever branch it saw first, rejecting the other. The narrowing below
+   * uses the same `isShowSide` that chose the endpoint, so the two cannot
+   * disagree.
+   */
+  const q = useQuery<ShowDetail | MediaItemDetail>({
+    queryKey: ['mediaIntelligence', 'artwork', entityType, entityId],
+    queryFn: () => (isShowSide ? api.media.showDetail(showId) : api.media.getItem(entityId)),
+    retry: false,
+  });
+
+  if (q.isLoading || q.isError || !q.data) return null;
+
+  const show = isShowSide ? (q.data as ShowDetail) : null;
+  const item = isShowSide ? null : (q.data as MediaItemDetail);
+  const meta = show ? show.metadata : item?.metadata ?? null;
+  const artwork = show ? show.artwork : item?.artwork;
+  const poster = pickPoster(artwork, seasonNumber);
+  const title = meta?.title ?? show?.show.title ?? item?.title ?? '';
+
+  const genres = meta?.genres ?? [];
+  const runtime = item?.metadata?.runtime ?? null;
+  const networks = show?.metadata?.networks ?? [];
+  const studios = meta?.studios ?? [];
+  const directors = item?.metadata?.directors ?? [];
+  const status = show?.metadata?.status ?? null;
+
+  // Nothing to add beyond what the header already says.
+  if (!poster && !meta) return null;
+
+  return (
+    <Card>
+      <CardContent className="flex flex-col gap-4 py-4 sm:flex-row">
+        <MediaPoster
+          artwork={poster}
+          alt={title || t('media.noArtwork')}
+          size="full"
+          className="aspect-[2/3] w-28 shrink-0 self-start rounded-md sm:w-36"
+        />
+
+        <div className="min-w-0 flex-1 space-y-3">
+          {seasonNumber != null ? (
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              {t('media.seasonLabel', { number: seasonNumber })}
+            </p>
+          ) : null}
+
+          <div>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+              {t('media.overview')}
+            </p>
+            <p className="mt-1 text-sm leading-relaxed text-foreground/90">
+              {meta?.overview?.trim() || t('media.noOverview')}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {genres.slice(0, 6).map((g) => (
+              <Badge key={g} variant="secondary">
+                {g}
+              </Badge>
+            ))}
+            {meta?.certification ? <Badge variant="outline">{meta.certification}</Badge> : null}
+            {status ? <Badge variant="outline">{prettifyValue(status)}</Badge> : null}
+          </div>
+
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-3">
+            {runtime ? (
+              <HeaderFact label={t('media.runtime')} value={t('media.runtimeMinutes', { count: runtime })} />
+            ) : null}
+            {meta?.rating != null ? (
+              <HeaderFact label={t('media.rating')} value={meta.rating.toFixed(1)} />
+            ) : null}
+            {networks.length > 0 ? (
+              <HeaderFact label={t('media.network')} value={networks.slice(0, 2).join(', ')} />
+            ) : null}
+            {studios.length > 0 ? (
+              <HeaderFact label={t('media.studio')} value={studios.slice(0, 2).join(', ')} />
+            ) : null}
+            {directors.length > 0 ? (
+              <HeaderFact label={t('media.directedBy')} value={directors.slice(0, 2).join(', ')} />
+            ) : null}
+          </dl>
+
+          {meta?.providerName ? (
+            <p className="text-[11px] text-muted-foreground">
+              {t('media.provider', { provider: meta.providerName })}
+            </p>
+          ) : null}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function HeaderFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
+      <dd className="truncate text-sm">{value}</dd>
     </div>
   );
 }

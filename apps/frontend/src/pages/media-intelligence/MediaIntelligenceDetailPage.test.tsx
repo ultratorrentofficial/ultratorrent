@@ -14,12 +14,17 @@ import { MediaIntelligenceDetailPage } from './MediaIntelligenceDetailPage';
 const toastSpy = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), info: vi.fn(), toast: vi.fn() }));
 vi.mock('@/components/ui/toast', () => ({ useToast: () => toastSpy }));
 
+vi.mock('@/components/media/MediaPoster', () => ({
+  MediaPoster: ({ alt }: { alt: string }) => <img alt={alt} data-testid="poster" />,
+}));
+
 const intelSpy = vi.hoisted(() => ({ detail: vi.fn(), refresh: vi.fn() }));
+const mediaSpy = vi.hoisted(() => ({ getItem: vi.fn(), showDetail: vi.fn() }));
 vi.mock('@/lib/api', () => ({
   ApiError: class ApiError extends Error {
     status?: number;
   },
-  api: { mediaIntelligence: intelSpy },
+  api: { mediaIntelligence: intelSpy, media: mediaSpy },
 }));
 
 const known = (source: string) => ({ status: 'known' as const, source, observedAt: null });
@@ -94,6 +99,25 @@ describe('MediaIntelligenceDetailPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     intelSpy.detail.mockResolvedValue(state);
+    mediaSpy.showDetail.mockResolvedValue({
+      show: { id: 'show-1', title: 'Breaking Bad', year: 2008 },
+      metadata: {
+        title: 'Breaking Bad',
+        overview: 'A chemistry teacher turns to manufacturing.',
+        genres: ['Drama', 'Crime'],
+        networks: ['AMC'],
+        studios: [],
+        status: 'ended',
+        rating: 9.5,
+        certification: 'TV-MA',
+        providerName: 'tvdb',
+      },
+      seasons: [],
+      artwork: [
+        { id: 'a1', type: 'poster', selected: true, url: 'http://img/p.jpg', localPath: null, seasonNumber: null },
+      ],
+    });
+    mediaSpy.getItem.mockResolvedValue({ title: 'Heat', metadata: null, artwork: [] });
   });
 
   it('shows the entity and its health verdict', async () => {
@@ -119,6 +143,25 @@ describe('MediaIntelligenceDetailPage', () => {
     expect(screen.queryByText('measuredFileCount')).not.toBeInTheDocument();
     expect(screen.getByText('Poster present')).toBeInTheDocument();
     expect(screen.queryByText('true')).not.toBeInTheDocument();
+  });
+
+  it('shows the artwork and metadata from the Media Manager', async () => {
+    renderPage();
+    expect(await screen.findByTestId('poster')).toBeInTheDocument();
+    expect(screen.getByText(/A chemistry teacher turns to manufacturing/)).toBeInTheDocument();
+    expect(screen.getByText('Drama')).toBeInTheDocument();
+    expect(screen.getByText('AMC')).toBeInTheDocument();
+    // A free-form status column, title-cased rather than shown raw.
+    expect(screen.getByText('Ended')).toBeInTheDocument();
+  });
+
+  it('still renders the health verdict when no metadata exists', async () => {
+    mediaSpy.showDetail.mockRejectedValue(new Error('nope'));
+    renderPage();
+    // The page's actual subject must survive a missing-artwork lookup.
+    expect(await screen.findByRole('heading', { name: /Breaking Bad/ })).toBeInTheDocument();
+    expect(screen.getByText(/Attention/i)).toBeInTheDocument();
+    expect(screen.queryByTestId('poster')).not.toBeInTheDocument();
   });
 
   it('shows a finding with the date it was first observed', async () => {
