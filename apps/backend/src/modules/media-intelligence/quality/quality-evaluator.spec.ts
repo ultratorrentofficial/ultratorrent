@@ -1,6 +1,7 @@
 import type { NormalizedMediaQuality, NormalizedPreferenceLadder } from '@ultratorrent/shared';
 
 import { aggregateQuality, evaluateQualityCompliance } from './quality-evaluator';
+import { ladderAppliesTo } from './preference-ladder';
 
 /**
  * The compliance core, tested as a pure function.
@@ -274,5 +275,42 @@ describe('aggregateQuality — a series is not one file', () => {
   it('handles a series with nothing evaluated', () => {
     const a = aggregateQuality([]);
     expect(a).toMatchObject({ evaluated: 0, preferred: 0, unknown: 0, mixed: false, dominantResolution: null });
+  });
+});
+
+describe('ladderAppliesTo — a TV ladder does not govern a film', () => {
+  const episodeRung = { id: 'a', name: '1080p', priorityOrder: 0, enabled: true, matchType: 'smart_episode_match' as const };
+  const movieRung = { id: 'b', name: '1080p', priorityOrder: 0, enabled: true, matchType: 'smart_movie_match' as const };
+
+  it('lets an episode ladder govern TV', () => {
+    expect(ladderAppliesTo([episodeRung], 'tv')).toBe(true);
+  });
+
+  it('refuses to judge a movie against an episode-only ladder', () => {
+    /*
+     * The defect this guards is not hypothetical: judging films against this
+     * installation's TV ladder marked 3,026 of 3,351 movies below_preference
+     * on SIZE alone, because a per-episode 1 GB cap cannot fit a feature.
+     */
+    expect(ladderAppliesTo([episodeRung], 'movie')).toBe(false);
+  });
+
+  it('governs a movie when a non-episode rung exists', () => {
+    expect(ladderAppliesTo([episodeRung, movieRung], 'movie')).toBe(true);
+  });
+
+  it('treats an empty ladder as governing nothing', () => {
+    expect(ladderAppliesTo([], 'tv')).toBe(false);
+    expect(ladderAppliesTo([], 'movie')).toBe(false);
+  });
+
+  it('reports no_acquisition_preferences rather than a fabricated failure', () => {
+    // What the movie path now produces: an empty ladder, so the verdict is
+    // unknown-with-a-reason instead of a size failure nobody configured.
+    const r = evaluateQualityCompliance(measured({ sizeBytes: 2_153_000_000 }), {
+      source: 'none', sourceLabel: null, rungs: [],
+    });
+    expect(r.status).toBe('unknown');
+    expect(r.unknownReason).toBe('no_acquisition_preferences');
   });
 });

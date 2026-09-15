@@ -3,7 +3,7 @@ import type { NormalizedPreferenceLadder } from '@ultratorrent/shared';
 
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { AcquisitionMatchPreferenceService } from '../../media-acquisition/acquisition-match-preference.service';
-import { emptyLadder, normalizeLadder } from './preference-ladder';
+import { emptyLadder, ladderAppliesTo, normalizeLadder, type LadderMediaKind } from './preference-ladder';
 
 /**
  * Which acquisition preferences govern a piece of owned media.
@@ -37,9 +37,13 @@ export class QualityPreferenceResolver {
    * throwing when nothing is configured — "no preferences" is a legitimate
    * state that must surface as `unknown`, never as a failure.
    */
-  async globalLadder(): Promise<NormalizedPreferenceLadder> {
+  async globalLadder(kind: LadderMediaKind = 'tv'): Promise<NormalizedPreferenceLadder> {
     try {
       const rungs = await this.preferences.defaults();
+      // Scoped by media kind, exactly as acquisition scopes its own. A ladder
+      // of episode matchers does not govern a film; claiming otherwise
+      // manufactures a size failure on every feature-length title.
+      if (!ladderAppliesTo(rungs, kind)) return emptyLadder();
       return normalizeLadder(rungs, 'global_ladder', 'Global Auto-Download Preferences');
     } catch (err) {
       this.logger.warn(`Could not read the global ladder: ${(err as Error).message}`);
@@ -56,7 +60,7 @@ export class QualityPreferenceResolver {
    * the watchlist item behind the media.
    */
   async ladderFor(
-    entity: { showId?: string | null; imdbId?: string | null },
+    entity: { showId?: string | null; imdbId?: string | null; kind?: LadderMediaKind },
     globalFallback: NormalizedPreferenceLadder,
   ): Promise<NormalizedPreferenceLadder> {
     if (globalFallback.rungs.length) return globalFallback;
@@ -67,6 +71,7 @@ export class QualityPreferenceResolver {
     try {
       const rungs = await this.preferences.resolveCandidates(item as never);
       if (!rungs.length) return emptyLadder();
+      if (!ladderAppliesTo(rungs, entity.kind ?? 'tv')) return emptyLadder();
       // With the global ladder empty, whatever came back is the show's own rule
       // or a profile tier. Name it from the item so the UI can say which.
       const source = item.rssRuleId ? 'linked_rule' : 'acquisition_profile';

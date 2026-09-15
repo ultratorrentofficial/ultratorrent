@@ -6,6 +6,9 @@ import type {
 
 import type { MatchCandidateInput } from '../../rss/match-engine';
 
+/** The kinds of media a ladder can be asked to govern. */
+export type LadderMediaKind = 'movie' | 'tv';
+
 /**
  * The effective acquisition ladder → the shape the quality evaluator reads.
  *
@@ -19,6 +22,32 @@ import type { MatchCandidateInput } from '../../rss/match-engine';
  * dimensions an owned file can be compared against, preserving rung order
  * exactly: index 0 is the operator's first choice.
  */
+
+/**
+ * Whether a resolved ladder actually applies to this kind of media.
+ *
+ * Acquisition never asks one ladder to serve both kinds: it scopes profiles by
+ * `mediaType` and its global rungs are `smart_episode_match` — an EPISODE
+ * matcher. Media Intelligence must respect the same boundary, because a ladder
+ * built for episodes carries episode-shaped constraints, and the size caps are
+ * the sharp edge: a 1 GB-per-episode ceiling applied to a feature film fails
+ * every rung on size alone.
+ *
+ * That is not a hypothetical. Judging movies against this installation's
+ * TV ladder marked 3,026 of 3,351 films `below_preference` purely on size —
+ * Barbie at 2,153 MB against a 1 GB cap — which is a fabricated defect, not a
+ * finding. When no rung applies, the honest answer is that no preferences
+ * govern this title.
+ */
+export function ladderAppliesTo(
+  candidates: readonly MatchCandidateInput[],
+  kind: LadderMediaKind,
+): boolean {
+  if (!candidates.length) return false;
+  if (kind === 'tv') return true;
+  // A movie is governed only by rungs that are not episode matchers.
+  return candidates.some((c) => c.matchType !== 'smart_episode_match');
+}
 
 /** Rungs arrive pre-ordered from acquisition; the index IS the preference. */
 export function normalizeLadder(

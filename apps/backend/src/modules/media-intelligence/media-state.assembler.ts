@@ -121,9 +121,11 @@ export class MediaStateAssembler {
     } satisfies HealthFacts);
 
     // One ladder read per entity; the global ladder short-circuits the rest.
-    const globalLadder = await this.preferences.globalLadder();
+    // A film is judged only against preferences that govern films.
+    const kind = item.mediaType === 'movie' ? ('movie' as const) : ('tv' as const);
+    const globalLadder = await this.preferences.globalLadder(kind);
     const ladder = await this.preferences.ladderFor(
-      { imdbId: item.seriesImdbId ?? externalIds.imdb ?? null },
+      { imdbId: item.seriesImdbId ?? externalIds.imdb ?? null, kind },
       globalLadder,
     );
     const rep = representativeQuality(files);
@@ -291,9 +293,9 @@ export class MediaStateAssembler {
      * single 720p episode among sixty-one 1080p ones — the exact thing an
      * operator opens this page to find.
      */
-    const globalLadder = await this.preferences.globalLadder();
+    const globalLadder = await this.preferences.globalLadder('tv');
     const ladder = await this.preferences.ladderFor(
-      { showId: show.id, imdbId: show.imdbId },
+      { showId: show.id, imdbId: show.imdbId, kind: 'tv' },
       globalLadder,
     );
     const perEpisode = episodes.map((e) => {
@@ -465,8 +467,8 @@ export class MediaStateAssembler {
     });
     if (!episodes.length) return null;
 
-    const globalLadder = await this.preferences.globalLadder();
-    const ladder = await this.preferences.ladderFor({ showId, imdbId: show.imdbId }, globalLadder);
+    const globalLadder = await this.preferences.globalLadder('tv');
+    const ladder = await this.preferences.ladderFor({ showId, imdbId: show.imdbId, kind: 'tv' }, globalLadder);
 
     const perEpisode = episodes.map((e) => {
       const rep = representativeQuality(e.files);
