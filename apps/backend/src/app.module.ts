@@ -46,6 +46,7 @@ import { RedisModule } from './modules/redis/redis.module';
 import { MediaDiscoveryModule } from './modules/media-discovery/media-discovery.module';
 import { SeriesAcquisitionModule } from './modules/series-acquisition/series-acquisition.module';
 import { SubtitleIntelligenceModule } from './modules/subtitle-intelligence/subtitle-intelligence.module';
+import { MediaIntelligenceModule } from './modules/media-intelligence/media-intelligence.module';
 import { OperationsModule } from './modules/operations/operations.module';
 import { JobsModule } from './modules/jobs/jobs.module';
 
@@ -100,6 +101,7 @@ import { JobsModule } from './modules/jobs/jobs.module';
     MediaDiscoveryModule,
     SeriesAcquisitionModule,
     SubtitleIntelligenceModule,
+    MediaIntelligenceModule,
     JobsModule,
     OperationsModule,
   ],

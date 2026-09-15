@@ -148,6 +148,8 @@ export const MODULE_IDS = {
   LIBRARY_CLEANUP: 'library_cleanup',
   MEDIA_INTAKE: 'media_intake',
   MEDIA_DISCOVERY: 'media_discovery',
+  // Core — correlates facts the media domains already own into one health view
+  MEDIA_INTELLIGENCE: 'media_intelligence',
   OPERATIONS: 'operations',
 } as const;
 

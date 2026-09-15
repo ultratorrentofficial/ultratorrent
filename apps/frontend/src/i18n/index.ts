@@ -16,6 +16,7 @@ import enMediaDiscovery from './locales/en-US/mediaDiscovery.json';
 import enSeriesAcquisition from './locales/en-US/seriesAcquisition.json';
 import enIntake from './locales/en-US/intake.json';
 import enSubtitleIntelligence from './locales/en-US/subtitleIntelligence.json';
+import enMediaIntelligence from './locales/en-US/mediaIntelligence.json';
 import enImdb from './locales/en-US/imdb.json';
 import enRss from './locales/en-US/rss.json';
 import enTorrents from './locales/en-US/torrents.json';
@@ -46,6 +47,7 @@ import esMediaDiscovery from './locales/es-PR/mediaDiscovery.json';
 import esSeriesAcquisition from './locales/es-PR/seriesAcquisition.json';
 import esIntake from './locales/es-PR/intake.json';
 import esSubtitleIntelligence from './locales/es-PR/subtitleIntelligence.json';
+import esMediaIntelligence from './locales/es-PR/mediaIntelligence.json';
 import esImdb from './locales/es-PR/imdb.json';
 import esRss from './locales/es-PR/rss.json';
 import esTorrents from './locales/es-PR/torrents.json';
@@ -104,6 +106,7 @@ export const NAMESPACES = [
   'seriesAcquisition',
   'intake',
   'subtitleIntelligence',
+  'mediaIntelligence',
   'imdb',
   'rss',
   'torrents',
@@ -139,6 +142,7 @@ export const resources = {
     seriesAcquisition: enSeriesAcquisition,
     intake: enIntake,
     subtitleIntelligence: enSubtitleIntelligence,
+    mediaIntelligence: enMediaIntelligence,
     imdb: enImdb,
     rss: enRss,
     torrents: enTorrents,
@@ -171,6 +175,7 @@ export const resources = {
     seriesAcquisition: esSeriesAcquisition,
     intake: esIntake,
     subtitleIntelligence: esSubtitleIntelligence,
+    mediaIntelligence: esMediaIntelligence,
     imdb: esImdb,
     rss: esRss,
     torrents: esTorrents,

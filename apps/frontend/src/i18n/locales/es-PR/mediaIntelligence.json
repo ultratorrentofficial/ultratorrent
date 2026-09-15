@@ -1,0 +1,134 @@
+{
+  "title": "Inteligencia de Medios",
+  "subtitle": "Una vista correlacionada de cada título: qué se sabe, qué falta y por qué.",
+  "advisory": "Solo observa. Inteligencia de Medios informa lo que encuentra y nunca descarga, borra, mueve ni repara nada.",
+  "overview": {
+    "analyzed": "Títulos analizados",
+    "neverAnalyzed": "Todavía no se ha analizado ningún título.",
+    "neverAnalyzedBody": "Ejecuta una reconstrucción para evaluar tus bibliotecas. Lee lo que los módulos de medios ya guardan y no inicia ningún escaneo, análisis técnico ni búsqueda.",
+    "lastCalculated": "Última evaluación",
+    "never": "Nunca",
+    "rebuilding": "Hay una reconstrucción en curso…",
+    "rebuild": "Reconstruir",
+    "rebuildStarted": "Reconstrucción completada",
+    "rebuildResult": "{{movies}} película(s), {{series}} serie(s), {{failed}} fallida(s).",
+    "rebuildFailed": "Falló la reconstrucción",
+    "rebuildBusy": "Ya hay una reconstrucción en curso.",
+    "topFindings": "Hallazgos más comunes",
+    "noFindings": "Sin hallazgos. Todos los títulos analizados están saludables.",
+    "byHealth": "Salud"
+  },
+  "health": {
+    "healthy": "Saludable",
+    "attention": "Atención",
+    "degraded": "Degradado",
+    "critical": "Crítico",
+    "unknown": "Desconocido",
+    "score": "Puntuación",
+    "noScore": "Sin puntuación"
+  },
+  "list": {
+    "search": "Buscar títulos",
+    "empty": "Ningún título coincide con estos filtros.",
+    "emptyUnanalyzed": "Todavía no se ha analizado nada.",
+    "error": "No se pudo cargar la lista de salud de medios",
+    "columns": {
+      "title": "Título",
+      "health": "Salud",
+      "findings": "Hallazgos",
+      "missing": "Faltantes",
+      "size": "Tamaño",
+      "lastPlayed": "Última reproducción",
+      "library": "Biblioteca",
+      "evaluated": "Evaluado"
+    },
+    "filters": {
+      "allTypes": "Todos los tipos",
+      "allHealth": "Cualquier salud",
+      "allLibraries": "Todas las bibliotecas",
+      "allSeverities": "Cualquier severidad",
+      "allDomains": "Cualquier dominio",
+      "hasFindings": "Solo con hallazgos"
+    },
+    "entityType": {
+      "movie": "Película",
+      "series": "Serie",
+      "season": "Temporada",
+      "episode": "Episodio"
+    },
+    "never": "Nunca",
+    "findingCount": "{{count}} hallazgo",
+    "findingCount_other": "{{count}} hallazgos"
+  },
+  "detail": {
+    "back": "Volver a Inteligencia de Medios",
+    "refresh": "Reevaluar",
+    "refreshed": "Reevaluado",
+    "refreshFailed": "No se pudo reevaluar este título",
+    "assembledAt": "Recopilado {{when}}",
+    "notFound": "Este título ya no existe.",
+    "error": "No se pudo cargar el estado de este título",
+    "sections": "Estado por dominio",
+    "findings": "Hallazgos",
+    "noFindings": "Sin hallazgos. Nada en este título requiere atención.",
+    "evidence": "Evidencia",
+    "since": "Desde {{when}}",
+    "lastSeen": "Visto por última vez {{when}}",
+    "unknownBecause": "No se sabe: {{reason}}"
+  },
+  "domain": {
+    "identity": "Identidad",
+    "library": "Biblioteca",
+    "completeness": "Completitud",
+    "technical": "Técnico",
+    "metadata": "Metadatos",
+    "artwork": "Imágenes",
+    "subtitles": "Subtítulos",
+    "acquisition": "Adquisición",
+    "intake": "Recepción",
+    "torrent": "Torrents",
+    "usage": "Uso",
+    "storage": "Almacenamiento"
+  },
+  "factStatus": {
+    "known": "Conocido",
+    "partial": "Parcial",
+    "unknown": "Desconocido"
+  },
+  "unknownReason": {
+    "not_probed": "el archivo nunca se ha medido",
+    "probe_failed": "falló la medición del archivo",
+    "not_scanned": "la biblioteca nunca se ha escaneado",
+    "no_mapping": "no hay ningún registro de medios enlazado",
+    "no_aggregate": "no se ha registrado ninguna reproducción",
+    "stale": "el valor guardado está desactualizado",
+    "not_monitored": "este título no está siendo vigilado",
+    "no_torrent_link": "ningún torrent está enlazado a estos archivos",
+    "engine_unreachable": "no se pudo contactar el motor de descargas",
+    "not_applicable": "esto no aplica a este título"
+  },
+  "severity": {
+    "info": "Información",
+    "opportunity": "Oportunidad",
+    "warning": "Advertencia",
+    "error": "Error",
+    "critical": "Crítico"
+  },
+  "finding": {
+    "IDENTITY_UNRESOLVED": "Identidad sin resolver",
+    "IDENTITY_EXTERNAL_ID_CONFLICT": "Identificadores externos en conflicto",
+    "EPISODES_MISSING": "Faltan episodios",
+    "INTAKE_FAILED": "Falló la recepción",
+    "INTAKE_QUARANTINED": "Recepción en cuarentena",
+    "DUPLICATE_MEDIA_PRESENT": "Hay medios duplicados",
+    "METADATA_INCOMPLETE": "Metadatos incompletos",
+    "ARTWORK_INCOMPLETE": "Imágenes incompletas",
+    "SUBTITLE_COVERAGE_INCOMPLETE": "Cobertura de subtítulos incompleta",
+    "ACQUISITION_NOT_READY": "Adquisición no lista",
+    "ACQUISITION_SEARCH_FAILING": "Las búsquedas de adquisición están fallando",
+    "BACKFILL_STALLED": "Relleno detenido",
+    "TORRENT_ERROR": "Torrent con error",
+    "MEDIA_TECHNICAL_DATA_MISSING": "Faltan datos técnicos",
+    "LIBRARY_NEVER_SCANNED": "Biblioteca nunca escaneada"
+  }
+}

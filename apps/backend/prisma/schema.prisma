@@ -4530,3 +4530,123 @@ model DiscoverySuppression {
   @@index([reason])
   @@map("discovery_suppressions")
 }
+
+/// DERIVED / REBUILDABLE. One row per evaluated media entity, holding only the
+/// CONCLUSIONS Media Intelligence draws — never a copy of an authoritative fact.
+///
+/// It exists for one reason: the Media Health list must page, filter and sort
+/// thousands of entities by health and finding counts, and assembling that live
+/// would mean fanning out across ten domains per row. Detail is still assembled
+/// live from the owning domains; only this summary is materialized.
+///
+/// There is deliberately NO foreign key to `media_items` / `media_shows`. A
+/// season owns no row to point at (it is `showId:seasonNumber`), and a derived
+/// projection must be rebuildable — and droppable — without cascade-coupling it
+/// to the source rows it summarises.
+///
+/// Every duplicated field below is justified by the list query that needs it:
+/// `title`/`year`/`libraryId` so a row renders and filters without joining four
+/// tables, `totalBytes`/`missingCount`/`lastPlayedAt` because they are sortable
+/// columns. All are re-derived on every rebuild and are never read as truth by
+/// anything other than the list.
+model MediaIntelligenceProjection {
+  id         String @id @default(uuid())
+  /// movie | series | season | episode
+  entityType String
+  /// The SOURCE domain's id: MediaItem.id, MediaShow.id, or `showId:seasonNumber`.
+  entityId   String
+
+  /// healthy | attention | degraded | critical | unknown
+  healthStatus String
+  /// Hygiene score carried through from the Media Manager's existing scorer.
+  /// Null when nothing could be scored — never coerced to 0, which would sort a
+  /// never-evaluated entity alongside a genuinely broken one.
+  healthScore  Int?
+
+  /// Denormalized for list rendering/filtering only. See the model note above.
+  title       String
+  year        Int?
+  libraryId   String?
+  libraryName String?
+  totalBytes  BigInt? 
+  missingCount Int?
+  lastPlayedAt DateTime?
+
+  /// Finding counts by severity, e.g. {"warning":2,"error":1}. Stored as JSON so
+  /// a new severity is a code change rather than a migration.
+  findingCounts Json @default("{}")
+  /// Bounded rendering payload for the row; the full state is assembled live.
+  summary       Json @default("{}")
+
+  /// Provenance, mirroring media_playback_aggregates: a projection that cannot
+  /// say when it was computed will eventually be read as current when it is not.
+  calculatedAt DateTime @default(now())
+  /// Sections that could not be answered at all, so "unknown" survives the
+  /// round-trip instead of degrading into a healthy-looking row.
+  unknownDomains Json @default("[]")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([entityType, entityId])
+  @@index([healthStatus])
+  @@index([libraryId])
+  /// The list's default ordering and its "worst first" sort.
+  @@index([healthStatus, title])
+  @@index([calculatedAt])
+  @@map("media_intelligence_projections")
+}
+
+/// DERIVED / REBUILDABLE. One row per open conclusion about one entity.
+///
+/// Persisted rather than computed per request so a future Attention Center can
+/// ask "every unresolved warning-or-worse" with one indexed query instead of
+/// re-evaluating the library in the browser.
+///
+/// Lifecycle is explicit: a finding is opened once (`firstObservedAt`), touched
+/// on every re-evaluation (`lastObservedAt`), and closed by setting
+/// `resolvedAt` — never deleted, so "this was wrong for three weeks and then
+/// fixed" stays answerable. Re-evaluating identical facts must update the same
+/// row, which is what the unique key below guarantees.
+///
+/// `evidence` is bounded at write time (counts plus a small sample); no finding
+/// may carry an unbounded list of episodes or files.
+///
+/// No human-readable text is stored. The code plus evidence is the record, and
+/// the sentence is rendered per locale at display time — persisting English
+/// would make this table the authority on wording in a bilingual product.
+model MediaIntelligenceFinding {
+  id         String @id @default(uuid())
+  entityType String
+  entityId   String
+
+  /// Stable machine code, e.g. EPISODES_MISSING. Never prose.
+  code     String
+  /// identity | library | completeness | technical | metadata | artwork |
+  /// subtitles | acquisition | intake | torrent | usage | storage
+  domain   String
+  /// info | opportunity | warning | error | critical
+  severity String
+
+  evidence Json @default("{}")
+  /// The authoritative domain the facts came from.
+  source   String
+
+  firstObservedAt DateTime  @default(now())
+  lastObservedAt  DateTime  @default(now())
+  /// Null while open. Set when a re-evaluation no longer produces the finding.
+  resolvedAt      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// One open row per (entity, code): re-evaluation updates rather than
+  /// accumulating a duplicate every sweep.
+  @@unique([entityType, entityId, code])
+  @@index([entityType, entityId])
+  /// The Attention Center query: unresolved, by severity.
+  @@index([resolvedAt, severity])
+  @@index([code])
+  @@index([domain])
+  @@map("media_intelligence_findings")
+}

@@ -1,0 +1,134 @@
+{
+  "title": "Media Intelligence",
+  "subtitle": "One correlated view of every title: what is known, what is missing, and why.",
+  "advisory": "Observational only. Media Intelligence reports what it finds and never downloads, deletes, moves or repairs anything.",
+  "overview": {
+    "analyzed": "Titles analyzed",
+    "neverAnalyzed": "No titles have been analyzed yet.",
+    "neverAnalyzedBody": "Run a rebuild to evaluate your libraries. It reads what the media domains already store and starts no scan, probe or search.",
+    "lastCalculated": "Last evaluated",
+    "never": "Never",
+    "rebuilding": "A rebuild is running…",
+    "rebuild": "Rebuild",
+    "rebuildStarted": "Rebuild complete",
+    "rebuildResult": "{{movies}} movie(s), {{series}} series, {{failed}} failed.",
+    "rebuildFailed": "Rebuild failed",
+    "rebuildBusy": "A rebuild is already running.",
+    "topFindings": "Most common findings",
+    "noFindings": "No findings. Every analyzed title is healthy.",
+    "byHealth": "Health"
+  },
+  "health": {
+    "healthy": "Healthy",
+    "attention": "Attention",
+    "degraded": "Degraded",
+    "critical": "Critical",
+    "unknown": "Unknown",
+    "score": "Score",
+    "noScore": "No score"
+  },
+  "list": {
+    "search": "Search titles",
+    "empty": "No titles match these filters.",
+    "emptyUnanalyzed": "Nothing has been analyzed yet.",
+    "error": "Could not load the media health list",
+    "columns": {
+      "title": "Title",
+      "health": "Health",
+      "findings": "Findings",
+      "missing": "Missing",
+      "size": "Size",
+      "lastPlayed": "Last played",
+      "library": "Library",
+      "evaluated": "Evaluated"
+    },
+    "filters": {
+      "allTypes": "All types",
+      "allHealth": "Any health",
+      "allLibraries": "All libraries",
+      "allSeverities": "Any severity",
+      "allDomains": "Any domain",
+      "hasFindings": "With findings only"
+    },
+    "entityType": {
+      "movie": "Movie",
+      "series": "Series",
+      "season": "Season",
+      "episode": "Episode"
+    },
+    "never": "Never",
+    "findingCount": "{{count}} finding",
+    "findingCount_other": "{{count}} findings"
+  },
+  "detail": {
+    "back": "Back to Media Intelligence",
+    "refresh": "Re-evaluate",
+    "refreshed": "Re-evaluated",
+    "refreshFailed": "Could not re-evaluate this title",
+    "assembledAt": "Assembled {{when}}",
+    "notFound": "This title no longer exists.",
+    "error": "Could not load this title's state",
+    "sections": "State by domain",
+    "findings": "Findings",
+    "noFindings": "No findings. Nothing about this title needs attention.",
+    "evidence": "Evidence",
+    "since": "Since {{when}}",
+    "lastSeen": "Last seen {{when}}",
+    "unknownBecause": "Not known: {{reason}}"
+  },
+  "domain": {
+    "identity": "Identity",
+    "library": "Library",
+    "completeness": "Completeness",
+    "technical": "Technical",
+    "metadata": "Metadata",
+    "artwork": "Artwork",
+    "subtitles": "Subtitles",
+    "acquisition": "Acquisition",
+    "intake": "Intake",
+    "torrent": "Torrents",
+    "usage": "Usage",
+    "storage": "Storage"
+  },
+  "factStatus": {
+    "known": "Known",
+    "partial": "Partial",
+    "unknown": "Unknown"
+  },
+  "unknownReason": {
+    "not_probed": "the file has never been measured",
+    "probe_failed": "measuring the file failed",
+    "not_scanned": "the library has never been scanned",
+    "no_mapping": "no media record is linked",
+    "no_aggregate": "no playback has been recorded",
+    "stale": "the stored value is out of date",
+    "not_monitored": "this title is not monitored",
+    "no_torrent_link": "no torrent is linked to these files",
+    "engine_unreachable": "the download engine could not be reached",
+    "not_applicable": "this does not apply to this title"
+  },
+  "severity": {
+    "info": "Info",
+    "opportunity": "Opportunity",
+    "warning": "Warning",
+    "error": "Error",
+    "critical": "Critical"
+  },
+  "finding": {
+    "IDENTITY_UNRESOLVED": "Identity unresolved",
+    "IDENTITY_EXTERNAL_ID_CONFLICT": "Conflicting external ids",
+    "EPISODES_MISSING": "Episodes missing",
+    "INTAKE_FAILED": "Intake failed",
+    "INTAKE_QUARANTINED": "Intake quarantined",
+    "DUPLICATE_MEDIA_PRESENT": "Duplicate media present",
+    "METADATA_INCOMPLETE": "Metadata incomplete",
+    "ARTWORK_INCOMPLETE": "Artwork incomplete",
+    "SUBTITLE_COVERAGE_INCOMPLETE": "Subtitle coverage incomplete",
+    "ACQUISITION_NOT_READY": "Acquisition not ready",
+    "ACQUISITION_SEARCH_FAILING": "Acquisition searches failing",
+    "BACKFILL_STALLED": "Backfill stalled",
+    "TORRENT_ERROR": "Torrent in error",
+    "MEDIA_TECHNICAL_DATA_MISSING": "Technical data missing",
+    "LIBRARY_NEVER_SCANNED": "Library never scanned"
+  }
+}

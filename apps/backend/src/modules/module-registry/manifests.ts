@@ -606,6 +606,37 @@ export const OPTIONAL_MANIFESTS: ModuleManifest[] = [
       'import_strategies', 'intake_lifecycle', 'retries', 'audit_timeline',
     ],
   },
+  {
+    id: MODULE_IDS.MEDIA_INTELLIGENCE,
+    name: 'Media Intelligence',
+    description:
+      'One correlated answer to "what is the state of this title, and what needs attention". Identity, library presence, completeness, technical profile, metadata, artwork, subtitles, acquisition, intake, torrents, usage and storage are read from the domains that already own them and evaluated into an explainable health verdict with findings that carry evidence and a since-when. Strictly observational: it owns conclusions, never source facts, and downloads, deletes, transcodes, repairs and unseeds nothing. Detail is assembled live; only the list summary is materialized, and that projection can be dropped and rebuilt from the owning domains at any time.',
+    required: true,
+    enabledByDefault: true,
+    dependencies: [
+      MODULE_IDS.AUTH,
+      MODULE_IDS.RBAC,
+      MODULE_IDS.AUDIT,
+      MODULE_IDS.MEDIA_MANAGER,
+      MODULE_IDS.MEDIA_ACQUISITION_INTELLIGENCE,
+    ],
+    /*
+     * Deliberately borrows the Media Manager's permissions instead of minting a
+     * `media_intelligence.*` family. A read-only view over facts those
+     * permissions already cover needs no new grant, and a new family would have
+     * locked out every existing Power User until an administrator re-granted it.
+     */
+    permissions: [P.MEDIA_MANAGER_VIEW, P.MEDIA_MANAGER_SCAN],
+    menu: [
+      { label: 'Media Intelligence', path: '/media/intelligence', icon: 'Activity', permission: P.MEDIA_MANAGER_VIEW },
+    ],
+    routes: ['/api/media-intelligence'],
+    schedulerJobs: ['media_intelligence_reconcile'],
+    features: [
+      'unified_media_state', 'health_evaluation', 'findings', 'evidence',
+      'provenance', 'unknown_reasons', 'derived_projection', 'rebuildable',
+    ],
+  },
 ];
 
 export const ALL_MANIFESTS: ModuleManifest[] = [

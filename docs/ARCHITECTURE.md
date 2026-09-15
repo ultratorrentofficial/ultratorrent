@@ -1164,6 +1164,71 @@ Key files: `packages/shared/src/media-discovery.ts` (the shared vocabulary),
 [MEDIA_DISCOVERY_TEMPLATES.md](MEDIA_DISCOVERY_TEMPLATES.md) for what every
 template field means and why.
 
+## Media Intelligence
+
+**Status: Phase 1 — observational and advisory.** One correlated answer to
+"what is the state of this title, and what needs attention". It reads facts the
+media domains already own, evaluates them into an explainable verdict, and
+stops there: it downloads, deletes, transcodes, repairs, re-tags and unseeds
+nothing, and every route but two explicit recompute calls is a read.
+
+**The governing rule is that Media Intelligence owns conclusions, not source
+facts.** Identity stays the Media Manager's; completeness stays Media
+Acquisition's; playback stays the analytics aggregate's. This module stores
+only what it *concluded* — a health status, a finding, a since-when — so a
+disagreement with a source domain is always resolved in the source's favour,
+and the whole derived store can be dropped and rebuilt without data loss.
+
+**Twelve fact sections, each answering with a status rather than a blank.**
+`identity`, `library`, `completeness`, `technical`, `metadata`, `artwork`,
+`subtitles`, `acquisition`, `intake`, `torrent`, `usage`, `storage`. Every one
+carries `known | partial | unknown`, and an unknown carries a *reason*
+(`not_probed`, `not_scanned`, `no_aggregate`, `engine_unreachable`, …). This is
+the module's central honesty commitment: "measured and empty" and "never
+looked" are different answers, and collapsing them into a zero is how a
+dashboard starts lying. `techSource` is respected exactly — `'probe'` is
+measured, `'filename'` is guessed, `null` is untouched.
+
+**Findings are resolved, never deleted.** A finding that stops reproducing gets
+`resolvedAt` set and keeps its `firstObservedAt`, so "this was broken for three
+weeks and then fixed" survives; one that returns re-opens the same row rather
+than accumulating a duplicate per sweep. Codes are stable and machine-readable
+(`EPISODES_MISSING`, `INTAKE_FAILED`, `LIBRARY_NEVER_SCANNED`, …), each mapped
+to a domain, a severity, and the CAMA capability ids that could act on it —
+Phase 1 only *points* at those capabilities and never invokes one.
+
+**Detail is live; only the list is materialized.** A single entity is cheap to
+assemble, and a stale detail page is worse than a slower one — so `detail`
+fans out across the domains on every request. The list cannot afford that, so
+`media_intelligence_projections` denormalizes one row per entity (health,
+counts, title, size, missing, last-played) with `calculatedAt` and
+`unknownDomains` as provenance. Both derived tables carry **no FK** to
+`media_items`/`media_shows`: a season owns no row of its own, and a derived
+table must stay droppable.
+
+**Refresh is reconciliation, not event-sourcing.** Most media source facts
+publish no domain event — there is no library-scan-completed, no
+metadata-updated, no technical-probed, no acquisition-grabbed, no
+intake-completed — and the catalogue's rule is that a key exists only when
+something really fires it. So the `media_intelligence_reconcile` sweep is the
+primary refresh path, with the four events that *do* fire
+(`torrent.completed`, `torrent.failed`, `file.moved`, `file.deleted`) used as
+hints. The sweep no-ops while the module is disabled.
+
+**RBAC borrows the Media Manager's permissions rather than minting a family.**
+Reads gate on `media_manager.view`; the rebuild gates on `media_manager.scan`
+(the permission Power Users actually hold — `media_manager.admin` is granted to
+no role below Administrator). Raw storage paths are included only for callers
+who may already see them, so Intelligence cannot become a side channel around
+the Media Manager's own path restrictions.
+
+Key files: `packages/shared/src/media-intelligence.ts` (the vocabulary) and
+`media-intelligence-codes.ts` (finding definitions),
+`apps/backend/src/modules/media-intelligence/media-health-evaluator.ts` (the
+pure, deterministic core), `media-state.assembler.ts` (the fan-out),
+`media-intelligence-projection.service.ts` (the derived store),
+`apps/frontend/src/pages/media-intelligence/`.
+
 ## Event-Driven Architecture
 
 Modules communicate through **domain events**, not tight coupling: a module
@@ -1466,6 +1531,7 @@ append a dated row here.
 
 | Date | Change |
 |------|--------|
+| 2026-09-15 | **Media Intelligence (Phase 1): unified media state, health and findings.** A new observational module that correlates facts the media domains already own into one explainable view, and concludes rather than re-states: twelve fact sections (identity, library, completeness, technical, metadata, artwork, subtitles, acquisition, intake, torrent, usage, storage), each answering `known\|partial\|unknown` with an explicit *reason* when unknown, so "measured and empty" never renders as "never looked". Health is a severity-aware floor (`healthy\|attention\|degraded\|critical\|unknown`), never an average. Findings carry stable codes, bounded evidence and a lifecycle — **resolved, never deleted**, preserving `firstObservedAt` and re-opening in place — so "missing since the 3rd" survives re-evaluation. Strictly advisory: no download, delete, transcode, repair, re-tag or unseed, and findings only *point* at existing CAMA capabilities. New shared contracts (`media-intelligence.ts`, `media-intelligence-codes.ts`); two DERIVED tables (`media_intelligence_projections`, `media_intelligence_findings`) with **no FK** to media tables (a season owns no row; the store must be droppable and rebuildable), added by a hand-written additive migration. Detail is assembled live; only the list is materialized, with `calculatedAt`/`unknownDomains` as provenance. Because most media source facts publish no domain event, refresh is a periodic `media_intelligence_reconcile` sweep (module-gated) hinted by the four events that do fire. RBAC borrows `media_manager.view` / `.scan` rather than minting a family that would have locked out existing Power Users. New nav entry + two routes (`/media/intelligence`), i18n en-US/es-PR. Gates: shared build, backend tsc, backend suite 376/5229, frontend tsc 0, frontend vitest 79 files/731 tests, i18n parity, DI application-context boot. |
 | 2026-09-14 | **Add Series: destination-library picker + Media Intake toggle.** Add Series previously resolved the destination from whichever discovery template was default, so with multiple TV libraries every show went to that one library (the operator could not choose), and Backfill-Only had no way to opt in/out of intake. Now: the dialog fetches TV/anime libraries (`api.media.listLibraries`) into a **destination picker** and, for Backfill-Only, shows a **"Process through Media Intake"** toggle (default on; disabled with a note when the chosen library has no storage profile). Backend `resolve` picks the destination library (input → template profile's library → first TV library), then resolves the storage profile **bound to that library** (`storageProfile.findFirst({tvLibraryId})`) — so intake stages and organises INTO the chosen library, and a monitored show's generated rule stages there too (feed + match prefs still from the template). `willUseIntake`/`intakeAvailable`/`targetLibrary` are surfaced on the plan; a monitoring mode into a profile-less library is blocked (Backfill-Only can still download direct). The persisted `storageProfileId` (which drives the rule-free intake routing) is set only when `willUseIntake`. New input `useIntake`; DTO `@IsBoolean`. i18n (en-US/es-PR). A `Synoplex - TV Retro` storage profile was created live so the second TV library (on the orico disk) can use intake too. Gates: backend tsc, backend suite 374/5196 (+3), frontend tsc, AddSeriesDialog + i18n vitest. |
 | 2026-09-14 | **Backfill-Only downloads route through Media Intake again (rule-free).** The earlier Backfill-Only change removed the RSS rule — which was *also* the carrier that routed grabs through Media Intake (`managed_intake` staging) — so a Backfill-Only add's episodes landed straight in the library folder, unprocessed (confirmed live: The Sopranos, 86 grabs, `intakeRuleId` null). Media Intake never required a rule: its completion trigger has three provenance sources and one, `IntakeIntent` (`engineId`,`hash`,`profileId`), is rule-free, and the whole pipeline resolves the target library from the storage profile. Fix, scoped to Backfill-Only adds: provisioning persists the template's `storageProfileId` in the item's `settings`; `MissingEpisodeSearchService.resolveSavePath`, for a rule-less item carrying that profile, returns a **staging** path under the profile's staging root plus an `intakeProfileId` (helpers `intakeProfileIdFor`/`stagingPathForProfile`); the grab threads `intakeProfileId` through `AcquisitionEvaluatorService.grabSelected` into the download action payload; and `SmartDownloadExecutorService`, after adding the torrent, upserts an `IntakeIntent` (via new `EngineRegistryService.getDefaultEngineId`). Applies to both the per-episode and pack grab paths. Monitoring modes are unchanged (their rule still carries intake); a rule-less item with no persisted profile still files into the library as before. Gates: backend tsc, backend suite 374/5193 (+4: staging-vs-library routing, intent recorded/not-recorded). |
 | 2026-09-14 | **Add Series: Backfill-Only creates no rule; ended/canceled shows are backfill-only.** Two changes to `SeriesAcquisitionProvisioningService`. (1) A `backfill_only` add no longer creates an RSS rule, copies template match preferences, or provisions an intake directory — steps 2–4 now run only when the mode monitors (`willMonitor`, i.e. `backfill_and_monitor` or `monitor_new_only`). A Backfill-Only add grabs the back catalogue through the global Auto-Download preferences (already the primary cascade) and files into the show's library folder via the existing save-path resolution. The template's match-preference readiness gate is likewise skipped for Backfill-Only (it only matters when building a monitoring rule). (2) Monitoring an **ended/canceled** show is no longer offered: `toPlan` blocks a monitoring mode for an inactive show and `provision` refuses it — replacing the old "confirm to monitor" escape hatch. The `allowInactiveShowMonitoring` add-input, the `requiresInactiveConfirmation` plan field, and the controller's override-permission gate are removed (the RssRule column of the same name, owned by the RSS module, is untouched). Frontend `AddSeriesDialog` now restricts the mode choices to Backfill Only for an inactive show (auto-switching if a monitoring mode was selected), drops the confirm checkbox, and previews "uses your Auto-Download preferences" for a Backfill-Only add; the misleading monitor-status line was corrected. i18n updated (en-US/es-PR). Gates: backend tsc, backend suite (374/5189), frontend tsc, AddSeriesDialog + i18n vitest. |

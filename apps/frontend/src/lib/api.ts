@@ -41,7 +41,47 @@ import type {
   Paginated,
   TorrentMatchedRule,
   TrashItemDto,
+  MediaFinding,
+  MediaHealthStatus,
+  MediaIntelligenceEntityType,
+  MediaIntelligenceListResult,
+  MediaIntelligenceOverview,
+  UnifiedMediaState,
 } from '@ultratorrent/shared';
+
+/**
+ * Query for the Media Health list. Every value is a string: it becomes a query
+ * param. The index signature is what lets it satisfy `QueryParams`; the named
+ * fields are still there so a typo in a caller is caught rather than silently
+ * sent to the server and ignored.
+ */
+export interface MediaIntelligenceListQuery {
+  page?: string;
+  pageSize?: string;
+  q?: string;
+  entityType?: string;
+  health?: string;
+  libraryId?: string;
+  severity?: string;
+  domain?: string;
+  hasFindings?: string;
+  sort?: string;
+  direction?: string;
+  [key: string]: string | undefined;
+}
+
+/**
+ * A finding as the store returns it — the evaluator's shape plus its lifecycle.
+ * `resolvedAt` is what distinguishes "still true" from "was true, now fixed".
+ */
+export type StoredMediaFinding = MediaFinding & { resolvedAt: string | null };
+
+export interface MediaIntelligenceRebuildSummary {
+  skipped: boolean;
+  movies: number;
+  series: number;
+  failed: number;
+}
 
 export type { FileNode, FilePreviewResponse, MediaTicket, PreviewTextEncoding, FilePropertiesResponse, CleanupPreview, CleanupCategory, CleanupExecuteResult, TrashItemDto, BrowseResponse, BulkOperationType, MoveConflictReport, MoveConflict, ConflictResolution, ConflictResolutionInput };
 
@@ -4692,6 +4732,46 @@ export const api = {
     },
     healthCheckAll(): Promise<{ provider: string; healthy: boolean; message?: string }[]> {
       return request('/subtitle-intelligence/providers/health-check', { method: 'POST' });
+    },
+  },
+
+  /**
+   * Media Intelligence — read-only, except the two explicit recompute calls.
+   *
+   * `refresh` and `rebuild` re-evaluate facts the media domains already store;
+   * neither starts a scan, a probe, a metadata fetch or an indexer search, and
+   * nothing here can modify media.
+   */
+  mediaIntelligence: {
+    overview(): Promise<MediaIntelligenceOverview> {
+      return request<MediaIntelligenceOverview>('/media-intelligence/overview');
+    },
+    list(query: MediaIntelligenceListQuery = {}): Promise<MediaIntelligenceListResult> {
+      return request<MediaIntelligenceListResult>('/media-intelligence', { query });
+    },
+    detail(entityType: MediaIntelligenceEntityType, entityId: string): Promise<UnifiedMediaState> {
+      return request<UnifiedMediaState>(`/media-intelligence/${entityType}/${encodeURIComponent(entityId)}`);
+    },
+    findings(
+      entityType: MediaIntelligenceEntityType,
+      entityId: string,
+      query: { severity?: string; domain?: string; includeResolved?: string } = {},
+    ): Promise<StoredMediaFinding[]> {
+      return request<StoredMediaFinding[]>(
+        `/media-intelligence/${entityType}/${encodeURIComponent(entityId)}/findings`,
+        { query },
+      );
+    },
+    refresh(
+      entityType: MediaIntelligenceEntityType,
+      entityId: string,
+    ): Promise<{ health: MediaHealthStatus; findingCount: number }> {
+      return request(`/media-intelligence/${entityType}/${encodeURIComponent(entityId)}/refresh`, {
+        method: 'POST',
+      });
+    },
+    rebuild(): Promise<MediaIntelligenceRebuildSummary> {
+      return request<MediaIntelligenceRebuildSummary>('/media-intelligence/rebuild', { method: 'POST' });
     },
   },
 

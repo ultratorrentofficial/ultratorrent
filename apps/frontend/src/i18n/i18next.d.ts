@@ -10,6 +10,7 @@ import type mediaDiscovery from './locales/en-US/mediaDiscovery.json';
 import type seriesAcquisition from './locales/en-US/seriesAcquisition.json';
 import type intake from './locales/en-US/intake.json';
 import type subtitleIntelligence from './locales/en-US/subtitleIntelligence.json';
+import type mediaIntelligence from './locales/en-US/mediaIntelligence.json';
 import type imdb from './locales/en-US/imdb.json';
 import type rss from './locales/en-US/rss.json';
 import type torrents from './locales/en-US/torrents.json';
@@ -47,6 +48,7 @@ declare module 'i18next' {
       seriesAcquisition: typeof seriesAcquisition;
       intake: typeof intake;
       subtitleIntelligence: typeof subtitleIntelligence;
+      mediaIntelligence: typeof mediaIntelligence;
       imdb: typeof imdb;
       rss: typeof rss;
       torrents: typeof torrents;
