@@ -219,6 +219,8 @@
     "BACKFILL_STALLED": "Relleno detenido",
     "TORRENT_ERROR": "Torrent con error",
     "MEDIA_TECHNICAL_DATA_MISSING": "Faltan datos técnicos",
-    "LIBRARY_NEVER_SCANNED": "Biblioteca nunca escaneada"
+    "LIBRARY_NEVER_SCANNED": "Biblioteca nunca escaneada",
+    "QUALITY_UPGRADE_POTENTIAL": "Potencial de mejora",
+    "QUALITY_BELOW_PREFERENCE": "Por debajo de la calidad preferida"
   }
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import i18n, { NAMESPACES, SUPPORTED_LANGUAGES } from './index';
+import { ALL_MEDIA_FINDING_CODES, MEDIA_INTELLIGENCE_DOMAINS } from '@ultratorrent/shared';
 import { NAV_GROUPS, type NavItem } from '@/components/layout/navigation';
 
 /** Recursively collect every dotted leaf key of a resource bundle. */
@@ -113,5 +114,30 @@ describe('navigation i18n coverage (no hardcoded nav strings)', () => {
         expect(i18n.exists(`descriptions.${key}`, { ns: 'nav', lng })).toBe(true);
       }
     }
+  });
+});
+
+/**
+ * Parity and resolution cannot catch a key that was never authored.
+ *
+ * A finding code added to the shared contracts but not to the locale files
+ * renders its own key at the operator -- `finding.QUALITY_BELOW_PREFERENCE`
+ * shipped exactly that way, and every existing i18n test passed, because both
+ * locales were equally missing it. These assert COVERAGE of a vocabulary the
+ * UI renders dynamically, which is the only shape of test that would notice.
+ */
+describe('Media Intelligence dynamic keys are fully translated', () => {
+  it.each(['en-US', 'es-PR'] as const)('%s has a label for every finding code', (lng) => {
+    const missing = ALL_MEDIA_FINDING_CODES.filter(
+      (code) => !i18n.exists(`finding.${code}`, { ns: 'mediaIntelligence', lng }),
+    );
+    expect(missing).toEqual([]);
+  });
+
+  it.each(['en-US', 'es-PR'] as const)('%s has a label for every domain', (lng) => {
+    const missing = MEDIA_INTELLIGENCE_DOMAINS.filter(
+      (d) => !i18n.exists(`domain.${d}`, { ns: 'mediaIntelligence', lng }),
+    );
+    expect(missing).toEqual([]);
   });
 });

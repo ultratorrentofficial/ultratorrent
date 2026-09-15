@@ -422,7 +422,31 @@ describe('quality compliance', () => {
     }));
     const { findings } = evaluate(withCompliance({ status: 'below_preference', dimensions: many }));
     const f = findings.find((x) => x.code === MEDIA_FINDING_CODES.QUALITY_BELOW_PREFERENCE);
-    expect((f?.evidence.blockedBy as unknown[]).length).toBeLessThanOrEqual(5);
-    expect(f?.evidence.omitted).toBe(15);
+    expect((f?.evidence.failedOn as unknown[]).length).toBeLessThanOrEqual(5);
+    expect(f?.evidence.omittedFailures).toBe(15);
+  });
+
+  it('emits evidence as scalar keys a humanizer can render', () => {
+    // The defect this guards: evidence once read `terms:excludes 10bit` and
+    // `size:<= 1073741824 bytes` straight through to the operator.
+    const { findings } = evaluate(
+      withCompliance({
+        status: 'below_preference',
+        dimensions: [
+          { dimension: 'resolution', result: 'fail', required: '2160p', actual: '1080p', reason: null },
+          { dimension: 'terms', result: 'fail', required: 'excludes 10bit', actual: '10-bit', reason: null },
+          { dimension: 'size', result: 'fail', required: '<= x', actual: '2000', reason: null, numericRequired: 1_073_741_824 },
+        ],
+      }),
+    );
+    const e = findings.find((x) => x.code === MEDIA_FINDING_CODES.QUALITY_BELOW_PREFERENCE)!.evidence;
+    expect(e.requiredResolution).toBe('2160p');
+    expect(e.excludedTerm).toBe('10bit');
+    // A `*Bytes` key is formatted as a human size by the shared humanizer.
+    expect(e.maxBytes).toBe(1_073_741_824);
+    // No composite `key:value` string survives anywhere in the evidence.
+    for (const v of Object.values(e)) {
+      if (typeof v === 'string') expect(v).not.toMatch(/^(terms|size|resolution|codec):/);
+    }
   });
 });

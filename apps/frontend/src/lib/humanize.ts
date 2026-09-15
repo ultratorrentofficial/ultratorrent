@@ -22,6 +22,10 @@ const ACRONYMS: Record<string, string> = {
   nfo: 'NFO', api: 'API', rss: 'RSS', scgi: 'SCGI', uuid: 'UUID', os: 'OS',
   db: 'DB', tv: 'TV', hd: 'HD', sd: 'SD', '2fa': '2FA', ok: 'OK',
   hdr: 'HDR', sdr: 'SDR', hevc: 'HEVC', avc: 'AVC', srt: 'SRT', pgs: 'PGS',
+  // Codec tokens are spelled lowercase-x by convention; title-casing turns
+  // `x265` into `X265`, which is simply wrong rather than merely ugly.
+  x264: 'x264', x265: 'x265', av1: 'AV1', vp9: 'VP9', xvid: 'XviD',
+  aac: 'AAC', ac3: 'AC3', eac3: 'EAC3', dts: 'DTS', truehd: 'TrueHD',
 };
 
 /** `libraryPath` / `library_path` / `library.path` → "Library path". */

@@ -511,12 +511,23 @@ function evaluateQuality(input: EvaluationInput, out: MediaFinding[]): void {
   const c = q.compliance;
   if (c.status === 'unknown' || c.status === 'preferred') return;
 
-  // Only the dimensions that actually decided the verdict, capped — evidence
-  // must explain without becoming a copy of the file's technical profile.
-  const blocking = boundedSample(
-    c.dimensions.filter((d) => d.result === 'fail').map((d) => `${d.dimension}:${d.required ?? '?'}`),
-    5,
-  );
+  /*
+   * Evidence is SCALAR KEYS, never composite strings.
+   *
+   * An earlier cut emitted `terms:excludes 10bit` and `size:<= 1073741824
+   * bytes`, which reached the operator verbatim: a humanizer can prettify a
+   * key and format a value, but it cannot take apart a string that already
+   * glued the two together. Keys also buy formatting for free — anything
+   * ending in `Bytes` is rendered as a human size by the shared rule.
+   */
+  const failed = c.dimensions.filter((d) => d.result === 'fail');
+  const failedOn = boundedSample(failed.map((d) => d.dimension), 5);
+  const requiredFor = (dim: string) => failed.find((d) => d.dimension === dim)?.required ?? null;
+  const termAfter = (prefix: string) => {
+    const hit = failed.find((d) => d.dimension === 'terms' && (d.required ?? '').startsWith(prefix));
+    return hit ? (hit.required ?? '').slice(prefix.length).trim() : null;
+  };
+  const sizeLimit = failed.find((d) => d.dimension === 'size')?.numericRequired ?? null;
 
   if (c.status === 'below_preference') {
     out.push(
@@ -525,8 +536,13 @@ function evaluateQuality(input: EvaluationInput, out: MediaFinding[]): void {
         ownedCodec: q.owned?.videoCodec ?? null,
         preferenceSource: c.preferenceSource,
         totalRungs: c.totalRungs,
-        blockedBy: blocking.sample,
-        ...(blocking.omitted ? { omitted: blocking.omitted } : {}),
+        failedOn: failedOn.sample,
+        ...(failedOn.omitted ? { omittedFailures: failedOn.omitted } : {}),
+        ...(requiredFor('resolution') ? { requiredResolution: requiredFor('resolution') } : {}),
+        ...(requiredFor('codec') ? { requiredCodec: requiredFor('codec') } : {}),
+        ...(termAfter('requires ') ? { requiredTerm: termAfter('requires ') } : {}),
+        ...(termAfter('excludes ') ? { excludedTerm: termAfter('excludes ') } : {}),
+        ...(sizeLimit != null ? { maxBytes: sizeLimit } : {}),
         measuredFileCount: q.measuredFileCount,
       }),
     );

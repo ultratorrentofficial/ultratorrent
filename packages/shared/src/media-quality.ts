@@ -159,6 +159,11 @@ export interface MediaQualityDimensionVerdict {
   actual: string | null;
   /** Why it could not be judged. Only set for `not_evaluable`. */
   reason: MediaQualityNotEvaluableReason | null;
+  /**
+   * The raw numeric limit behind a size constraint, so a consumer can format
+   * it as bytes rather than re-parsing a human string.
+   */
+  numericRequired?: number | null;
 }
 
 /** Why a dimension could not be judged from owned media. */

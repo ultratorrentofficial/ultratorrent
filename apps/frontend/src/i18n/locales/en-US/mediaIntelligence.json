@@ -219,6 +219,8 @@
     "BACKFILL_STALLED": "Backfill stalled",
     "TORRENT_ERROR": "Torrent in error",
     "MEDIA_TECHNICAL_DATA_MISSING": "Technical data missing",
-    "LIBRARY_NEVER_SCANNED": "Library never scanned"
+    "LIBRARY_NEVER_SCANNED": "Library never scanned",
+    "QUALITY_UPGRADE_POTENTIAL": "Upgrade potential",
+    "QUALITY_BELOW_PREFERENCE": "Below preferred quality"
   }
 }

@@ -171,9 +171,10 @@ function evaluateRung(rung: NormalizedPreferenceRung, owned: NormalizedMediaQual
     } else {
       const overMax = rung.maxBytes != null && owned.sizeBytes > rung.maxBytes;
       const underMin = rung.minBytes != null && owned.sizeBytes < rung.minBytes;
-      dims.push(
-        verdict('size', overMax || underMin ? 'fail' : 'pass', sizeLabel(rung), String(owned.sizeBytes)),
-      );
+      dims.push({
+        ...verdict('size', overMax || underMin ? 'fail' : 'pass', sizeLabel(rung), String(owned.sizeBytes)),
+        numericRequired: overMax ? rung.maxBytes : underMin ? rung.minBytes : (rung.maxBytes ?? rung.minBytes),
+      });
     }
   }
 
