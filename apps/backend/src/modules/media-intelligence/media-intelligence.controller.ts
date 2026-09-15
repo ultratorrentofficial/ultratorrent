@@ -11,11 +11,19 @@ import { reqAuditContext } from '../../common/request-audit-context';
 import { AuditService } from '../audit/audit.service';
 import { MediaIntelligenceService } from './media-intelligence.service';
 import { MediaIntelligenceProjectionService } from './media-intelligence-projection.service';
+import { AttentionService } from './attention/attention.service';
+import { AttentionDispositionService } from './attention/attention-disposition.service';
 import {
   ListFindingsDto,
   ListMediaIntelligenceDto,
   MediaIntelligenceEntityParamsDto,
 } from './dto/media-intelligence.dto';
+import {
+  BulkDispositionDto,
+  DispositionDto,
+  ListAttentionDto,
+  SnoozeDto,
+} from './dto/attention.dto';
 
 const P = PERMISSIONS;
 
@@ -44,6 +52,8 @@ export class MediaIntelligenceController {
   constructor(
     private readonly intelligence: MediaIntelligenceService,
     private readonly projections: MediaIntelligenceProjectionService,
+    private readonly attention: AttentionService,
+    private readonly dispositions: AttentionDispositionService,
     private readonly audit: AuditService,
   ) {}
 
@@ -59,6 +69,152 @@ export class MediaIntelligenceController {
   @RequirePermissions(P.MEDIA_MANAGER_VIEW)
   list(@Query() query: ListMediaIntelligenceDto) {
     return this.intelligence.list(query);
+  }
+
+  /* ------------------------------------------------- Attention Center */
+
+  /**
+   * The attention queue.
+   *
+   * A read over persisted state: no provider, indexer, media server, probe,
+   * filesystem or torrent-engine call happens here, and nothing triggers a
+   * rebuild. An operational inbox that fanned out to the network on every
+   * glance is a page people learn not to open.
+   */
+  @Get('attention')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  listAttention(@Query() query: ListAttentionDto) {
+    return this.attention.list(query);
+  }
+
+  /** Counts for the queue, derived from the same predicate as the list. */
+  @Get('attention/summary')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  attentionSummary() {
+    return this.attention.summary();
+  }
+
+  /** One finding's transitions. Loaded on detail only, never per list row. */
+  @Get('attention/:findingId/history')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  findingHistory(@Param('findingId') findingId: string) {
+    return this.attention.history(findingId);
+  }
+
+  /*
+   * Disposition gates on `view`, not `scan`.
+   *
+   * Deciding you do not want to be asked about a finding is a workflow act,
+   * not a library-wide recomputation — it changes no media and no fact. Any
+   * operator who can open the queue can triage it; gating triage behind the
+   * rebuild permission would hand people a list they are forbidden to act on.
+   * The REMEDIATION each finding points at keeps its own owning module's
+   * permission, which is where the real authority lives.
+   */
+  /*
+   * Bulk routes are declared BEFORE their single-finding counterparts, and
+   * this block sits above the generic `:entityType/:entityId` media routes.
+   * Nest matches in declaration order, so `attention/:findingId/dismiss`
+   * placed first would answer `/attention/bulk/dismiss` with findingId="bulk"
+   * — the literal route would simply never run. A repo-wide gate checks this,
+   * because the same shape once silently disabled duplicate detection for
+   * several releases without anything failing loudly.
+   */
+  @Post('attention/bulk/acknowledge')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  bulkAcknowledge(@Body() body: BulkDispositionDto, @CurrentUser() user: AuthenticatedUser, @Req() req: Request) {
+    return this.disposition('acknowledge', body.findingIds, body.reason, undefined, user, req, true);
+  }
+
+  @Post('attention/bulk/snooze')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  bulkSnooze(@Body() body: BulkDispositionDto, @CurrentUser() user: AuthenticatedUser, @Req() req: Request) {
+    return this.disposition('snooze', body.findingIds, body.reason, body.snoozedUntil, user, req, true);
+  }
+
+  @Post('attention/bulk/dismiss')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  bulkDismiss(@Body() body: BulkDispositionDto, @CurrentUser() user: AuthenticatedUser, @Req() req: Request) {
+    return this.disposition('dismiss', body.findingIds, body.reason, undefined, user, req, true);
+  }
+
+  @Post('attention/:findingId/acknowledge')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  acknowledge(
+    @Param('findingId') findingId: string,
+    @Body() body: DispositionDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
+  ) {
+    return this.disposition('acknowledge', [findingId], body?.reason, undefined, user, req);
+  }
+
+  @Post('attention/:findingId/snooze')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  snooze(
+    @Param('findingId') findingId: string,
+    @Body() body: SnoozeDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
+  ) {
+    return this.disposition('snooze', [findingId], body?.reason, body?.snoozedUntil, user, req);
+  }
+
+  @Post('attention/:findingId/dismiss')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  dismiss(
+    @Param('findingId') findingId: string,
+    @Body() body: DispositionDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
+  ) {
+    return this.disposition('dismiss', [findingId], body?.reason, undefined, user, req);
+  }
+
+  /** Clear a disposition and return the finding to the unreviewed queue. */
+  @Post('attention/:findingId/reset')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  resetDisposition(
+    @Param('findingId') findingId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
+  ) {
+    return this.disposition('reset', [findingId], undefined, undefined, user, req);
+  }
+
+  /**
+   * One operator action, one audit row.
+   *
+   * Single and bulk share this, because a bulk action of one is not a
+   * different act. The audit records the whole selection rather than a row
+   * per finding — a dismissal of two hundred findings is one decision a
+   * person made, and two hundred rows would bury the trail it belongs to.
+   */
+  private async disposition(
+    action: 'acknowledge' | 'snooze' | 'dismiss' | 'reset',
+    findingIds: readonly string[],
+    reason: string | undefined,
+    snoozedUntil: string | undefined,
+    user: AuthenticatedUser,
+    req: Request,
+    bulk = false,
+  ) {
+    const result = await this.dispositions.apply(action, findingIds, user.id, { reason, snoozedUntil });
+    await this.audit.record({
+      userId: user?.id,
+      ...reqAuditContext(req),
+      action: `media_intelligence.finding.${bulk ? 'bulk_' : ''}${action}`,
+      objectType: 'media_intelligence_finding',
+      objectId: bulk ? 'bulk' : findingIds[0],
+      metadata: {
+        count: findingIds.length,
+        applied: result.applied,
+        ...(result.unknown.length ? { unknown: result.unknown.length } : {}),
+        ...(result.skippedResolved.length ? { skippedResolved: result.skippedResolved.length } : {}),
+        ...(snoozedUntil ? { snoozedUntil } : {}),
+      },
+    });
+    return result;
   }
 
   /**

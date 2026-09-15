@@ -47,6 +47,9 @@ import type {
   MediaIntelligenceListResult,
   MediaIntelligenceOverview,
   UnifiedMediaState,
+  MediaAttentionListResult,
+  MediaAttentionSummary,
+  MediaAttentionHistoryEntry,
 } from '@ultratorrent/shared';
 
 /**
@@ -79,6 +82,32 @@ export interface MediaIntelligenceListQuery {
  * `resolvedAt` is what distinguishes "still true" from "was true, now fixed".
  */
 export type StoredMediaFinding = MediaFinding & { resolvedAt: string | null };
+
+/** Query for the Attention queue. Every value is a string: it becomes a param. */
+export interface AttentionQuery {
+  page?: string;
+  pageSize?: string;
+  view?: string;
+  severity?: string;
+  domain?: string;
+  code?: string;
+  entityType?: string;
+  escalated?: string;
+  q?: string;
+  [key: string]: string | undefined;
+}
+
+/**
+ * What a disposition actually did.
+ *
+ * `skippedResolved` is the honest part: a finding the evaluator closed between
+ * selection and click is left closed rather than dragged back open.
+ */
+export interface DispositionResult {
+  applied: number;
+  unknown: string[];
+  skippedResolved: string[];
+}
 
 export interface MediaIntelligenceRebuildSummary {
   skipped: boolean;
@@ -4776,6 +4805,68 @@ export const api = {
     },
     rebuild(): Promise<MediaIntelligenceRebuildSummary> {
       return request<MediaIntelligenceRebuildSummary>('/media-intelligence/rebuild', { method: 'POST' });
+    },
+
+    /* ----------------------------------------------- Attention Center */
+
+    attention(query: AttentionQuery = {}): Promise<MediaAttentionListResult> {
+      return request<MediaAttentionListResult>('/media-intelligence/attention', { query });
+    },
+    attentionSummary(): Promise<MediaAttentionSummary> {
+      return request<MediaAttentionSummary>('/media-intelligence/attention/summary');
+    },
+    findingHistory(findingId: string): Promise<MediaAttentionHistoryEntry[]> {
+      return request<MediaAttentionHistoryEntry[]>(
+        `/media-intelligence/attention/${encodeURIComponent(findingId)}/history`,
+      );
+    },
+
+    /*
+     * Disposition. These record what a person decided; none of them changes
+     * whether the finding is true, which is why there is no "resolve" here.
+     */
+    acknowledgeFinding(findingId: string, reason?: string): Promise<DispositionResult> {
+      return request(`/media-intelligence/attention/${encodeURIComponent(findingId)}/acknowledge`, {
+        method: 'POST',
+        body: { reason },
+      });
+    },
+    snoozeFinding(findingId: string, snoozedUntil: string, reason?: string): Promise<DispositionResult> {
+      return request(`/media-intelligence/attention/${encodeURIComponent(findingId)}/snooze`, {
+        method: 'POST',
+        body: { snoozedUntil, reason },
+      });
+    },
+    dismissFinding(findingId: string, reason?: string): Promise<DispositionResult> {
+      return request(`/media-intelligence/attention/${encodeURIComponent(findingId)}/dismiss`, {
+        method: 'POST',
+        body: { reason },
+      });
+    },
+    resetFinding(findingId: string): Promise<DispositionResult> {
+      return request(`/media-intelligence/attention/${encodeURIComponent(findingId)}/reset`, {
+        method: 'POST',
+      });
+    },
+
+    /** Bulk disposition. Ids are explicit — there is no "apply to whole query". */
+    bulkAcknowledgeFindings(findingIds: string[], reason?: string): Promise<DispositionResult> {
+      return request('/media-intelligence/attention/bulk/acknowledge', {
+        method: 'POST',
+        body: { findingIds, reason },
+      });
+    },
+    bulkSnoozeFindings(findingIds: string[], snoozedUntil: string, reason?: string): Promise<DispositionResult> {
+      return request('/media-intelligence/attention/bulk/snooze', {
+        method: 'POST',
+        body: { findingIds, snoozedUntil, reason },
+      });
+    },
+    bulkDismissFindings(findingIds: string[], reason?: string): Promise<DispositionResult> {
+      return request('/media-intelligence/attention/bulk/dismiss', {
+        method: 'POST',
+        body: { findingIds, reason },
+      });
     },
   },
 

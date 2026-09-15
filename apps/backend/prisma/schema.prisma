@@ -4672,6 +4672,11 @@ model MediaIntelligenceFinding {
   /// Set when the evaluator cleared a disposition because the condition
   /// materially worsened, so the UI can say why it came back.
   escalationReason   String?
+  /// DERIVED ordering rank, lower first: severityRank * 10 + (acknowledged ? 1 : 0).
+  /// Persisted because `severity` is text and sorts alphabetically, which is
+  /// close to the reverse of what it means. Recomputed wherever severity or
+  /// disposition changes — reconciliation and disposition mutations, nowhere else.
+  attentionPriority  Int       @default(20)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -4690,6 +4695,8 @@ model MediaIntelligenceFinding {
   @@index([resolvedAt, disposition, severity])
   /// Finding the snoozes that have come due.
   @@index([snoozedUntil])
+  /// The Attention queue's own ordering: open rows, worst first, stably paged.
+  @@index([resolvedAt, attentionPriority, firstObservedAt])
   @@map("media_intelligence_findings")
 }
 

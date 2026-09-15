@@ -32,6 +32,8 @@ import { JOB_ACTIONS } from '../jobs/jobs-actions';
 import { TORRENT_ACTIONS } from '../torrents/torrents-actions';
 import { FILE_ACTIONS } from '../files/files-actions';
 import { SUBTITLE_ACTIONS } from '../subtitle-intelligence/subtitle-actions';
+import { MediaIntelligenceController } from '../media-intelligence/media-intelligence.controller';
+import { MEDIA_INTELLIGENCE_ACTIONS } from '../media-intelligence/media-intelligence-actions';
 
 /** Any controller class; handlers are looked up on the prototype by name. */
 type Ctor = { name: string; prototype: object };
@@ -56,6 +58,23 @@ const ROUTES: Record<string, Array<[Ctor, string]>> = {
   'media.item.deleteFiles': [[MediaController, 'bulkDeleteFiles']],
 
   'media.cleanup.runItems': [[CleanupController, 'runItems']],
+
+  // --- media intelligence: attention disposition -------------------------
+  // Each verb has a single-finding and a bulk route; both are listed because
+  // the action's `arity: 'any'` means either can be dispatched.
+  'attention.finding.acknowledge': [
+    [MediaIntelligenceController, 'acknowledge'],
+    [MediaIntelligenceController, 'bulkAcknowledge'],
+  ],
+  'attention.finding.snooze': [
+    [MediaIntelligenceController, 'snooze'],
+    [MediaIntelligenceController, 'bulkSnooze'],
+  ],
+  'attention.finding.dismiss': [
+    [MediaIntelligenceController, 'dismiss'],
+    [MediaIntelligenceController, 'bulkDismiss'],
+  ],
+  'attention.finding.reset': [[MediaIntelligenceController, 'resetDisposition']],
 
   // --- duplicates --------------------------------------------------------
   'duplicates.detect': [[MediaController, 'detectDuplicates']],
@@ -106,8 +125,7 @@ const ALL = [
   ...JOB_ACTIONS,
   ...TORRENT_ACTIONS,
   ...FILE_ACTIONS,
-  ...SUBTITLE_ACTIONS,
-];
+  ...SUBTITLE_ACTIONS, ...MEDIA_INTELLIGENCE_ACTIONS];
 
 function permissionsOf(controller: Ctor, handler: string): string[] {
   const fn = (controller.prototype as Record<string, unknown>)[handler];

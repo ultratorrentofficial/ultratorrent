@@ -92,6 +92,9 @@ export type EntityType =
   | 'file'
   | 'trash_item'
   | 'collection'
+  // Media Intelligence — a finding has a row and an id of its own, so unlike
+  // `tv_show`/`season` (which are projections) it is directly addressable.
+  | 'finding'
   // Platform
   | 'job'
   | 'notification'

@@ -15,6 +15,7 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { DomainEventBus } from '../domain-events/domain-event-bus.service';
 import { evaluateMediaHealth } from './media-health-evaluator';
 import { evaluateDispositionRetention } from './attention/escalation';
+import { attentionPriority } from './attention/priority';
 import { MediaStateAssembler } from './media-state.assembler';
 
 /**
@@ -203,6 +204,12 @@ export class MediaIntelligenceProjectionService {
             // A finding that comes back after being resolved re-opens rather
             // than staying closed with a stale timestamp.
             resolvedAt: null,
+            // Severity may have moved, and a clearing disposition changes the
+            // rank too; recompute from whatever this row is about to become.
+            attentionPriority: attentionPriority(
+              finding.severity,
+              clearing ? 'unreviewed' : prior.disposition,
+            ),
             ...(clearing
               ? {
                   // The condition got worse, so the earlier decision no longer
@@ -258,6 +265,7 @@ export class MediaIntelligenceProjectionService {
             source: finding.source,
             firstObservedAt: now,
             lastObservedAt: now,
+            attentionPriority: attentionPriority(finding.severity, 'unreviewed'),
           },
           select: { id: true },
         });

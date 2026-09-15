@@ -10,6 +10,10 @@ import { MediaIntelligenceProjectionService } from './media-intelligence-project
 import { MediaIntelligenceService } from './media-intelligence.service';
 import { MediaStateAssembler } from './media-state.assembler';
 import { QualityPreferenceResolver } from './quality/preference-resolution.service';
+import { AttentionService } from './attention/attention.service';
+import { AttentionDispositionService } from './attention/attention-disposition.service';
+import { CapabilityRegistry } from '../context-actions/capability-registry.service';
+import { MEDIA_INTELLIGENCE_ACTIONS } from './media-intelligence-actions';
 
 /** Reconcile the projection this often. */
 const RECONCILE_INTERVAL_MS = 6 * 60 * 60_000;
@@ -111,12 +115,27 @@ export class MediaIntelligenceReconciler implements OnModuleInit {
   providers: [
     MediaStateAssembler,
     QualityPreferenceResolver,
+    AttentionService,
+    AttentionDispositionService,
     MediaIntelligenceProjectionService,
     MediaIntelligenceService,
     MediaIntelligenceReconciler,
   ],
   // Exported so a future Attention Center (Phase 3) can read findings without
   // going through HTTP.
-  exports: [MediaIntelligenceService, MediaIntelligenceProjectionService],
+  exports: [MediaIntelligenceService, MediaIntelligenceProjectionService, AttentionService],
 })
-export class MediaIntelligenceModule {}
+export class MediaIntelligenceModule implements OnModuleInit {
+  constructor(private readonly capabilities: CapabilityRegistry) {}
+
+  /**
+   * Disposition actions, declared to CAMA rather than to the page.
+   *
+   * The Attention Center must not grow a private action framework: what an
+   * operator may do to a finding is decided by the same registry, and the
+   * same permission resolution, as everything else in the product.
+   */
+  onModuleInit(): void {
+    this.capabilities.registerAll(MEDIA_INTELLIGENCE_ACTIONS);
+  }
+}

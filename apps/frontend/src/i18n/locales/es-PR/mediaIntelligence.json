@@ -2,6 +2,102 @@
   "title": "Inteligencia de Medios",
   "subtitle": "Una vista correlacionada de cada título: qué se sabe, qué falta y por qué.",
   "advisory": "Solo observa. Inteligencia de Medios informa lo que encuentra y nunca descarga, borra, mueve ni repara nada.",
+  "attention": {
+    "title": "Atención",
+    "subtitle": "Qué necesita una persona, por qué y qué puedes hacer al respecto.",
+    "advisory": "Reconocer, posponer o descartar registra tu decisión. Nada de eso cambia lo que realmente es cierto sobre los medios.",
+    "views": {
+      "active": "Necesita atención",
+      "snoozed": "Pospuestos",
+      "dismissed": "Descartados",
+      "resolved": "Resueltos"
+    },
+    "summary": {
+      "active": "Necesita atención",
+      "critical": "Críticos",
+      "error": "Errores",
+      "warning": "Advertencias",
+      "opportunity": "Oportunidades",
+      "info": "Informativos",
+      "snoozed": "Pospuestos",
+      "dismissed": "Descartados",
+      "unreviewed": "Sin revisar",
+      "escalated": "Empeoraron"
+    },
+    "empty": {
+      "active": "Nada requiere tu atención en este momento.",
+      "snoozed": "No hay nada pospuesto.",
+      "dismissed": "No se ha descartado nada.",
+      "resolved": "Todavía no se ha resuelto nada.",
+      "filtered": "Ningún hallazgo coincide con estos filtros.",
+      "hint": "Esto refleja el filtro actual, no la salud de toda la biblioteca."
+    },
+    "columns": {
+      "media": "Medios",
+      "finding": "Hallazgo",
+      "severity": "Severidad",
+      "state": "Estado",
+      "firstSeen": "Visto por primera vez",
+      "lastSeen": "Visto por última vez"
+    },
+    "filters": {
+      "search": "Buscar títulos",
+      "allSeverities": "Cualquier severidad",
+      "allDomains": "Cualquier dominio",
+      "allTypes": "Todos los tipos",
+      "escalatedOnly": "Solo los que empeoraron"
+    },
+    "disposition": {
+      "unreviewed": "Sin revisar",
+      "acknowledged": "Reconocido",
+      "snoozed": "Pospuesto",
+      "dismissed": "Descartado"
+    },
+    "actions": {
+      "acknowledge": "Reconocer",
+      "snooze": "Posponer",
+      "dismiss": "Descartar",
+      "reset": "Devolver a la cola",
+      "review": "Revisar",
+      "selected": "{{count}} seleccionado(s)",
+      "clearSelection": "Limpiar selección"
+    },
+    "snooze": {
+      "day": "1 día",
+      "threeDays": "3 días",
+      "week": "1 semana",
+      "month": "1 mes",
+      "until": "Pospuesto hasta {{when}}"
+    },
+    "escalation": {
+      "badge": "Empeoró",
+      "severity_increased": "Aumentó la severidad",
+      "affected_count_increased": "Más elementos afectados",
+      "reopened_after_resolution": "Reapareció después de resolverse",
+      "evidence_changed": "Cambiaron los detalles"
+    },
+    "result": {
+      "applied": "{{count}} actualizado(s)",
+      "skippedResolved": "{{count}} omitido(s) — ya resueltos",
+      "unknown": "{{count}} ya no existen",
+      "failed": "No se pudieron actualizar esos hallazgos"
+    },
+    "history": {
+      "heading": "Historial",
+      "empty": "Todavía no ha pasado nada con este hallazgo.",
+      "opened": "Hallazgo abierto",
+      "resolved": "Condición resuelta",
+      "reopened": "El hallazgo reapareció",
+      "acknowledged": "Reconocido",
+      "snoozed": "Pospuesto",
+      "dismissed": "Descartado",
+      "disposition_reset": "Devuelto a la cola",
+      "disposition_reset_by_escalation": "Devuelto automáticamente — la condición empeoró",
+      "severity_changed": "Cambió la severidad",
+      "by": "por {{name}}",
+      "bySystem": "automáticamente"
+    }
+  },
   "media": {
     "heading": "Título",
     "noArtwork": "Sin imagen",

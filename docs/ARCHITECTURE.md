@@ -1302,14 +1302,12 @@ Key files: `packages/shared/src/media-quality.ts`,
 `preference-ladder.ts`, `preference-resolution.service.ts`,
 `quality-evaluator.ts`).
 
-### Phase 3 — Attention Center (in progress)
+### Phase 3 — Attention Center
 
-**Status: foundation implemented; the operator-facing surface is not.** What
-exists and is tested is described below. What does NOT yet exist: the
-attention query service, the disposition mutation endpoints, bulk
-disposition, CAMA action registration, and the Attention page itself. Those
-are deliberately absent rather than half-wired, and nothing in the UI
-currently reads any of this.
+**Status: complete and operator-facing.** An inbox for the media lifecycle at
+**Media → Attention** (`/media/intelligence/attention`): summary counts, four
+views, server-side filters and search, disposition actions single and bulk,
+and per-finding history.
 
 **The rule Phase 3 adds: the Attention Center owns workflow state around a
 finding, never the finding's technical truth.** A person may acknowledge,
@@ -1364,8 +1362,47 @@ nothing because unchanged findings are not transitions, and the first sweep
 after this ships is quiet because every existing finding already has a row
 and so none reads as newly opened.
 
+
+**Ordering is a stored, explainable rank, not a score.**
+`attentionPriority = severityRank * 10 + (acknowledged ? 1 : 0)`, lower first,
+tie-broken by `firstObservedAt` then `id` so pages cannot shuffle. It is
+persisted because `severity` is text and sorts alphabetically —
+`critical < error < info < opportunity < warning`, close to the reverse of its
+meaning. Acknowledgement demotes *within* a severity: reading a critical
+finding does not make it less urgent than a warning nobody has opened. Two
+write sites recompute it, reconciliation and a disposition mutation, and
+nothing else.
+
+**One predicate, two consumers.** `isActiveAttention()` and the query
+service's `viewWhere()` define the active queue once; the list and the
+counters both read it, so the dashboard cannot disagree with the rows beneath
+it.
+
+**Mutations are honest about what they did.** Ids are de-duplicated, unknown
+ids are reported rather than dropped, and a finding the evaluator resolved
+between selection and click is *skipped*, never dragged back open — the
+`UPDATE` re-checks `resolvedAt IS NULL` to close the remaining window. One
+operator action writes one audit row naming the whole selection, following
+`MediaBulkService` rather than the duplicate-resolution path that writes N+1.
+
+**CAMA, not a private action framework.** A new `finding` entity type (it has
+a row and an id of its own, unlike the `tv_show`/`season` projections) and
+four disposition actions registered at boot, gated on `media_manager.view` —
+triage changes no media, so anyone who can see the queue can clear it. There
+is deliberately no search, upgrade or delete action: remediation belongs to
+the module that owns the media, with that module's permission.
+
+**Two repo-wide gates caught real defects here.** `route-shadowing.spec.ts`
+found four unreachable routes — `:entityType/:entityId` swallowing
+`attention/summary`, and `attention/:findingId/*` swallowing
+`attention/bulk/*` — all fixed by declaration order. `action-endpoint.spec.ts`
+required every new action id to map to a real handler whose declared
+permissions cover the endpoint's actual guard.
+
 Key files: `packages/shared/src/media-attention.ts`,
-`apps/backend/src/modules/media-intelligence/attention/escalation.ts`.
+`apps/backend/src/modules/media-intelligence/attention/` (escalation, priority,
+query service, disposition service),
+`apps/frontend/src/pages/media-intelligence/MediaAttentionPage.tsx`.
 
 ## Event-Driven Architecture
 
@@ -1669,6 +1706,7 @@ append a dated row here.
 
 | Date | Change |
 |------|--------|
+| 2026-09-15 | **Media Intelligence Phase 3 complete: the Attention Center is operator-facing.** Adds the query service, disposition mutations, CAMA registration and the page itself on top of the foundation committed earlier today. Ordering is a PERSISTED, explainable rank (`severityRank * 10 + acknowledged`, tie-broken by first-observed then id) rather than a sort on `severity`, whose text order is close to the reverse of its meaning; acknowledgement demotes within a severity, never across one. `isActiveAttention()`/`viewWhere()` define the active queue ONCE so the summary counts and the list cannot drift. Mutations de-duplicate ids, report unknown ones, and SKIP a finding the evaluator resolved between selection and click — the UPDATE re-checks `resolvedAt IS NULL` to close the remaining window — with one audit row per operator action naming the whole selection. New `finding` CAMA entity type plus four disposition actions gated on `media_manager.view` (triage changes no media); deliberately no search/upgrade/delete action, because remediation belongs to the owning module. Frontend: summary tiles, four views, server-side filters and search, bulk selection that prunes to visible rows so a hidden row cannot be mutated, native keyboard-operable snooze, severity labelled not just coloured, and an empty filter that never implies a healthy library. Two repo-wide gates earned their keep: route-shadowing found FOUR unreachable routes (`:entityType/:entityId` capturing `attention/summary`; `attention/:findingId/*` capturing `attention/bulk/*`), and the action-endpoint gate forced every new action id to map to a real handler with covering permissions. Additive migration: one defaulted `attentionPriority` column, one index, and a backfill derived from columns already on each row. Gates: shared build; backend tsc 0; backend suite 383 suites / 5358 tests; frontend tsc 0; frontend vitest 82 files / 765 tests; i18n parity 254 keys; nav-routes 77; prisma validate; DI boot. |
 | 2026-09-15 | **Media Intelligence Phase 3 (foundation): Attention Center truth-vs-disposition split.** Adds human workflow state to findings WITHOUT touching their technical truth. Disposition (`unreviewed\|acknowledged\|snoozed\|dismissed`, `snoozedUntil`, actor, reason) lives on the finding row — safe because `reconcileFindings` has always updated by primary key rather than delete-and-recreate, so the row already IS the stable identity and human state survives a rebuild with no side table. `resolvedAt` stays the evaluator's exclusive property: dismissing a finding never makes the condition untrue. New pure `attention/escalation.ts` decides whether a disposition survives a change beneath it — cleared only on severity increase, reopen-after-resolution, an affected count that at least doubled (and grew by ≥2), or an evidence-fingerprint change; deliberately conservative the other way, so an improvement, a severity *decrease*, a refreshed timestamp, or a probe-backfill pass moving `measuredFileCount` all KEEP it. `isActiveAttention()` is one exported predicate so counts and list cannot diverge, and snooze is interpreted at query time rather than flipped by a scheduler. New bounded `media_intelligence_finding_events` table records transitions only, never observations. New `media_intelligence.attention_digest` domain event + notification catalog entry + `attention` presentation builder (en-US/es-PR): ONE digest per reconciliation run with a capped sample, gated at warning-and-above — a steady-state sweep publishes nothing, and the first sweep after deploy is silent because existing findings are not new. Additive migration: six nullable/defaulted columns, one table, three indexes; no backfill and no synthetic history for pre-existing findings. **Not yet built: attention query service, disposition endpoints, bulk disposition, CAMA actions, Attention page.** Gates: shared build; backend tsc 0; backend suite 379 suites / 5311 tests; i18n parity 13/13. |
 | 2026-09-15 | **Media Intelligence: the quality ladder is scoped by media kind.** The first live Phase 2 rebuild marked **3,130 of 3,351 movies** `below_preference`, and **3,026 of those failed on SIZE alone** — Barbie at 2,153 MB against a 1 GB cap. Not a library problem: a bug. This installation's global ladder is entirely TV-shaped (all seven rungs are `smart_episode_match`, capped at 1 GB/700 MB per EPISODE), there are no movie-scoped preferences at all (both enabled profiles are `mediaType: tv`, all 256 watchlist items are `series`), and the resolver handed every film that episode ladder. Acquisition never would: `profileCandidates` filters on `{mediaType: {in: [kind, 'any']}}`, and an episode matcher is never applied to a movie. New pure predicate `ladderAppliesTo(candidates, kind)` mirrors that boundary — a movie is governed only by rungs that are not `smart_episode_match` — and `globalLadder(kind)`/`ladderFor({…, kind})` consult it, with all three assembler call sites passing the entity's kind. When no rung applies the verdict is `unknown` with `no_acquisition_preferences`, which is what §21 of the design required all along: absence of a policy is not a defect, and the layer must not manufacture one. Guarded by five new cases pinning that an episode-only ladder governs TV but not film, that a mixed ladder governs both, and that the movie path yields `no_acquisition_preferences` rather than a size failure nobody configured. Gates: backend tsc 0; backend suite; frontend tsc 0; frontend vitest (scoped to `src` — a bare `vitest run` from that directory sweeps files outside the project and reports hundreds of phantom failures). |
 | 2026-09-15 | **Media Intelligence: three humanization defects in the Phase 2 findings, and the test gap that let them ship.** (1) `finding.QUALITY_BELOW_PREFERENCE` rendered as its own key: the two Phase 2 finding codes were added to the shared contracts but never to the locale files. **Every existing i18n test passed** — parity compares the two locales against each other and both were equally missing it, and the resolve-every-key test can only check keys that were authored. The real fix is a new COVERAGE test asserting that every `ALL_MEDIA_FINDING_CODES` entry and every `MEDIA_INTELLIGENCE_DOMAINS` entry has a label in both locales, since those vocabularies are rendered through dynamic `t(`finding.${code}`)` lookups that no static check sees. (2) Evidence read `Terms:excludes 10bit` because the evaluator glued dimension and requirement into one composite string — a humanizer can prettify a key and format a value but cannot take apart a string that already joined them. Evidence is now scalar keys (`failedOn`, `requiredResolution`, `excludedTerm`, `maxBytes`, …), which also buys formatting for free: a `*Bytes` key renders as `1.00 GB` through the existing shared rule, replacing the raw `1073741824 Bytes`. A new `numericRequired` field on the size verdict carries the limit so nothing has to re-parse a human string. (3) `x265` displayed as `X265` — the humanizer's acronym table lacked codec/audio tokens, so title-casing mangled a name whose lowercase `x` is the convention; added x264/x265/AV1/VP9/XviD/AAC/AC3/EAC3/DTS/TrueHD. A regression guard now asserts no evidence value matches `^(terms\|size\|resolution\|codec):`. Gates: shared build; backend tsc 0; backend suite; frontend tsc 0; frontend vitest 82 files / 764 tests; i18n 13/13 including the new coverage test, which fails against the pre-fix locales. |

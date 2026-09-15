@@ -2,6 +2,102 @@
   "title": "Media Intelligence",
   "subtitle": "One correlated view of every title: what is known, what is missing, and why.",
   "advisory": "Observational only. Media Intelligence reports what it finds and never downloads, deletes, moves or repairs anything.",
+  "attention": {
+    "title": "Attention",
+    "subtitle": "What needs a person, why, and what you can do about it.",
+    "advisory": "Acknowledging, snoozing or dismissing records your decision. None of it changes what is actually true about the media.",
+    "views": {
+      "active": "Needs attention",
+      "snoozed": "Snoozed",
+      "dismissed": "Dismissed",
+      "resolved": "Resolved"
+    },
+    "summary": {
+      "active": "Needs attention",
+      "critical": "Critical",
+      "error": "Errors",
+      "warning": "Warnings",
+      "opportunity": "Opportunities",
+      "info": "Informational",
+      "snoozed": "Snoozed",
+      "dismissed": "Dismissed",
+      "unreviewed": "Unreviewed",
+      "escalated": "Got worse"
+    },
+    "empty": {
+      "active": "Nothing needs your attention right now.",
+      "snoozed": "Nothing is snoozed.",
+      "dismissed": "Nothing has been dismissed.",
+      "resolved": "Nothing has been resolved yet.",
+      "filtered": "No findings match these filters.",
+      "hint": "This reflects the current filter, not the health of the whole library."
+    },
+    "columns": {
+      "media": "Media",
+      "finding": "Finding",
+      "severity": "Severity",
+      "state": "State",
+      "firstSeen": "First seen",
+      "lastSeen": "Last seen"
+    },
+    "filters": {
+      "search": "Search titles",
+      "allSeverities": "Any severity",
+      "allDomains": "Any domain",
+      "allTypes": "All types",
+      "escalatedOnly": "Got worse only"
+    },
+    "disposition": {
+      "unreviewed": "Unreviewed",
+      "acknowledged": "Acknowledged",
+      "snoozed": "Snoozed",
+      "dismissed": "Dismissed"
+    },
+    "actions": {
+      "acknowledge": "Acknowledge",
+      "snooze": "Snooze",
+      "dismiss": "Dismiss",
+      "reset": "Return to queue",
+      "review": "Review",
+      "selected": "{{count}} selected",
+      "clearSelection": "Clear selection"
+    },
+    "snooze": {
+      "day": "1 day",
+      "threeDays": "3 days",
+      "week": "1 week",
+      "month": "1 month",
+      "until": "Snoozed until {{when}}"
+    },
+    "escalation": {
+      "badge": "Got worse",
+      "severity_increased": "Severity increased",
+      "affected_count_increased": "More items affected",
+      "reopened_after_resolution": "Came back after being fixed",
+      "evidence_changed": "The details changed"
+    },
+    "result": {
+      "applied": "{{count}} updated",
+      "skippedResolved": "{{count}} skipped — already resolved",
+      "unknown": "{{count}} no longer exist",
+      "failed": "Could not update those findings"
+    },
+    "history": {
+      "heading": "History",
+      "empty": "Nothing has happened to this finding yet.",
+      "opened": "Finding opened",
+      "resolved": "Condition resolved",
+      "reopened": "Finding returned",
+      "acknowledged": "Acknowledged",
+      "snoozed": "Snoozed",
+      "dismissed": "Dismissed",
+      "disposition_reset": "Returned to the queue",
+      "disposition_reset_by_escalation": "Returned automatically — the condition got worse",
+      "severity_changed": "Severity changed",
+      "by": "by {{name}}",
+      "bySystem": "automatically"
+    }
+  },
   "media": {
     "heading": "Title",
     "noArtwork": "No artwork",
