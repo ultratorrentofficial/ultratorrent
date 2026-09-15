@@ -47,6 +47,7 @@ import type {
   MediaIntelligenceListResult,
   MediaIntelligenceOverview,
   UnifiedMediaState,
+  MediaAttentionGroupedResult,
   MediaAttentionListResult,
   MediaAttentionSummary,
   MediaAttentionHistoryEntry,
@@ -94,6 +95,8 @@ export interface AttentionQuery {
   entityType?: string;
   escalated?: string;
   q?: string;
+  /** `'media'` asks for one card per title instead of one row per finding. */
+  groupBy?: string;
   [key: string]: string | undefined;
 }
 
@@ -4811,6 +4814,15 @@ export const api = {
 
     attention(query: AttentionQuery = {}): Promise<MediaAttentionListResult> {
       return request<MediaAttentionListResult>('/media-intelligence/attention', { query });
+    },
+    /**
+     * The same queue, one card per title. Paged on distinct titles, so a
+     * title's several findings always arrive together on one page.
+     */
+    attentionGrouped(query: AttentionQuery = {}): Promise<MediaAttentionGroupedResult> {
+      return request<MediaAttentionGroupedResult>('/media-intelligence/attention', {
+        query: { ...query, groupBy: 'media' },
+      });
     },
     attentionSummary(): Promise<MediaAttentionSummary> {
       return request<MediaAttentionSummary>('/media-intelligence/attention/summary');

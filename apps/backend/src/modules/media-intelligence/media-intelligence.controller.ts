@@ -84,7 +84,9 @@ export class MediaIntelligenceController {
   @Get('attention')
   @RequirePermissions(P.MEDIA_MANAGER_VIEW)
   listAttention(@Query() query: ListAttentionDto) {
-    return this.attention.list(query);
+    // Both shapes share one predicate and one set of filters; only the unit
+    // of paging differs (findings vs titles).
+    return query.groupBy === 'media' ? this.attention.listGrouped(query) : this.attention.list(query);
   }
 
   /** Counts for the queue, derived from the same predicate as the list. */

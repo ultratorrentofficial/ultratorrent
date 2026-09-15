@@ -160,3 +160,118 @@ describe('AttentionService.summary', () => {
     expect(s.active).toBe(1);
   });
 });
+
+/**
+ * Grouped mode.
+ *
+ * The two properties that matter: a card must carry the WORST severity it
+ * contains (a critical finding hidden behind a "warning" card is the failure
+ * this whole grouping is not allowed to introduce), and paging must count
+ * TITLES — paging on findings would split one title across two pages and show
+ * its card twice.
+ */
+function buildGrouped(titles: Row[], rows: Row[], projections: Row[] = []) {
+  const calls = { groupByArgs: [] as Record<string, unknown>[], projectionQueries: 0 };
+  const prisma = {
+    mediaIntelligenceFinding: {
+      // `listGrouped` calls groupBy twice: once for the page of titles, once
+      // for the total. Only the paged call passes `take`.
+      groupBy: jest.fn(async (args: Record<string, unknown>) => {
+        calls.groupByArgs.push(args);
+        return args.take == null ? titles : titles.slice(0, args.take as number);
+      }),
+      findMany: jest.fn(async () => rows),
+      count: jest.fn(async () => rows.length),
+    },
+    mediaIntelligenceProjection: {
+      findMany: jest.fn(async () => {
+        calls.projectionQueries += 1;
+        return projections;
+      }),
+    },
+    mediaIntelligenceFindingEvent: { findMany: jest.fn(async () => []) },
+  };
+  return { svc: new AttentionService(prisma as never), prisma, calls };
+}
+
+const title = (over: Row = {}): Row => ({
+  entityType: 'series',
+  entityId: 'show-1',
+  _min: { attentionPriority: 10, firstObservedAt: new Date('2026-09-01T00:00:00.000Z') },
+  _count: { _all: 2 },
+  ...over,
+});
+
+describe('AttentionService.listGrouped', () => {
+  it('puts every finding for one title on a single card', async () => {
+    const { svc } = buildGrouped(
+      [title()],
+      [finding({ id: 'f1' }), finding({ id: 'f2', code: 'QUALITY_BELOW_PREFERENCE' })],
+    );
+    const res = await svc.listGrouped({}, NOW);
+
+    expect(res.groups).toHaveLength(1);
+    expect(res.groups[0].findings.map((f) => f.id)).toEqual(['f1', 'f2']);
+    expect(res.groups[0].findingCount).toBe(2);
+  });
+
+  it('carries the WORST severity it contains, not the mildest or the first', async () => {
+    const { svc } = buildGrouped(
+      [title()],
+      [
+        // Deliberately ordered mildest-first, so a implementation that read
+        // row order instead of severity would answer "warning".
+        finding({ id: 'f1', severity: 'warning', attentionPriority: 30 }),
+        finding({ id: 'f2', severity: 'critical', attentionPriority: 10 }),
+      ],
+    );
+    const res = await svc.listGrouped({}, NOW);
+    expect(res.groups[0].severity).toBe('critical');
+  });
+
+  it('counts TITLES, not findings, so paging cannot split a card', async () => {
+    const { svc } = buildGrouped(
+      [title(), title({ entityId: 'show-2' })],
+      [finding({ id: 'f1' }), finding({ id: 'f2' }), finding({ id: 'f3' })],
+    );
+    const res = await svc.listGrouped({}, NOW);
+    // Three findings across two titles: the total is two.
+    expect(res.total).toBe(2);
+  });
+
+  it('derives its rows from the SAME predicate as the flat list', async () => {
+    const { svc: flat, calls: flatCalls } = build();
+    await flat.list({ severity: 'critical' }, NOW);
+    const listWhere = JSON.stringify(flatCalls.findingWhere[0]);
+
+    const { svc, calls } = buildGrouped([title()], [finding()]);
+    await svc.listGrouped({ severity: 'critical' }, NOW);
+
+    expect(JSON.stringify(calls.groupByArgs[0].where)).toBe(listWhere);
+  });
+
+  it('flags a card when any finding beneath it was escalated', async () => {
+    const { svc } = buildGrouped(
+      [title()],
+      [finding({ id: 'f1' }), finding({ id: 'f2', escalationReason: 'severity_increased' })],
+    );
+    const res = await svc.listGrouped({}, NOW);
+    expect(res.groups[0].escalated).toBe(true);
+  });
+
+  it('issues ONE projection query for the whole page', async () => {
+    const titles = Array.from({ length: 10 }, (_, i) => title({ entityId: `show-${i}` }));
+    const rows = Array.from({ length: 10 }, (_, i) => finding({ id: `f${i}`, entityId: `show-${i}` }));
+    const { svc, calls } = buildGrouped(titles, rows);
+    await svc.listGrouped({}, NOW);
+    expect(calls.projectionQueries).toBe(1);
+  });
+
+  it('returns nothing, and queries no findings, when a title search matches nothing', async () => {
+    const { svc, prisma } = buildGrouped([title()], [finding()], []);
+    const res = await svc.listGrouped({ q: 'nothing here' }, NOW);
+    expect(res.groups).toEqual([]);
+    expect(res.total).toBe(0);
+    expect(prisma.mediaIntelligenceFinding.findMany).not.toHaveBeenCalled();
+  });
+});

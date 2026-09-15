@@ -96,6 +96,19 @@
       "severity_changed": "Cambió la severidad",
       "by": "por {{name}}",
       "bySystem": "automáticamente"
+    },
+    "groupByMedia": "Agrupar por título",
+    "findingsHere": "{{count}} hallazgo",
+    "findingsHere_other": "{{count}} hallazgos",
+    "drawer": {
+      "title": "Detalle del hallazgo",
+      "evidence": "Evidencia",
+      "provenance": "Reportado por {{source}}",
+      "firstSeen": "Visto por primera vez",
+      "lastSeen": "Visto por última vez",
+      "openMedia": "Abrir en Inteligencia de Medios",
+      "loadingHistory": "Cargando historial…",
+      "noEvidence": "No se registró evidencia para este hallazgo."
     }
   },
   "media": {

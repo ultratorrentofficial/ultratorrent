@@ -176,6 +176,43 @@ export interface MediaAttentionListResult {
   pageSize: number;
 }
 
+/**
+ * One title and every finding currently open against it.
+ *
+ * Grouping is by MEDIA, not by episode — findings are keyed on the show, and
+ * a library sweep produces none at episode level, so grouping any finer would
+ * aggregate nothing. On the reference library this turns ~940 rows into ~673
+ * cards: a real reduction, not a dramatic one, and the honest claim is that
+ * it puts a title's several problems in one place rather than scattering them.
+ */
+export interface MediaAttentionGroup {
+  entityType: string;
+  entityId: string;
+  title: string;
+  year: number | null;
+  libraryName: string | null;
+  /**
+   * The WORST severity contained, never an average and never the first one
+   * found. A critical child must not hide behind a card that reads warning.
+   */
+  severity: string;
+  /** Lowest (most urgent) member rank, so groups order like their contents. */
+  priority: number;
+  findingCount: number;
+  /** True when any member's disposition was cleared by escalation. */
+  escalated: boolean;
+  /** Every open finding for this title. Bounded by how many codes exist. */
+  findings: MediaAttentionItem[];
+}
+
+export interface MediaAttentionGroupedResult {
+  groups: MediaAttentionGroup[];
+  /** Distinct TITLES, not findings — the thing being paged. */
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 /** The views the queue can present. Each has its own honest empty state. */
 export const MEDIA_ATTENTION_VIEWS = ['active', 'snoozed', 'dismissed', 'resolved'] as const;
 export type MediaAttentionView = (typeof MEDIA_ATTENTION_VIEWS)[number];

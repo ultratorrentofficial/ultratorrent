@@ -45,6 +45,12 @@ export class ListAttentionDto {
 
   /** Free-text search over the media title, resolved through the projection. */
   @IsOptional() @IsString() @MaxLength(200) q?: string;
+
+  /**
+   * `'media'` returns one card per title instead of one row per finding.
+   * Paged on distinct titles, so a title's problems never split across pages.
+   */
+  @IsOptional() @IsIn(['media']) groupBy?: string;
 }
 
 /** Acknowledge and dismiss: an optional note, never a demanded one. */

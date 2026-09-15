@@ -96,6 +96,19 @@
       "severity_changed": "Severity changed",
       "by": "by {{name}}",
       "bySystem": "automatically"
+    },
+    "groupByMedia": "Group by title",
+    "findingsHere": "{{count}} finding",
+    "findingsHere_other": "{{count}} findings",
+    "drawer": {
+      "title": "Finding detail",
+      "evidence": "Evidence",
+      "provenance": "Reported by {{source}}",
+      "firstSeen": "First seen",
+      "lastSeen": "Last seen",
+      "openMedia": "Open in Media Intelligence",
+      "loadingHistory": "Loading history…",
+      "noEvidence": "No evidence was recorded for this finding."
     }
   },
   "media": {

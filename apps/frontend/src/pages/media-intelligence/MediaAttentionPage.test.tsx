@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import '@/i18n';
@@ -19,6 +19,8 @@ vi.mock('@/components/ui/toast', () => ({ useToast: () => toastSpy }));
 
 const intelSpy = vi.hoisted(() => ({
   attention: vi.fn(),
+  attentionGrouped: vi.fn(),
+  findingHistory: vi.fn(),
   attentionSummary: vi.fn(),
   acknowledgeFinding: vi.fn(),
   dismissFinding: vi.fn(),
@@ -85,11 +87,42 @@ const item = (over: Record<string, unknown> = {}) => ({
 
 const page = (items: unknown[]) => ({ items, total: items.length, page: 1, pageSize: 50 });
 
+const group = (over: Record<string, unknown> = {}, findings = [item()]) => ({
+  entityType: 'series',
+  entityId: 'show-1',
+  title: 'Breaking Bad',
+  year: 2008,
+  libraryName: 'TV Shows',
+  severity: 'critical',
+  priority: 10,
+  findingCount: findings.length,
+  escalated: false,
+  findings,
+  ...over,
+});
+const groupPage = (groups: unknown[]) => ({ groups, total: groups.length, page: 1, pageSize: 25 });
+
+/**
+ * Turn on "Group by title" and wait for the grouped table to actually render.
+ *
+ * Switching modes disables the flat query and starts the grouped one, so the
+ * page spends a frame on its spinner with the table unmounted. Waiting for
+ * the request to have been ISSUED is not enough — the assertions have to run
+ * against the rendered result.
+ */
+async function enableGrouping() {
+  screen.getByLabelText('Group by title').click();
+  await waitFor(() => expect(intelSpy.attentionGrouped).toHaveBeenCalled());
+  await screen.findByTestId('attention-rows');
+}
+
 describe('MediaAttentionPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     intelSpy.attentionSummary.mockResolvedValue(summary);
     intelSpy.attention.mockResolvedValue(page([item()]));
+    intelSpy.attentionGrouped.mockResolvedValue(groupPage([group()]));
+    intelSpy.findingHistory.mockResolvedValue([]);
   });
 
   it('lists what needs attention', async () => {
@@ -176,5 +209,77 @@ describe('MediaAttentionPage', () => {
     await screen.findByText('Breaking Bad');
     // A native select, so it is reachable and operable without a pointer.
     expect(screen.getAllByRole('combobox', { name: 'Snooze' }).length).toBeGreaterThan(0);
+  });
+  it('opens a detail panel for one finding rather than navigating away', async () => {
+    intelSpy.findingHistory.mockResolvedValue([
+      {
+        id: 'e1',
+        event: 'disposition_reset_by_escalation',
+        at: '2026-09-14T00:00:00.000Z',
+        actorUserId: null,
+        actorName: null,
+        detail: {},
+      },
+    ]);
+    renderPage();
+    await screen.findByText('Breaking Bad');
+
+    screen.getAllByRole('button', { name: 'Review' })[0].click();
+
+    const panel = await screen.findByRole('dialog');
+    // Evidence is humanized, never a raw key or a naked number.
+    expect(within(panel).getByText('Missing')).toBeInTheDocument();
+    // History loads only once the panel is open.
+    await waitFor(() => expect(intelSpy.findingHistory).toHaveBeenCalledWith('f1'));
+    expect(
+      within(panel).getByText(/Returned automatically — the condition got worse/i),
+    ).toBeInTheDocument();
+  });
+
+  it('attributes an evaluator transition to the system, not to a blank name', async () => {
+    intelSpy.findingHistory.mockResolvedValue([
+      { id: 'e1', event: 'opened', at: '2026-09-01T00:00:00.000Z', actorUserId: null, actorName: null, detail: {} },
+    ]);
+    renderPage();
+    await screen.findByText('Breaking Bad');
+    screen.getAllByRole('button', { name: 'Review' })[0].click();
+
+    const panel = await screen.findByRole('dialog');
+    expect(await within(panel).findByText(/automatically/i)).toBeInTheDocument();
+  });
+
+  it('does not request history until the panel is actually opened', async () => {
+    renderPage();
+    await screen.findByText('Breaking Bad');
+    expect(intelSpy.findingHistory).not.toHaveBeenCalled();
+  });
+
+  it('groups the queue by title on request', async () => {
+    renderPage();
+    await screen.findByText('Breaking Bad');
+    await enableGrouping();
+    expect(rows().getByText('1 finding')).toBeInTheDocument();
+  });
+
+  it('shows the worst severity a title contains, never a milder one', async () => {
+    // A warning child under a title that also holds a critical finding: the
+    // card must read critical, or the critical one is hidden behind it.
+    intelSpy.attentionGrouped.mockResolvedValue(
+      groupPage([group({ severity: 'critical' }, [item({ severity: 'warning' })])]),
+    );
+    renderPage();
+    await screen.findByText('Breaking Bad');
+    await enableGrouping();
+    expect(rows().getByText('Critical')).toBeInTheDocument();
+  });
+
+  it('hides a group\u2019s findings until it is expanded', async () => {
+    renderPage();
+    await screen.findByText('Breaking Bad');
+    await enableGrouping();
+
+    expect(rows().queryByText(/Episodes missing/i)).not.toBeInTheDocument();
+    fireEvent.click(rows().getByRole('button', { expanded: false }));
+    expect(await rows().findByText(/Episodes missing/i)).toBeInTheDocument();
   });
 });
