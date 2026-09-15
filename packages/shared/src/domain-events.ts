@@ -115,6 +115,9 @@ export const DOMAIN_EVENTS = {
    * sweep, a manual series search, or an Add-Series backfill — never one per
    * episode, so a run that leaves fifty unfound is one notification, not fifty.
    */
+  // Media Intelligence
+  MEDIA_INTELLIGENCE_ATTENTION_DIGEST: 'media_intelligence.attention_digest',
+
   MEDIA_ACQUISITION_MISSING_UNAVAILABLE: 'media_acquisition.missing_unavailable',
 
   // --- Storage -------------------------------------------------------------

@@ -14,7 +14,7 @@ import { MediaIntelligenceProjectionService } from './media-intelligence-project
 
 type Row = Record<string, unknown>;
 
-function stubPrisma(over: { findings?: Row[] } = {}) {
+function stubPrisma(over: { findings?: Row[]; entities?: boolean } = {}) {
   const findings: Row[] = [...(over.findings ?? [])];
   const projections: Row[] = [];
   const calls = {
@@ -22,10 +22,22 @@ function stubPrisma(over: { findings?: Row[] } = {}) {
     created: [] as Row[],
     updated: [] as Row[],
     resolved: [] as Row[],
+    /** Finding-history rows. Transitions only — never re-observations. */
+    history: [] as Row[],
     deleted: 0,
   };
+  let nextId = 0;
 
   const prisma = {
+    // rebuildAll() pages over the source domains. Empty by default so a test
+    // that only exercises refreshEntity stays cheap; the digest tests override
+    // `entities` to make the sweep actually visit something.
+    mediaItem: {
+      findMany: jest.fn(async () => (over.entities ? [{ id: 'item-1' }] : [])),
+    },
+    mediaShow: {
+      findMany: jest.fn(async () => []),
+    },
     mediaIntelligenceProjection: {
       upsert: jest.fn(async (args: Row) => {
         calls.upsert.push(args);
@@ -39,9 +51,10 @@ function stubPrisma(over: { findings?: Row[] } = {}) {
     },
     mediaIntelligenceFinding: {
       findMany: jest.fn(async () => findings),
+      // Returns an id: reconciliation records an `opened` history row against it.
       create: jest.fn(async (args: { data: Row }) => {
         calls.created.push(args.data);
-        return args.data;
+        return { id: `f${nextId++}`, ...args.data };
       }),
       update: jest.fn(async (args: Row) => {
         calls.updated.push(args);
@@ -52,6 +65,12 @@ function stubPrisma(over: { findings?: Row[] } = {}) {
         return { count: 1 };
       }),
       deleteMany: jest.fn(async () => ({ count: 0 })),
+    },
+    mediaIntelligenceFindingEvent: {
+      createMany: jest.fn(async (args: { data: Row[] }) => {
+        calls.history.push(...args.data);
+        return { count: args.data.length };
+      }),
     },
     $transaction: jest.fn(async (ops: unknown[]) => Promise.all(ops as Promise<unknown>[])),
   };
@@ -98,13 +117,14 @@ function assembled(over: { missing?: number | null; failedIntake?: number } = {}
   };
 }
 
-function build(over: { findings?: Row[]; assembled?: unknown } = {}) {
-  const { prisma, calls, projections } = stubPrisma({ findings: over.findings });
+function build(over: { findings?: Row[]; assembled?: unknown; entities?: boolean } = {}) {
+  const { prisma, calls, projections } = stubPrisma({ findings: over.findings, entities: over.entities });
   const assembler = {
     assemble: jest.fn(async () => (over.assembled === undefined ? assembled() : over.assembled)),
   };
-  const svc = new MediaIntelligenceProjectionService(prisma as never, assembler as never);
-  return { svc, prisma, calls, projections, assembler };
+  const bus = { publish: jest.fn(() => ({ published: true, eventId: 'e1' })) };
+  const svc = new MediaIntelligenceProjectionService(prisma as never, assembler as never, bus as never);
+  return { svc, prisma, calls, projections, assembler, bus };
 }
 
 describe('MediaIntelligenceProjectionService.refreshEntity', () => {
@@ -136,7 +156,7 @@ describe('MediaIntelligenceProjectionService.refreshEntity', () => {
 
   it('updates the existing row on re-observation instead of duplicating it', async () => {
     const { svc, calls } = build({
-      findings: [{ id: 'f1', code: MEDIA_FINDING_CODES.EPISODES_MISSING, resolvedAt: null }],
+      findings: [{ id: 'f1', code: MEDIA_FINDING_CODES.EPISODES_MISSING, resolvedAt: null, severity: 'warning', evidence: { missing: 3 }, disposition: 'unreviewed', snoozedUntil: null }],
       assembled: assembled({ missing: 3 }),
     });
     await svc.refreshEntity('series', 'show-1');
@@ -152,7 +172,7 @@ describe('MediaIntelligenceProjectionService.refreshEntity', () => {
 
   it('RESOLVES a finding that stops reproducing, and never deletes it', async () => {
     const { svc, calls, prisma } = build({
-      findings: [{ id: 'f1', code: MEDIA_FINDING_CODES.EPISODES_MISSING, resolvedAt: null }],
+      findings: [{ id: 'f1', code: MEDIA_FINDING_CODES.EPISODES_MISSING, resolvedAt: null, severity: 'warning', evidence: { missing: 3 }, disposition: 'unreviewed', snoozedUntil: null }],
       assembled: assembled({ missing: 0 }),
     });
     await svc.refreshEntity('series', 'show-1');
@@ -166,7 +186,7 @@ describe('MediaIntelligenceProjectionService.refreshEntity', () => {
 
   it('re-opens a previously resolved finding rather than leaving it closed', async () => {
     const { svc, calls } = build({
-      findings: [{ id: 'f1', code: MEDIA_FINDING_CODES.EPISODES_MISSING, resolvedAt: new Date('2026-01-01') }],
+      findings: [{ id: 'f1', code: MEDIA_FINDING_CODES.EPISODES_MISSING, resolvedAt: new Date('2026-01-01'), severity: 'warning', evidence: { missing: 2 }, disposition: 'unreviewed', snoozedUntil: null }],
       assembled: assembled({ missing: 2 }),
     });
     await svc.refreshEntity('series', 'show-1');
@@ -228,5 +248,116 @@ describe('MediaIntelligenceProjectionService.rebuildAll', () => {
     const result = await svc.rebuildAll();
     expect(result.skipped).toBe(true);
     expect(svc.isRebuilding()).toBe(true);
+  });
+});
+
+describe('MediaIntelligenceProjectionService — human disposition survives reconciliation', () => {
+  const dismissed = (over: Row = {}) => ({
+    id: 'f1',
+    code: MEDIA_FINDING_CODES.EPISODES_MISSING,
+    resolvedAt: null,
+    severity: 'warning',
+    // Exactly what evaluateCompleteness emits — a partial fixture makes the
+    // fingerprint differ and the disposition reset for the wrong reason.
+    evidence: { missing: 3, expected: 62, owned: 59, unaired: 0, ignored: 0 },
+    disposition: 'dismissed',
+    snoozedUntil: null,
+    ...over,
+  });
+
+  it('PRESERVES a dismissal when the same condition is merely re-observed', async () => {
+    // The sweep runs every six hours over the whole library. If a routine
+    // re-observation cleared dispositions, nothing could ever stay dismissed.
+    const { svc, calls } = build({
+      findings: [dismissed()],
+      assembled: assembled({ missing: 3 }),
+    });
+    await svc.refreshEntity('series', 'show-1');
+
+    const data = (calls.updated[0] as { data: Record<string, unknown> }).data;
+    expect(data).not.toHaveProperty('disposition');
+    expect(calls.history).toHaveLength(0);
+  });
+
+  it('CLEARS a dismissal when the affected count grows materially', async () => {
+    const { svc, calls } = build({
+      findings: [dismissed({ evidence: { missing: 1, expected: 62, owned: 61, unaired: 0, ignored: 0 } })],
+      assembled: assembled({ missing: 12 }),
+    });
+    await svc.refreshEntity('series', 'show-1');
+
+    const data = (calls.updated[0] as { data: Record<string, unknown> }).data;
+    expect(data.disposition).toBe('unreviewed');
+    expect(data.snoozedUntil).toBeNull();
+    expect(data.escalationReason).toBe('affected_count_increased');
+    expect(calls.history.map((h) => h.event)).toContain('disposition_reset_by_escalation');
+  });
+
+  it('never lets a disposition rewrite the technical verdict', async () => {
+    const { svc, calls } = build({
+      findings: [dismissed()],
+      assembled: assembled({ missing: 3 }),
+    });
+    await svc.refreshEntity('series', 'show-1');
+    // resolvedAt is the evaluator's business; dismissal must not touch it.
+    const data = (calls.updated[0] as { data: Record<string, unknown> }).data;
+    expect(data.resolvedAt).toBeNull();
+  });
+
+  it('records history for transitions, never for observations', async () => {
+    const { svc, calls } = build({ assembled: assembled({ missing: 3 }) });
+    await svc.refreshEntity('series', 'show-1');
+    // One newly-opened finding, so exactly one history row.
+    expect(calls.history).toHaveLength(1);
+    expect(calls.history[0]).toMatchObject({ event: 'opened' });
+  });
+
+  it('records a severity change and reports it as a transition', async () => {
+    const { svc, calls } = build({
+      findings: [dismissed({ severity: 'info' })],
+      assembled: assembled({ missing: 3 }),
+    });
+    const result = await svc.refreshEntity('series', 'show-1');
+    expect(calls.history.map((h) => h.event)).toContain('severity_changed');
+    expect(result?.transitions.some((t) => t.kind === 'escalated')).toBe(true);
+  });
+
+  it('reports no transitions when an existing finding is unchanged', async () => {
+    // The bootstrap guarantee: the first sweep after Phase 3 ships finds every
+    // finding already present, so nothing reads as newly opened and no digest
+    // is published for a library that did not change.
+    const { svc } = build({
+      findings: [dismissed({ disposition: 'unreviewed' })],
+      assembled: assembled({ missing: 3 }),
+    });
+    const result = await svc.refreshEntity('series', 'show-1');
+    expect(result?.transitions).toHaveLength(0);
+  });
+});
+
+describe('MediaIntelligenceProjectionService — digest flood control', () => {
+  it('publishes NOTHING when a sweep changes nothing', async () => {
+    // The bootstrap guarantee, and the steady state: a six-hourly sweep over
+    // an unchanged library must not notify anyone.
+    const { svc, bus } = build({
+      findings: [
+        {
+          id: 'f1', code: MEDIA_FINDING_CODES.EPISODES_MISSING, resolvedAt: null, severity: 'warning',
+          evidence: { missing: 3, expected: 62, owned: 59, unaired: 0, ignored: 0 },
+          disposition: 'unreviewed', snoozedUntil: null,
+        },
+      ],
+      assembled: assembled({ missing: 3 }),
+      entities: true,
+    });
+    await svc.rebuildAll();
+    expect(bus.publish).not.toHaveBeenCalled();
+  });
+
+  it('publishes ONE digest for a run, never one per finding', async () => {
+    const { svc, bus } = build({ assembled: assembled({ missing: 3, failedIntake: 1 }), entities: true });
+    await svc.rebuildAll();
+    // Whatever the run touched, the operator gets a single summary.
+    expect(bus.publish.mock.calls.length).toBeLessThanOrEqual(1);
   });
 });

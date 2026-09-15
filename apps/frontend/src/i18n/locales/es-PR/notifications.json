@@ -198,6 +198,12 @@
         "title": "Episodios no encontrados según tus preferencias",
         "description": "Una búsqueda de episodios faltantes terminó con episodios que ningún lanzamiento pudo satisfacer en ninguna preferencia de descarga automática. Resumido por ejecución de búsqueda."
       }
+    },
+    "media_intelligence": {
+      "attention_digest": {
+        "title": "Los medios necesitan atención",
+        "description": "Una revisión de Inteligencia de Medios abrió o agravó hallazgos que requieren una persona. Un resumen por ejecución, nunca uno por título."
+      }
     }
   },
   "inbox": {

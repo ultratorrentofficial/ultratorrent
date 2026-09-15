@@ -1302,6 +1302,71 @@ Key files: `packages/shared/src/media-quality.ts`,
 `preference-ladder.ts`, `preference-resolution.service.ts`,
 `quality-evaluator.ts`).
 
+### Phase 3 — Attention Center (in progress)
+
+**Status: foundation implemented; the operator-facing surface is not.** What
+exists and is tested is described below. What does NOT yet exist: the
+attention query service, the disposition mutation endpoints, bulk
+disposition, CAMA action registration, and the Attention page itself. Those
+are deliberately absent rather than half-wired, and nothing in the UI
+currently reads any of this.
+
+**The rule Phase 3 adds: the Attention Center owns workflow state around a
+finding, never the finding's technical truth.** A person may acknowledge,
+snooze or dismiss; none of that rewrites what is true. Dismissing
+`EPISODES_MISSING` does not make the episodes exist, and `resolvedAt` remains
+the evaluator's exclusive property, written only when the source facts stop
+producing the condition. The two dimensions are separate columns precisely so
+that "I don't want to see this" and "this is fixed" can never be confused —
+the moment they share a field, a dashboard will eventually report a broken
+library as healthy.
+
+**Disposition lives on the finding row, and that is safe because of how
+reconciliation already worked.** `reconcileFindings` updates by primary key
+(`update({where: {id: prior.id}})`) — it has never deleted and recreated — so
+the row *is* the stable identity, and human state survives a rebuild without
+a side table or a synthetic logical key. The only deletion path is `forget()`,
+when the media entity itself is gone.
+
+**Material escalation is a pure, deterministic evaluator**
+(`attention/escalation.ts`), not heuristics scattered through the UI. A
+disposition is cleared only when the condition demonstrably worsened:
+severity increased, a resolved finding reopened, an affected count at least
+doubled (and grew by ≥2), or the evidence fingerprint changed. It is
+deliberately conservative in both directions — an improvement keeps the
+disposition, a severity *decrease* keeps it, and volatile or contextual keys
+(`observedAt`, `measuredFileCount`, `totalRungs`) are excluded from the
+fingerprint so a routine sweep or a probe-backfill pass cannot re-nag an
+operator about something they already decided.
+
+**Snooze is read, not scheduled.** `snoozedUntil` is an absolute instant and
+`isActiveAttention()` interprets it at query time. No background job exists to
+flip a row at the stroke of the hour — that would be churn with a race
+attached. That one predicate is exported so the list and the counters cannot
+drift apart.
+
+**History records transitions, never observations.** A sweep touches thousands
+of findings and almost none changed; rows for "observed again" would bury the
+handful that explain what happened and grow without bound. Recorded:
+`opened`, `resolved`, `reopened`, `severity_changed`, the disposition verbs,
+and `disposition_reset_by_escalation`.
+
+**Notifications: one digest per run, and the first run is silent.** Flood
+control in this codebase is entirely a producer discipline — nothing
+downstream collapses events, and the dispatcher writes one row per
+(user, event). So `rebuildAll()` accumulates transitions across the whole
+sweep and publishes exactly one `media_intelligence.attention_digest`
+envelope carrying a count, a bounded sample and an `omitted` overflow, gated
+at `warning` and above (an `opportunity` is a fallback rung the operator
+configured themselves — not an incident). Two properties fall out of the
+design rather than being special-cased: a steady-state sweep publishes
+nothing because unchanged findings are not transitions, and the first sweep
+after this ships is quiet because every existing finding already has a row
+and so none reads as newly opened.
+
+Key files: `packages/shared/src/media-attention.ts`,
+`apps/backend/src/modules/media-intelligence/attention/escalation.ts`.
+
 ## Event-Driven Architecture
 
 Modules communicate through **domain events**, not tight coupling: a module
@@ -1604,6 +1669,7 @@ append a dated row here.
 
 | Date | Change |
 |------|--------|
+| 2026-09-15 | **Media Intelligence Phase 3 (foundation): Attention Center truth-vs-disposition split.** Adds human workflow state to findings WITHOUT touching their technical truth. Disposition (`unreviewed\|acknowledged\|snoozed\|dismissed`, `snoozedUntil`, actor, reason) lives on the finding row — safe because `reconcileFindings` has always updated by primary key rather than delete-and-recreate, so the row already IS the stable identity and human state survives a rebuild with no side table. `resolvedAt` stays the evaluator's exclusive property: dismissing a finding never makes the condition untrue. New pure `attention/escalation.ts` decides whether a disposition survives a change beneath it — cleared only on severity increase, reopen-after-resolution, an affected count that at least doubled (and grew by ≥2), or an evidence-fingerprint change; deliberately conservative the other way, so an improvement, a severity *decrease*, a refreshed timestamp, or a probe-backfill pass moving `measuredFileCount` all KEEP it. `isActiveAttention()` is one exported predicate so counts and list cannot diverge, and snooze is interpreted at query time rather than flipped by a scheduler. New bounded `media_intelligence_finding_events` table records transitions only, never observations. New `media_intelligence.attention_digest` domain event + notification catalog entry + `attention` presentation builder (en-US/es-PR): ONE digest per reconciliation run with a capped sample, gated at warning-and-above — a steady-state sweep publishes nothing, and the first sweep after deploy is silent because existing findings are not new. Additive migration: six nullable/defaulted columns, one table, three indexes; no backfill and no synthetic history for pre-existing findings. **Not yet built: attention query service, disposition endpoints, bulk disposition, CAMA actions, Attention page.** Gates: shared build; backend tsc 0; backend suite 379 suites / 5311 tests; i18n parity 13/13. |
 | 2026-09-15 | **Media Intelligence: the quality ladder is scoped by media kind.** The first live Phase 2 rebuild marked **3,130 of 3,351 movies** `below_preference`, and **3,026 of those failed on SIZE alone** — Barbie at 2,153 MB against a 1 GB cap. Not a library problem: a bug. This installation's global ladder is entirely TV-shaped (all seven rungs are `smart_episode_match`, capped at 1 GB/700 MB per EPISODE), there are no movie-scoped preferences at all (both enabled profiles are `mediaType: tv`, all 256 watchlist items are `series`), and the resolver handed every film that episode ladder. Acquisition never would: `profileCandidates` filters on `{mediaType: {in: [kind, 'any']}}`, and an episode matcher is never applied to a movie. New pure predicate `ladderAppliesTo(candidates, kind)` mirrors that boundary — a movie is governed only by rungs that are not `smart_episode_match` — and `globalLadder(kind)`/`ladderFor({…, kind})` consult it, with all three assembler call sites passing the entity's kind. When no rung applies the verdict is `unknown` with `no_acquisition_preferences`, which is what §21 of the design required all along: absence of a policy is not a defect, and the layer must not manufacture one. Guarded by five new cases pinning that an episode-only ladder governs TV but not film, that a mixed ladder governs both, and that the movie path yields `no_acquisition_preferences` rather than a size failure nobody configured. Gates: backend tsc 0; backend suite; frontend tsc 0; frontend vitest (scoped to `src` — a bare `vitest run` from that directory sweeps files outside the project and reports hundreds of phantom failures). |
 | 2026-09-15 | **Media Intelligence: three humanization defects in the Phase 2 findings, and the test gap that let them ship.** (1) `finding.QUALITY_BELOW_PREFERENCE` rendered as its own key: the two Phase 2 finding codes were added to the shared contracts but never to the locale files. **Every existing i18n test passed** — parity compares the two locales against each other and both were equally missing it, and the resolve-every-key test can only check keys that were authored. The real fix is a new COVERAGE test asserting that every `ALL_MEDIA_FINDING_CODES` entry and every `MEDIA_INTELLIGENCE_DOMAINS` entry has a label in both locales, since those vocabularies are rendered through dynamic `t(`finding.${code}`)` lookups that no static check sees. (2) Evidence read `Terms:excludes 10bit` because the evaluator glued dimension and requirement into one composite string — a humanizer can prettify a key and format a value but cannot take apart a string that already joined them. Evidence is now scalar keys (`failedOn`, `requiredResolution`, `excludedTerm`, `maxBytes`, …), which also buys formatting for free: a `*Bytes` key renders as `1.00 GB` through the existing shared rule, replacing the raw `1073741824 Bytes`. A new `numericRequired` field on the size verdict carries the limit so nothing has to re-parse a human string. (3) `x265` displayed as `X265` — the humanizer's acronym table lacked codec/audio tokens, so title-casing mangled a name whose lowercase `x` is the convention; added x264/x265/AV1/VP9/XviD/AAC/AC3/EAC3/DTS/TrueHD. A regression guard now asserts no evidence value matches `^(terms\|size\|resolution\|codec):`. Gates: shared build; backend tsc 0; backend suite; frontend tsc 0; frontend vitest 82 files / 764 tests; i18n 13/13 including the new coverage test, which fails against the pre-fix locales. |
 | 2026-09-15 | **Media Intelligence Phase 2: quality compliance and upgrade potential.** Correlates the authoritative acquisition ladder with measured owned-media facts to answer "does what I own satisfy the quality I asked for". **No second quality-profile system**: `AcquisitionMatchPreferenceService.resolveCandidates()` remains the only preference resolver and is now exported for this read-only consumer. **The prompt's assumed cascade was wrong for this repo** — it specified rule → profile → global; the code is global-ladder-first (a deliberate earlier product decision), and the implementation follows the code. Because `evaluateCandidate` matches release NAMES and owned media has none after rename, a pure evaluator compares measured columns against the same `qualityRules` rather than synthesising a fake torrent name; `codecEquivalent`/`compact` are exported and reused so `HEVC`/`x265` agree across layers, and resolution is classified from measured pixels via `classifyResolution` (the stored `resolution` label is null on ~75% of TV rows). Every dimension yields `pass`/`fail`/**`not_evaluable`** — an audit of MediaIntakeJob, MediaFile, MediaRenameOperation, RSS history and NFO import found NO field preserving release provenance through import+rename, so `WEB-DL`/`REMUX`/`HDTV`/release-group terms are never judged; `10bit` (measured `videoBitDepth`) and size caps are. Unknown never becomes failure: no ladder → `no_acquisition_preferences`, and HDR has three answers (`true`/`false`/`null`) because this installation's older probe rows never read colour at all. Ladder order is preserved, never flattened: a matched fallback rung is `acceptable` and raises `QUALITY_UPGRADE_POTENTIAL` at `opportunity` (floors to healthy); satisfying no rung raises `QUALITY_BELOW_PREFERENCE` at `warning`. **Potential ≠ available** — no search runs, evidence carries `upgradeAvailable: false`, and findings point at no CAMA capability because none exists for search or re-probe. Series aggregate per episode (seasons re-aggregate their own), surfacing `worstResolution`/`mixed` so one outlier cannot hide. Additive migration: two nullable projection columns + one index, NULL meaning "predates Phase 2". New list filters (quality, upgrade-potential) are server-side. i18n en-US/es-PR (180 keys). Gates: shared build; backend tsc 0; backend suite 378/5273; frontend tsc 0; frontend vitest; i18n parity; prisma validate + generate; migration verified against `migrate diff --from-empty`. |

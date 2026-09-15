@@ -138,6 +138,26 @@ const DEFINITIONS: readonly NotificationEventDefinition[] = [
   // Filed under `downloads` like the discovery events: it is about media being
   // acquired. Gated on the permission that opens Missing Episodes — the reader's
   // action is to go and look at the gap it reports.
+  /*
+   * Media Intelligence found work for a person. One digest per reconciliation
+   * run, gated at `warning` and above by the producer -- an `opportunity`
+   * (a fallback quality rung the operator configured themselves) is not an
+   * incident and must never page anyone.
+   */
+  {
+    key: DOMAIN_EVENTS.MEDIA_INTELLIGENCE_ATTENTION_DIGEST,
+    category: 'downloads',
+    severity: 'warning',
+    titleKey: 'events.media_intelligence.attention_digest.title',
+    descriptionKey: 'events.media_intelligence.attention_digest.description',
+    defaultInApp: true,
+    recipientStrategy: 'permission_holders',
+    // The same permission the Attention Center itself reads under: a person
+    // who cannot open the page has no use for a notification about it.
+    requiredPermission: PERMISSIONS.MEDIA_MANAGER_VIEW,
+    presentationBuilder: 'attention',
+  },
+
   {
     key: DOMAIN_EVENTS.MEDIA_ACQUISITION_MISSING_UNAVAILABLE,
     category: 'downloads',

@@ -4647,8 +4647,36 @@ model MediaIntelligenceFinding {
   /// Null while open. Set when a re-evaluation no longer produces the finding.
   resolvedAt      DateTime?
 
+  // --- Attention Center (Phase 3): HUMAN WORKFLOW STATE -------------------
+  //
+  // Deliberately on the finding row, not a side table. `reconcileFindings`
+  // updates rows in place by primary key -- it never deletes and recreates --
+  // so this row IS the stable identity a disposition can hang from, and a
+  // rebuild preserves it for free. A join table keyed on a synthetic logical
+  // key would add a lookup to the hottest query to solve a problem the
+  // existing lifecycle does not have.
+  //
+  // These columns describe what a PERSON decided. They never describe whether
+  // the condition is true -- that is `resolvedAt`, and only the evaluator
+  // writes it. Dismissing a finding does not make the episodes exist.
+
+  /// unreviewed | acknowledged | snoozed | dismissed
+  disposition        String    @default("unreviewed")
+  /// Absolute instant. A snooze is read as expired at query time; no job
+  /// exists to flip this row at the stroke of the hour.
+  snoozedUntil       DateTime?
+  dispositionAt      DateTime?
+  dispositionBy      String?
+  /// Optional, never demanded: acknowledging something should not require an essay.
+  dispositionReason  String?
+  /// Set when the evaluator cleared a disposition because the condition
+  /// materially worsened, so the UI can say why it came back.
+  escalationReason   String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  history MediaIntelligenceFindingEvent[]
 
   /// One open row per (entity, code): re-evaluation updates rather than
   /// accumulating a duplicate every sweep.
@@ -4658,5 +4686,36 @@ model MediaIntelligenceFinding {
   @@index([resolvedAt, severity])
   @@index([code])
   @@index([domain])
+  /// The default active queue: open, not dismissed, snooze elapsed.
+  @@index([resolvedAt, disposition, severity])
+  /// Finding the snoozes that have come due.
+  @@index([snoozedUntil])
   @@map("media_intelligence_findings")
+}
+
+/// A meaningful transition in a finding's life. DERIVED and bounded.
+///
+/// Records transitions only -- never "observed again", "still open", or
+/// "projection recalculated". A reconciliation sweep touches thousands of
+/// findings and almost none of them changed; logging those would bury the few
+/// entries that actually explain what happened, and would grow without bound.
+model MediaIntelligenceFindingEvent {
+  id        String @id @default(uuid())
+  findingId String
+
+  /// opened | resolved | reopened | acknowledged | snoozed | dismissed |
+  /// disposition_reset | disposition_reset_by_escalation | severity_changed
+  event String
+  /// Null for evaluator-driven transitions: no person did it.
+  actorUserId String?
+  /// Small machine detail, e.g. {"from":"warning","to":"critical"}.
+  detail Json @default("{}")
+
+  createdAt DateTime @default(now())
+
+  finding MediaIntelligenceFinding @relation(fields: [findingId], references: [id], onDelete: Cascade)
+
+  /// The detail drawer reads one finding's history, newest first.
+  @@index([findingId, createdAt])
+  @@map("media_intelligence_finding_events")
 }

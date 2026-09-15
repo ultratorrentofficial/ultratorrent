@@ -198,6 +198,12 @@
         "title": "Episodes not found at your preferences",
         "description": "A missing-episode search finished with episodes that no release could satisfy at any auto-download preference. Summarised per search run."
       }
+    },
+    "media_intelligence": {
+      "attention_digest": {
+        "title": "Media needs attention",
+        "description": "A Media Intelligence review opened or escalated findings that need a person. One summary per run, never one per title."
+      }
     }
   },
   "inbox": {

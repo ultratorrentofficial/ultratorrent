@@ -17,5 +17,6 @@ export * from './media-language.js';
 export * from './media-intelligence.js';
 export * from './media-intelligence-codes.js';
 export * from './media-quality.js';
+export * from './media-attention.js';
 
 export const PRODUCT_NAME = 'UltraTorrent';

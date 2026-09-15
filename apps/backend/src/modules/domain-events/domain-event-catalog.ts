@@ -220,6 +220,20 @@ const DEFINITIONS: readonly DomainEventDefinition[] = [
 
   // --- Media Acquisition (missing-episode search) --------------------------
   {
+    key: DOMAIN_EVENTS.MEDIA_INTELLIGENCE_ATTENTION_DIGEST,
+    description:
+      'A Media Intelligence reconciliation opened or materially escalated findings that need a person. ONE digest per run, naming a bounded sample — never one event per finding. A sweep evaluates every title in the library, so per-finding events would mean thousands of notifications for a routine recalculation that discovered nothing new.',
+    requiredFields: ['count'],
+    /*
+     * Six hours: exactly the reconciler's own interval. A scheduled sweep
+     * re-derives the same open findings every tick, and without a window a
+     * long-standing problem would announce itself forever. The producer
+     * additionally publishes only on NEW or ESCALATED findings, so a steady
+     * state is silent even before this window applies.
+     */
+    deduplicationWindowSeconds: 21600,
+  },
+  {
     key: DOMAIN_EVENTS.MEDIA_ACQUISITION_MISSING_UNAVAILABLE,
     description:
       'A missing-episode search run left episodes that no release could satisfy at any auto-download preference. Summarised per run, naming a sample of the unfound episodes.',

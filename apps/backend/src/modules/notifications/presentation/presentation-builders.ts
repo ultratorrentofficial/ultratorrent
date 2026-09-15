@@ -849,6 +849,70 @@ const buildUser: PresentationBuilder = (ctx) => {
  * A registry rather than a switch so the catalogue names its builder and an
  * event without one degrades to plain text instead of failing.
  */
+/* ------------------------------------------------- media intelligence */
+
+/**
+ * The Attention Center digest.
+ *
+ * ONE card for a whole reconciliation run. The producer has already gated to
+ * `warning` and above and bounded the sample, so this renders what it is
+ * given and never re-derives severity: a presentation builder that decided
+ * what counted as important would be a second policy engine living in the
+ * notification layer.
+ *
+ * Returns null on an empty digest. A run that found nothing must produce no
+ * card at all rather than "0 findings need review", which reads as an
+ * incident report about nothing happening.
+ */
+const buildAttention: PresentationBuilder = ({ envelope, locale }) => {
+  const payload = (envelope.payload ?? {}) as Record<string, unknown>;
+  const count = num(payload, 'count') ?? 0;
+  if (count <= 0) return null;
+
+  const critical = num(payload, 'critical') ?? 0;
+  const opened = num(payload, 'opened') ?? 0;
+  const reopened = num(payload, 'reopened') ?? 0;
+  const escalated = num(payload, 'escalated') ?? 0;
+  const omitted = num(payload, 'omitted') ?? 0;
+
+  const facts: PresentationFact[] = [];
+  if (opened > 0) facts.push({ icon: 'alert', label: s('attentionFactOpened', locale), value: String(opened) });
+  if (reopened > 0) facts.push({ icon: 'clock', label: s('attentionFactReopened', locale), value: String(reopened) });
+  if (escalated > 0) facts.push({ icon: 'activity', label: s('attentionFactEscalated', locale), value: String(escalated) });
+
+  // The producer sends `{label}`; PresentationItem speaks `title`.
+  const raw = Array.isArray(payload.items) ? (payload.items as Array<Record<string, unknown>>) : [];
+  const items: PresentationItem[] = raw
+    .map((i) => (typeof i.label === 'string' ? { title: i.label } : null))
+    .filter((i): i is PresentationItem => i !== null);
+  if (omitted > 0) items.push({ title: s('andMoreAttention', locale, { count: String(omitted) }) });
+
+  return {
+    version: PRESENTATION_VERSION,
+    eventKey: envelope.eventKey,
+    // Critical findings colour the card differently, but the severity itself
+    // was decided upstream by the evaluator, not here.
+    accent: critical > 0 ? 'error' : 'warning',
+    icon: 'activity',
+    headline: { lead: s('attentionLead', locale), trail: s('attentionTrail', locale) },
+    summary: {
+      text:
+        critical > 0
+          ? s('attentionSummaryCritical', locale, { count: String(count), critical: String(critical) })
+          : s('attentionSummary', locale, { count: String(count) }),
+      emphasis: String(count),
+    },
+    avatar: null,
+    artwork: null,
+    facts,
+    progress: null,
+    status: null,
+    items: items.length ? items : null,
+    action: { label: s('viewAttention', locale), href: '/media/intelligence', icon: 'activity' },
+    timestamp: envelope.occurredAt,
+  };
+};
+
 const BUILDERS: Record<string, PresentationBuilder> = {
   playback: buildPlayback,
   torrent: buildTorrent,
@@ -857,6 +921,7 @@ const BUILDERS: Record<string, PresentationBuilder> = {
   provider: buildProvider,
   discovery: buildDiscovery,
   acquisition: buildAcquisition,
+  attention: buildAttention,
   security: buildSecurity,
   user: buildUser,
 };

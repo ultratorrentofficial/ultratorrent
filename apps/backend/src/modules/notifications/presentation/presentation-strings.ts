@@ -173,6 +173,23 @@ export const STRINGS = {
   } satisfies Copy,
   fieldTemplate: { 'en-US': 'Template', 'es-PR': 'Plantilla' } satisfies Copy,
   viewDiscover: { 'en-US': 'Open Discover', 'es-PR': 'Abrir Descubrir' } satisfies Copy,
+  // --- media intelligence (attention digest) --------------------------------
+  attentionLead: { 'en-US': 'Media', 'es-PR': 'Medios' } satisfies Copy,
+  attentionTrail: { 'en-US': 'needs attention', 'es-PR': 'necesitan atención' } satisfies Copy,
+  attentionSummary: {
+    'en-US': '{count} finding(s) need review.',
+    'es-PR': '{count} hallazgo(s) requieren revisión.',
+  } satisfies Copy,
+  attentionSummaryCritical: {
+    'en-US': '{count} finding(s) need review, {critical} critical.',
+    'es-PR': '{count} hallazgo(s) requieren revisión, {critical} crítico(s).',
+  } satisfies Copy,
+  attentionFactOpened: { 'en-US': 'New', 'es-PR': 'Nuevos' } satisfies Copy,
+  attentionFactReopened: { 'en-US': 'Returned', 'es-PR': 'Reaparecidos' } satisfies Copy,
+  attentionFactEscalated: { 'en-US': 'Worsened', 'es-PR': 'Empeorados' } satisfies Copy,
+  viewAttention: { 'en-US': 'Review', 'es-PR': 'Revisar' } satisfies Copy,
+  andMoreAttention: { 'en-US': '…and {count} more', 'es-PR': '…y {count} más' } satisfies Copy,
+
   // --- media acquisition (missing-episode search found nothing) -------------
   missingUnavailableLead: { 'en-US': 'Missing Episodes', 'es-PR': 'Episodios faltantes' } satisfies Copy,
   missingUnavailableTrail: { 'en-US': 'not found at your preferences', 'es-PR': 'no encontrados según tus preferencias' } satisfies Copy,
