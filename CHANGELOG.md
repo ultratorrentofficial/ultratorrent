@@ -45,6 +45,39 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.94.0] - 2026-09-16
+
+### Added
+- Notify (one digest per search run) when a missing-episode search finds no release matching any auto-download preference; only no_results notifies, an indexer outage never does.
+- Add Series: a Backfill-Only add no longer creates an RSS rule or match preferences (it backfills through the global Auto-Download preferences); ended/canceled shows can only be backfilled, not monitored.
+- Add Series: pick the destination TV library and choose whether Backfill-Only downloads go through Media Intake; intake stages into the chosen library's storage profile.
+- Media Intelligence (Phase 1): unified media state, health evaluation and findings — observational only
+- Media Intelligence Phase 2: quality compliance and upgrade potential (observational)
+- Media Intelligence Phase 3 (foundation): finding disposition, material escalation, transition history and a one-per-run attention digest
+- Media Intelligence Phase 3: the Attention Center — finding disposition, priority ordering, bulk triage and CAMA actions
+- Media Intelligence Attention Center: group the queue by title, and open a finding's evidence and history in a detail drawer
+- Media Intelligence Phase 4: explainable recommendations — a deterministic finding-to-remediation catalogue, and explicit indexer verification that distinguishes upgrade potential from a real available candidate
+- Media Intelligence Phase 5B: lifecycle policies - operator intent as a first-class model, with deterministic scope precedence, dimension-level inheritance, per-dimension provenance and equal-precedence conflict detection
+- Media Intelligence Phase 5C: desired-state resolution and drift evaluation - compares operator intent against source-owned facts, with unknown as a first-class outcome that never becomes drift or compliance
+- Media Intelligence Phase 5D–5F: lifecycle policies reach the operator — policy-aware recommendation confidence, a bounded non-mutating preview that runs the production evaluator, a cancellable re-evaluation job, and a policies workspace with desired-state and drift on the title detail page
+- Media Intelligence Phase 6A–6C (contracts): remediation plans as a first-class domain — plan lifecycle, persistence, canonical fingerprints, approval semantics that distinguish consent from knowledge, and a server-side capability classification that ships one executable remediation rather than a catalogue of dead paths
+- Media Intelligence Phase 6B (plan domain): a pure recommendation-to-plan builder, plan reconciliation wired as the last pass of the projection sweep, and `locked` carried on identity facts so an operator's standing "automation off" blocks a plan and survives approval
+- Media Intelligence Phase 6D (executor): approved remediation plans now execute — a bounded sweep claims them by compare-and-swap, re-establishes every safety property immediately before the source call, delegates the mutation to the domain that owns it, and reaches `succeeded` only by observing source truth
+- Media Intelligence Phase 6G (frontend): a Remediation Center under Media Intelligence — the plan queue with summary counts and status filters, a detail view rendering the real steps with the domain and permission each one invokes, and approve/stop behind their own permissions, with the Approve control driven by the server's own `blockSurvivesApproval` rather than re-derived in the browser
+
+### Fixed
+- Auto-grab uses the global Auto-Download Preferences ladder as the primary preference cascade for all missing-episode and pack grabs (previously shadowed by a show's RSS rule); the ladder is re-rankable in place by drag-and-drop (with up/down arrows for a11y).
+- Add a Duplicate action to Auto-Download Preferences entries: opens the editor pre-filled from an existing entry as a new one, so a variant needs only the changed fields.
+- Backfill-Only series adds route their downloads through Media Intake again (rule-free, via an IntakeIntent under the add's storage profile) instead of landing directly in the library folder unprocessed.
+- Media Intelligence: humanized field labels and values, timezone-aware timestamps (shared lib/humanize)
+- Media Intelligence detail: show the title's artwork and metadata, composed from the Media Manager
+- Media Intelligence: humanize quality finding labels and evidence (translations, scalar evidence keys, codec casing)
+- Media Intelligence: scope the quality ladder by media kind, so a TV ladder no longer marks every movie below preference
+- RSS: a smart_episode_match rule keyed to a show title no longer matches a dated daily release that has no season/episode
+- Media Intelligence: anchor upgrade-verification candidates on the show title, so a pattern-less quality ladder cannot accept a different show's release
+- Media Intelligence Phase 5G: turn the lifecycle-policy boundary into enforced controls — preview-never-writes and no-action structural tests, re-evaluation idempotency coverage, RBAC tests for the authoring permission, and the module's first API.md and SECURITY.md sections
+- Media Intelligence Phase 6H: hardening — controller DI coverage, and a test pinning the coupling between the capability table and the active-plan concurrency guarantee so a second supported remediation type cannot ship without revisiting the index
+
 ## [0.93.9] - 2026-09-13
 
 ### Fixed
