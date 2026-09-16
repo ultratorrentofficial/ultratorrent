@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { PERMISSIONS, type MediaIntelligenceEntityType } from '@ultratorrent/shared';
@@ -14,6 +14,7 @@ import { MediaIntelligenceProjectionService } from './media-intelligence-project
 import { AttentionService } from './attention/attention.service';
 import { RecommendationQueryService } from './recommendations/recommendation-query.service';
 import { UpgradeVerificationService } from './recommendations/upgrade-verification.service';
+import { LifecyclePolicyService } from './policies/lifecycle-policy.service';
 import { AttentionDispositionService } from './attention/attention-disposition.service';
 import {
   ListFindingsDto,
@@ -27,6 +28,10 @@ import {
   SnoozeDto,
 } from './dto/attention.dto';
 import { ListRecommendationsDto } from './dto/recommendation.dto';
+import {
+  CreateLifecyclePolicyDto,
+  UpdateLifecyclePolicyDto,
+} from './dto/lifecycle-policy.dto';
 
 const P = PERMISSIONS;
 
@@ -59,6 +64,7 @@ export class MediaIntelligenceController {
     private readonly dispositions: AttentionDispositionService,
     private readonly recommendations: RecommendationQueryService,
     private readonly verification: UpgradeVerificationService,
+    private readonly policies: LifecyclePolicyService,
     private readonly audit: AuditService,
   ) {}
 
@@ -302,6 +308,70 @@ export class MediaIntelligenceController {
       },
     });
     return result;
+  }
+
+  /*
+   * Lifecycle policies — operator intent.
+   *
+   * The only mutable, NON-derived state in this module: everything else here
+   * is a conclusion that can be rebuilt, and these rows are what a person
+   * asked for. Reads stay on `media_manager.view`, matching the rest of Media
+   * Intelligence; authoring requires its own permission, because stating what
+   * the system should maintain is a different privilege from reading what it
+   * observed — and Phase 6 will act on these rows.
+   *
+   * Declared ABOVE the generic `:entityType/:entityId` routes. `policies/:id`
+   * is two segments and would otherwise be answered as
+   * entityType="policies", which is exactly the shape that shipped four
+   * unreachable routes in Phase 3.
+   */
+  @Get('policies')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  listPolicies() {
+    return this.policies.list();
+  }
+
+  @Get('policies/:id')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  policy(@Param('id') id: string) {
+    return this.policies.byId(id);
+  }
+
+  @Post('policies')
+  @RequirePermissions(P.MEDIA_LIFECYCLE_POLICY_MANAGE)
+  createPolicy(
+    @Body() dto: CreateLifecyclePolicyDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
+  ) {
+    return this.policies.create(dto as never, user?.id, reqAuditContext(req));
+  }
+
+  @Patch('policies/:id')
+  @RequirePermissions(P.MEDIA_LIFECYCLE_POLICY_MANAGE)
+  updatePolicy(
+    @Param('id') id: string,
+    @Body() dto: UpdateLifecyclePolicyDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
+  ) {
+    return this.policies.update(id, dto as never, user?.id, reqAuditContext(req));
+  }
+
+  /**
+   * Remove operator intent — and only that.
+   *
+   * Deletes no media, no findings and no history. Derived desired state
+   * rebuilds from whatever policies remain.
+   */
+  @Delete('policies/:id')
+  @RequirePermissions(P.MEDIA_LIFECYCLE_POLICY_MANAGE)
+  deletePolicy(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
+  ) {
+    return this.policies.remove(id, user?.id, reqAuditContext(req));
   }
 
   /**

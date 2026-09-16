@@ -4799,3 +4799,60 @@ model MediaIntelligenceRecommendation {
   @@index([verification, verifiedAt])
   @@map("media_intelligence_recommendations")
 }
+
+/// Operator intent — Phase 5.
+///
+/// The FIRST table in Media Intelligence that is not derived. Everything else
+/// here (projections, findings, recommendations) is a conclusion the module
+/// draws and can rebuild from the source domains; this is something a person
+/// authored, and losing it loses information nothing else holds.
+///
+/// Shaped after `TorrentSchedulerPolicy`, which already solved scoped operator
+/// intent in this codebase: `(scopeType, scopeId)`, an `enabled` flag, and
+/// nullable dimension columns so a policy can speak to one thing and stay
+/// silent on the rest.
+///
+/// **Every dimension is nullable, and NULL means "says nothing — inherit".**
+/// That is why `do_not_manage` is a stored value rather than being represented
+/// by NULL: "I have no opinion" and "I want this explicitly unmanaged" are
+/// different instructions. The scheduler draws the same line with
+/// `undefined` vs `null`; Prisma cannot store `undefined`, so the "explicitly
+/// none" end lives in the value instead.
+model MediaLifecyclePolicy {
+  id          String  @id @default(uuid())
+  name        String
+  description String?
+  /// A disabled policy keeps its definition and stops contributing, so a
+  /// disabled override falls through to its parent rather than pinning a value.
+  enabled     Boolean @default(true)
+
+  /// global | media_kind | library | series | movie
+  scopeType String
+  /// NULL for `global`; otherwise a library id, media kind, show id or item id.
+  scopeId   String?
+
+  /// recommend_only | approval_required. There is deliberately no `automatic`:
+  /// Phase 5 has no executor, and a mode that implies one would be a lie.
+  mode String @default("recommend_only")
+
+  /// do_not_manage | maintain_acceptable | maintain_preferred. Names a position
+  /// in the operator's EXISTING acquisition ladder — never a second ladder.
+  quality           String?
+  /// do_not_manage | maintain_aired
+  completeness      String?
+  /// Required languages. NULL = not mentioned; [] = explicitly none.
+  subtitleLanguages Json?
+  /// { searchMissing?, searchUpgrades? } — what drift may PROPOSE, never do.
+  acquisition       Json?
+
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// One policy of a given name per scope — the operator-facing identity.
+  @@unique([scopeType, scopeId, name])
+  /// The resolver loads every enabled policy and filters in memory; this keeps
+  /// that read cheap without pretending scope matching is a pure SQL problem.
+  @@index([enabled, scopeType])
+  @@map("media_lifecycle_policies")
+}

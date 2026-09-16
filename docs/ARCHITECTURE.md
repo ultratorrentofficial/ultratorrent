@@ -1520,6 +1520,74 @@ Key files: `packages/shared/src/media-recommendations.ts`,
 `confidence-rank.ts`).
 
 
+### Phase 5 — Lifecycle Policies (5B: the policy domain)
+
+**Status: the policy domain is complete; desired-state evaluation and drift
+are not yet built.** This phase introduces the first thing Media Intelligence
+has ever stored that a *person authored* rather than a conclusion it drew.
+
+**The rule this phase adds: policies own intent, source domains own facts,
+Media Intelligence owns the comparison.** A policy is not a finding (which
+says something IS true), not an automation rule, and not an action. It says "I
+want this entity to remain in this state".
+
+**It is not an Automation rule, and the reason is mechanical.** The automation
+engine contains `if (previous && conditions.every(...)) continue; // already
+satisfied last cycle — not a rising edge`. It deliberately suppresses itself
+while a condition stays true — exactly the case a lifecycle policy must fire
+on — and its conditions are keyed to `NormalizedTorrent`, not a media entity.
+Library Cleanup set the precedent of building a real policy engine as its own
+module rather than bending Automation, and Phase 5 follows it.
+
+**Precedence is lifted from the torrent scheduler, which already solved this.**
+`torrent-scheduler/domain/policy.ts` contributed four properties verbatim: an
+explicit most-specific-first scope order (never DB row order, never
+`createdAt`); resolution **per dimension**, so an override is a patch rather
+than a replacement; per-field provenance, because "a queue reason that cannot
+cite its source is not explainable"; and a three-valued inherit contract. The
+scope order is `movie | series → library → media_kind → global` — a library
+outranks a media kind because a library is a concrete thing the operator
+created and named, while a kind is a broad class.
+
+**One deliberate departure from that precedent.** The scheduler resolves a
+same-scope tie by taking whichever policy the caller listed first —
+deterministic, but it means two policies can disagree forever and nobody is
+told. Phase 5 still resolves deterministically (the system must not flicker)
+**and** records a `LifecyclePolicyConflict`, so an ambiguous configuration is
+surfaced instead of silently arbitrated.
+
+**The three-valued contract lives in the value, not in nullability.** Prisma
+cannot store `undefined`, so a NULL column means "this policy says nothing —
+inherit", and `do_not_manage` is a real stored value meaning "explicitly
+unmanaged, stop inheriting". Subtitles follow the same rule: `null` is
+silence, `[]` is an explicit decision. "I have no opinion" and "I want this
+off" are different instructions and a nullable column alone cannot hold both.
+
+**No `automatic` mode exists.** Phase 5 ships no executor, and the torrent
+scheduler already set the standard by refusing a `managed` mode while no
+reconciliation layer existed — "a mode that lies about what it does is worse
+than a mode that is missing." The service rejects `automatic` outright rather
+than silently downgrading it to advisory.
+
+**RBAC departs from Media Intelligence's own precedent, deliberately.** Reads
+stay on `media_manager.view` like every other surface here. Authoring gets a
+new `media_lifecycle.policy.manage`, because stating what the system should
+maintain is a different privilege from reading what it observed — and Phase 6
+will act on these rows. Power Users are deliberately not granted it, following
+Library Cleanup's "read + no-side-effect simulation only" line.
+
+**Deletion removes intent and nothing else.** No media, no findings, no
+history, and no cascade anywhere near the model. Derived state rebuilds from
+whatever policies remain.
+
+Key files: `packages/shared/src/media-lifecycle.ts`,
+`apps/backend/src/modules/media-intelligence/policies/`
+(`policy-precedence.ts` — pure, `lifecycle-policy.service.ts`).
+
+**Not yet built:** desired-state resolution against live facts, drift
+evaluation, preview, recommendation integration, and the frontend.
+
+
 ## Event-Driven Architecture
 
 Modules communicate through **domain events**, not tight coupling: a module
@@ -1822,6 +1890,7 @@ append a dated row here.
 
 | Date | Change |
 |------|--------|
+| 2026-09-16 | **Media Intelligence Phase 5B: lifecycle policies — the policy domain.** Adds `media_lifecycle_policies`, the first NON-derived table in this module: every other table here holds a conclusion that can be rebuilt, this one holds what a person asked for, so no reconciliation path may write to it and deleting a policy removes intent alone. **The audit found that almost every hard requirement already had a working implementation in this repo, so this is assembly rather than invention.** Precedence is lifted from `torrent-scheduler/domain/policy.ts` — explicit most-specific-first scope order, per-dimension resolution so an override is a patch not a replacement, and per-field provenance — with the scope chain `movie|series → library → media_kind → global` (a library outranks a media kind because it is a concrete thing the operator named). One deliberate departure: the scheduler breaks same-scope ties by caller order, which silently arbitrates a configuration the operator cannot reason about; Phase 5 resolves deterministically AND reports a conflict. The three-valued inherit contract is carried in the VALUE rather than nullability, because Prisma cannot store `undefined` — NULL means "says nothing, inherit", `do_not_manage` means "explicitly unmanaged, stop inheriting", and for subtitles `[]` is a decision while `null` is silence. **No `automatic` mode exists and the service refuses it**, following the scheduler's refusal of `managed` while no reconciliation layer existed. Lifecycle policy is emphatically NOT an Automation rule: the engine suppresses itself while a condition stays true (`already satisfied last cycle — not a rising edge`), which is exactly when a desired-state policy must fire, and its conditions are torrent-shaped. New `media_lifecycle.policy.manage` permission for authoring while reads stay on `media_manager.view` — a departure from this module's no-new-permissions rule, justified because Phase 6 will act on these rows; Power Users are deliberately excluded. Five CRUD routes declared above `:entityType/:entityId` (that wildcard swallowed four routes in Phase 3). Gates: shared build; backend tsc 0; backend suite 388 suites / 5457 tests (+43); frontend tsc 0; route-shadowing + action-endpoint 41; prisma validate + generate; one additive migration applied; DI boot with all five policy routes mapped. **Not yet built: desired-state evaluation, drift, preview, recommendation integration, frontend.** |
 | 2026-09-16 | **Media Intelligence: upgrade verification now anchors on the show title.** Found while preparing the first live verification run, before it executed. Every rung of this installation's global ladder is PATTERN-LESS (`profileToInput` and `ensureSeeded` both set no pattern), so `evaluatePreferenceList` judges resolution, codec and size and **nothing else**. `UpgradeVerificationService` searched the indexers for a title and then accepted any candidate that satisfied a rung — with no check that the release belonged to the show it searched for. Running it against the live queue would have taken a `Breaking.Bad...1080p.x265` result and persisted it as Airwolf's verified upgrade: the Match of the Day failure mode, reintroduced one layer up. `AcquisitionMatchPreferenceService.select()` guards the identical hole with `showTitleMatch` against the RAW release name (its comment records a looser test mis-grabbing 132 of 714 episodes), and verification now does the same, with the projection's parenthesised year stripped first because release names do not carry it. Five cases pin it, including a wrong show that satisfies every quality rung, a prefix spinoff (`Airwolf Chronicles`), and a title that is only a year (`1923`) where stripping must not empty the anchor — an empty pattern makes `showTitleMatch` return true for everything, which is how the pattern-less variant of this bug behaved on 2026-09-08. Gates: backend tsc 0; backend suite 386 suites / 5414 tests (+5); frontend tsc 0; route-shadowing + action-endpoint + domain-event + presentation 155. |
 | 2026-09-16 | **Media Intelligence Phase 4: explainable recommendations.** Turns findings into proposed responses that state what, why, how sure, and — the part that matters — what is still unknown. New `media_intelligence_recommendations` table keyed on `(findingId, type)`, a pure `recommendation-evaluator.ts`, a reconciliation pass inside the existing sweep, a read-only query API, one CAMA action, and explicit indexer verification. **Auditing the real capability surface shrank the catalogue, which is the main finding:** nine types ship, and four plausible ones were refused because nothing backs them — `GATHER_TECHNICAL_DATA` (no user-invocable mediainfo probe exists; `MediaProbeService` has no controller), `SEARCH_FOR_MISSING_MOVIE` (no movie search path at all — `TvSearchQuery` carries no movie fields and the selector hard-requires season+episode), `ACQUIRE_MISSING_SUBTITLES` (download takes a candidate id, not an item), and anything on `BACKFILL_STALLED` (declared but never emitted). `EPISODES_MISSING` gets none either: its only search endpoint is watchlist-keyed and grabs as it goes. Upgrade POTENTIAL stays distinct from AVAILABILITY — a recommendation starts `not_checked`, and only `UpgradeVerificationService`, run from an explicit action gated on `media_manager.scan`, can reach `verified`. It adds no client, parser, matcher or scorer: `IndexerService.searchAllDetailed` + `AcquisitionMatchPreferenceService` + `evaluatePreferenceList`, with superiority decided by a STRICTLY better rung of the operator's own ladder (so codec-only differences propose nothing), the ladder scoped by `ladderAppliesTo`, and candidates joined to rungs by candidate ID rather than `matchedCandidatePriority` (that is `priorityOrder`, not the array index). Confidence is `high|medium|low`, never a fake percentage, with a persisted `confidenceRank` because the text column sorts high/low/medium. Verified candidates age to `stale` after 12h on the existing tick with no provider call. Disposition is never written from this phase and no action resolves a finding — reconciliation still has to prove it. Two review catches worth recording: literal NUL bytes reached two source files (the Write tool took `\u0000` verbatim) and were replaced with a printable separator, and an unguarded schema replace edited `MediaDuplicateGroup`'s index because `@@index([status, confidence])` was not unique in the file — caught by `prisma validate` and repaired to a provably additive diff (73 insertions, 0 deletions). Gates: shared build; backend tsc 0; backend suite 385 suites / 5409 tests; frontend tsc 0; i18n parity 319 keys; route-shadowing + action-endpoint 41; prisma validate + generate; two additive migrations; DI boot with the new Media Intelligence → Indexers edge. |
 | 2026-09-15 | **RSS: an episode rule could match a release that has no episode.** The pattern-less half of this was fixed on 2026-09-08 (a generated rule with an empty pattern matched an entire feed; `DiscoveryRuleService.generate()` now refuses to insert one). This is the complementary half, found by tracing a live incident from the same night: a rule that DOES carry a pattern, meeting a **date-based daily release**. `Match.Of.The.Day.2026.09.06.720p...` has no `SxxEyy`, so `parseRelease` returns no season and no episode, and `smart_episode_match` — having no season/episode constraint of its own to compare against — degenerated into a bare title test and passed. The importer then derived the SAME destination for every such grab, `Show - S01E` with an empty episode number, so each import collided with the previous one and was moved aside as `[dup2]`, `[dup3]`: four grabs, two survivors, the others overwritten before anyone saw them. `coreMatch` now requires parseable episode identity **when the candidate carries a pattern**, which is exactly the show-keyed rule case; a pattern-less rung is untouched because the acquisition ladder builds those on purpose (`profileToInput`, `ensureSeeded`) for a bridge that has already anchored the title and the exact `SxxEyy`, and requiring episode identity there would reject every release it was asked to rank. Anime is unaffected — `parseRelease` has no `absoluteEpisode`, so `One.Piece.1089` already failed on the title anchor, not on this. The success detail string also stopped reporting the RULE's constraints (`matched SundefinedEundefined`, which is what made the original traces unreadable) and now reports what the RELEASE is. Five new cases pin it, including that a pattern-less rung still matches a dated release; the two rules behind the incident were disabled separately, and the guard makes a third one impossible rather than relying on that. Gates: backend tsc 0; backend suite 383 suites / 5369 tests (+5); rss + media-acquisition 37 suites / 508 tests. |

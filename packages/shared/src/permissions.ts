@@ -256,6 +256,21 @@ export const PERMISSIONS = {
    */
   CONSOLE_VIEW: 'console.view',
 
+  /*
+   * Lifecycle policies (Media Intelligence Phase 5).
+   *
+   * Media Intelligence deliberately mints no permission family for READING —
+   * its pages borrow `media_manager.view`, because a distinct read permission
+   * would have locked existing Power Users out of an observational surface.
+   * Authoring intent is different: a policy states what the system should
+   * maintain, and Phase 6 will act on it. That is a distinct privilege, and
+   * Library Cleanup already set the precedent of separating policy authorship
+   * from policy reading.
+   *
+   * Viewing policies, desired state and drift stays on `media_manager.view`.
+   */
+  MEDIA_LIFECYCLE_POLICY_MANAGE: 'media_lifecycle.policy.manage',
+
   LIBRARY_CLEANUP_VIEW: 'library_cleanup.view',
   LIBRARY_CLEANUP_POLICY_CREATE: 'library_cleanup.policy.create',
   LIBRARY_CLEANUP_POLICY_EDIT: 'library_cleanup.policy.edit',
