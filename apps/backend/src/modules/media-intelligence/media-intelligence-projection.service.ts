@@ -17,6 +17,7 @@ import { evaluateMediaHealth } from './media-health-evaluator';
 import { evaluateDispositionRetention } from './attention/escalation';
 import { attentionPriority } from './attention/priority';
 import { MediaStateAssembler } from './media-state.assembler';
+import { RecommendationService } from './recommendations/recommendation.service';
 
 /**
  * Maintains the DERIVED projection that powers the Media Health list.
@@ -55,6 +56,7 @@ export class MediaIntelligenceProjectionService {
     private readonly prisma: PrismaService,
     private readonly assembler: MediaStateAssembler,
     private readonly bus: DomainEventBus,
+    private readonly recommendations: RecommendationService,
   ) {}
 
   isRebuilding(): boolean {
@@ -129,7 +131,18 @@ export class MediaIntelligenceProjectionService {
       },
     });
 
-    const transitions = await this.reconcileFindings(entityType, entityId, findings, now);
+    const { transitions, reconciled } = await this.reconcileFindings(entityType, entityId, findings, now);
+
+    /*
+     * Recommendations settle in the SAME pass, against the finding rows that
+     * were just persisted — a recommendation is keyed on `(findingId, type)`,
+     * so it needs real ids rather than evaluator output. Deliberately after
+     * reconciliation and never inside it: this writes only to its own table,
+     * and a failure here must not be able to corrupt finding truth or the
+     * operator's disposition.
+     */
+    await this.recommendations.reconcile(entityType, entityId, reconciled, now);
+
     return { health: health.status, findingCount: findings.length, transitions };
   }
 
@@ -145,7 +158,7 @@ export class MediaIntelligenceProjectionService {
     entityId: string,
     findings: readonly MediaFinding[],
     now: Date,
-  ): Promise<AttentionTransition[]> {
+  ): Promise<{ transitions: AttentionTransition[]; reconciled: ReconciledFinding[] }> {
     const existing = await this.prisma.mediaIntelligenceFinding.findMany({
       where: { entityType, entityId },
       select: {
@@ -168,6 +181,8 @@ export class MediaIntelligenceProjectionService {
      */
     const history: Array<{ findingId: string; event: MediaAttentionEvent; detail: object }> = [];
     const transitions: AttentionTransition[] = [];
+    /** The persisted rows, so the recommendation pass can key on real ids. */
+    const reconciled: ReconciledFinding[] = [];
 
     for (const finding of findings) {
       const prior = byCode.get(finding.code);
@@ -227,6 +242,14 @@ export class MediaIntelligenceProjectionService {
           },
         });
 
+        reconciled.push({
+          id: prior.id,
+          code: finding.code,
+          severity: finding.severity,
+          evidence: finding.evidence,
+          resolved: false,
+        });
+
         if (reopened) history.push({ findingId: prior.id, event: 'reopened', detail: {} });
         if (severityChanged) {
           history.push({
@@ -269,6 +292,13 @@ export class MediaIntelligenceProjectionService {
           },
           select: { id: true },
         });
+        reconciled.push({
+          id: created.id,
+          code: finding.code,
+          severity: finding.severity,
+          evidence: finding.evidence,
+          resolved: false,
+        });
         history.push({ findingId: created.id, event: 'opened', detail: {} });
         transitions.push({
           code: finding.code,
@@ -287,7 +317,18 @@ export class MediaIntelligenceProjectionService {
         where: { id: { in: stale.map((e) => e.id) } },
         data: { resolvedAt: now, lastObservedAt: now },
       });
-      for (const e of stale) history.push({ findingId: e.id, event: 'resolved', detail: {} });
+      for (const e of stale) {
+        history.push({ findingId: e.id, event: 'resolved', detail: {} });
+        // Carried so the recommendation pass can mark its response satisfied
+        // rather than leaving it proposing a fix for a condition that is gone.
+        reconciled.push({
+          id: e.id,
+          code: e.code,
+          severity: e.severity,
+          evidence: (e.evidence ?? {}) as Record<string, unknown>,
+          resolved: true,
+        });
+      }
     }
 
     if (history.length) {
@@ -296,7 +337,7 @@ export class MediaIntelligenceProjectionService {
       });
     }
 
-    return transitions;
+    return { transitions, reconciled };
   }
 
   /** Drop a projection whose entity is gone. Findings go with it. */
@@ -456,6 +497,16 @@ const rank = (s: string): number => SEVERITY_ORDER[s] ?? -1;
  * per-finding event would mean thousands of notifications for a routine
  * recalculation that discovered nothing new.
  */
+/** One persisted finding row, as the recommendation pass needs to see it. */
+export interface ReconciledFinding {
+  id: string;
+  code: string;
+  severity: string;
+  evidence: Record<string, unknown>;
+  /** True when this sweep just closed it. */
+  resolved: boolean;
+}
+
 export interface AttentionTransition {
   code: string;
   severity: string;

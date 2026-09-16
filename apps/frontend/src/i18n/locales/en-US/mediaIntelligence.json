@@ -331,5 +331,75 @@
     "LIBRARY_NEVER_SCANNED": "Library never scanned",
     "QUALITY_UPGRADE_POTENTIAL": "Upgrade potential",
     "QUALITY_BELOW_PREFERENCE": "Below preferred quality"
+  },
+  "recommendations": {
+    "heading": "Recommendation",
+    "none": "No recommendation can be made for this finding yet.",
+    "why": "Why",
+    "stillUnknown": "Still unknown",
+    "expected": "What it would do",
+    "confidence": "Confidence",
+    "availability": "Availability",
+    "verify": "Search for an upgrade",
+    "verifying": "Searching…",
+    "openOwner": "Open the tool that handles this",
+    "candidate": "Best candidate found",
+    "rung": "Preference rung",
+    "confidenceLevel": {
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low"
+    },
+    "status": {
+      "active": "Active",
+      "verified": "Verified",
+      "invalidated": "No longer applies",
+      "satisfied": "Resolved"
+    },
+    "verification": {
+      "not_required": "Nothing to check — the target already exists here",
+      "not_checked": "Not checked yet",
+      "checking": "Checking…",
+      "verified": "A better release is available",
+      "no_match": "Searched — nothing better is available right now",
+      "stale": "Last check has aged out",
+      "failed": "The search could not be completed"
+    },
+    "type": {
+      "SEARCH_FOR_QUALITY_UPGRADE": "Search for a higher-preference release",
+      "SEARCH_SUBTITLES": "Search for subtitles",
+      "RETRY_FAILED_INTAKE": "Retry the failed import",
+      "REVIEW_FAILED_INTAKE": "Review the failed import",
+      "REVIEW_DUPLICATES": "Review the duplicate copies",
+      "REVIEW_IDENTITY": "Confirm what this title is",
+      "REFRESH_METADATA": "Fetch the missing metadata",
+      "SCAN_LIBRARY": "Scan this library",
+      "RECHECK_TORRENT": "Recheck the torrent"
+    },
+    "unknown": {
+      "whether_a_superior_release_is_obtainable": "Whether a better release can actually be obtained — nothing has asked an indexer yet.",
+      "whether_the_original_cause_was_addressed": "Whether whatever caused the failure has been fixed.",
+      "whether_the_failure_is_retryable": "Whether this import can be retried at all.",
+      "which_stage_should_resume": "Which stage the import should resume from — a person has to choose.",
+      "which_copy_should_be_kept": "Which copy should be kept.",
+      "which_title_this_actually_is": "Which title this actually is.",
+      "whether_a_provider_has_this_title": "Whether any metadata provider knows this title.",
+      "whether_any_required_language_is_missing": "Whether a language your policy requires is actually missing.",
+      "whether_a_recheck_clears_the_error": "Whether a recheck clears the error."
+    },
+    "step": {
+      "search_indexers": "Search your configured indexers",
+      "evaluate_against_preferences": "Rank results against your own preferences",
+      "compare_with_owned": "Compare each result with what you already own",
+      "present_candidates": "Show you what was found",
+      "require_approval": "Wait for you to approve",
+      "hand_off_to_owning_domain": "Hand off to the tool that owns the change",
+      "open_review_surface": "Open the page where you can decide",
+      "retry_from_resume_state": "Resume the import from where it stopped"
+    },
+    "improvement": {
+      "higher_preference_rung": "Satisfies a higher rung of your preference ladder"
+    },
+    "size": "Size"
   }
 }

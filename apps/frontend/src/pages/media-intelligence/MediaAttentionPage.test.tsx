@@ -21,6 +21,8 @@ const intelSpy = vi.hoisted(() => ({
   attention: vi.fn(),
   attentionGrouped: vi.fn(),
   findingHistory: vi.fn(),
+  recommendationsForFinding: vi.fn(),
+  verifyRecommendation: vi.fn(),
   attentionSummary: vi.fn(),
   acknowledgeFinding: vi.fn(),
   dismissFinding: vi.fn(),
@@ -123,6 +125,7 @@ describe('MediaAttentionPage', () => {
     intelSpy.attention.mockResolvedValue(page([item()]));
     intelSpy.attentionGrouped.mockResolvedValue(groupPage([group()]));
     intelSpy.findingHistory.mockResolvedValue([]);
+    intelSpy.recommendationsForFinding.mockResolvedValue([]);
   });
 
   it('lists what needs attention', async () => {
@@ -281,5 +284,134 @@ describe('MediaAttentionPage', () => {
     expect(rows().queryByText(/Episodes missing/i)).not.toBeInTheDocument();
     fireEvent.click(rows().getByRole('button', { expanded: false }));
     expect(await rows().findByText(/Episodes missing/i)).toBeInTheDocument();
+  });
+});
+
+/** A recommendation as the API returns it. */
+const recommendation = (over: Record<string, unknown> = {}) => ({
+  id: 'r1',
+  findingId: 'f1',
+  entityType: 'series',
+  entityId: 'show-1',
+  type: 'SEARCH_FOR_QUALITY_UPGRADE',
+  recommendationClass: 'search',
+  status: 'active',
+  confidence: 'medium',
+  findingCode: 'QUALITY_UPGRADE_POTENTIAL',
+  findingSeverity: 'opportunity',
+  title: 'Breaking Bad',
+  year: 2008,
+  evidence: { matchedRung: 2, totalRungs: 4 },
+  unknowns: ['whether_a_superior_release_is_obtainable'],
+  plan: ['search_indexers', 'require_approval'],
+  capabilityId: null,
+  verification: 'not_checked',
+  verifiedAt: null,
+  candidate: null,
+  invalidationReason: null,
+  evaluatedAt: '2026-09-16T00:00:00.000Z',
+  createdAt: '2026-09-16T00:00:00.000Z',
+  ...over,
+});
+
+/** Open the drawer on the first row and wait for the panel. */
+async function openDrawer() {
+  screen.getAllByRole('button', { name: 'Review' })[0].click();
+  return screen.findByRole('dialog');
+}
+
+describe('FindingDetailDrawer — recommendations', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    intelSpy.attentionSummary.mockResolvedValue(summary);
+    intelSpy.attention.mockResolvedValue(page([item()]));
+    intelSpy.findingHistory.mockResolvedValue([]);
+    intelSpy.recommendationsForFinding.mockResolvedValue([]);
+  });
+
+  it('fetches recommendations only once the panel is opened', async () => {
+    renderPage();
+    await screen.findByText('Breaking Bad');
+    // A 50-row queue must not issue a request per row.
+    expect(intelSpy.recommendationsForFinding).not.toHaveBeenCalled();
+
+    await openDrawer();
+    await waitFor(() => expect(intelSpy.recommendationsForFinding).toHaveBeenCalledWith('f1'));
+  });
+
+  it('never runs an indexer search merely by opening the panel', async () => {
+    intelSpy.recommendationsForFinding.mockResolvedValue([recommendation()]);
+    renderPage();
+    await screen.findByText('Breaking Bad');
+    const panel = await openDrawer();
+    await within(panel).findByText(/Search for a higher-preference release/i);
+
+    // The whole phase rests on this: looking is not asking.
+    expect(intelSpy.verifyRecommendation).not.toHaveBeenCalled();
+  });
+
+  it('says what is still unknown rather than implying an upgrade exists', async () => {
+    intelSpy.recommendationsForFinding.mockResolvedValue([recommendation()]);
+    renderPage();
+    await screen.findByText('Breaking Bad');
+    const panel = await openDrawer();
+
+    expect(await within(panel).findByText(/Not checked yet/i)).toBeInTheDocument();
+    expect(
+      within(panel).getByText(/Whether a better release can actually be obtained/i),
+    ).toBeInTheDocument();
+    // "Available" must not appear until a real search says so.
+    expect(within(panel).queryByText(/A better release is available/i)).not.toBeInTheDocument();
+  });
+
+  it('offers Verify for a quality upgrade, and runs it only on click', async () => {
+    intelSpy.recommendationsForFinding.mockResolvedValue([recommendation()]);
+    intelSpy.verifyRecommendation.mockResolvedValue({
+      status: 'no_match', candidates: [], checkedAt: '2026-09-16T00:00:00.000Z',
+      indexersQueried: 2, indexersFailed: 0,
+    });
+    renderPage();
+    await screen.findByText('Breaking Bad');
+    const panel = await openDrawer();
+
+    const btn = await within(panel).findByRole('button', { name: 'Search for an upgrade' });
+    btn.click();
+    await waitFor(() => expect(intelSpy.verifyRecommendation).toHaveBeenCalledWith('r1'));
+  });
+
+  it('offers no Verify control where a search could not mean anything', async () => {
+    // A review-class recommendation has nothing to ask an indexer about;
+    // rendering the button would be a dead control.
+    intelSpy.recommendationsForFinding.mockResolvedValue([
+      recommendation({ type: 'REVIEW_DUPLICATES', recommendationClass: 'review', verification: 'not_required' }),
+    ]);
+    renderPage();
+    await screen.findByText('Breaking Bad');
+    const panel = await openDrawer();
+
+    await within(panel).findByText(/Review the duplicate copies/i);
+    expect(within(panel).queryByRole('button', { name: 'Search for an upgrade' })).not.toBeInTheDocument();
+  });
+
+  it('shows a real candidate only after verification found one', async () => {
+    intelSpy.recommendationsForFinding.mockResolvedValue([
+      recommendation({
+        verification: 'verified',
+        verifiedAt: '2026-09-16T00:00:00.000Z',
+        confidence: 'high',
+        candidate: {
+          releaseName: 'Breaking.Bad.S03E08.1080p.BluRay.x265-GRP',
+          indexerName: 'demo', sizeBytes: 3_900_000_000, seeders: 42,
+          matchedRung: 0, matchedRungName: '1080p BluRay',
+          dimensions: [], improvements: ['higher_preference_rung'], tradeoffs: [],
+        },
+      }),
+    ]);
+    renderPage();
+    await screen.findByText('Breaking Bad');
+    const panel = await openDrawer();
+
+    expect(await within(panel).findByText(/Breaking.Bad.S03E08.1080p.BluRay.x265-GRP/)).toBeInTheDocument();
+    expect(within(panel).getByText(/A better release is available/i)).toBeInTheDocument();
   });
 });

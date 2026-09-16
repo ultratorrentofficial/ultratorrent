@@ -1,6 +1,7 @@
 import { MEDIA_FINDING_CODES } from '@ultratorrent/shared';
 
 import { MediaIntelligenceProjectionService } from './media-intelligence-projection.service';
+import { RecommendationService } from './recommendations/recommendation.service';
 
 /**
  * The projection store, tested against hand-rolled stubs.
@@ -66,6 +67,14 @@ function stubPrisma(over: { findings?: Row[]; entities?: boolean } = {}) {
       }),
       deleteMany: jest.fn(async () => ({ count: 0 })),
     },
+    // Phase 4 reconciles recommendations in the same sweep. Stubbed here
+    // because the projection service now calls it; the recommendation rules
+    // themselves are tested against their own pure spec.
+    mediaIntelligenceRecommendation: {
+      findMany: jest.fn(async () => []),
+      upsert: jest.fn(async () => ({})),
+      updateMany: jest.fn(async () => ({ count: 0 })),
+    },
     mediaIntelligenceFindingEvent: {
       createMany: jest.fn(async (args: { data: Row[] }) => {
         calls.history.push(...args.data);
@@ -123,8 +132,20 @@ function build(over: { findings?: Row[]; assembled?: unknown; entities?: boolean
     assemble: jest.fn(async () => (over.assembled === undefined ? assembled() : over.assembled)),
   };
   const bus = { publish: jest.fn(() => ({ published: true, eventId: 'e1' })) };
-  const svc = new MediaIntelligenceProjectionService(prisma as never, assembler as never, bus as never);
-  return { svc, prisma, calls, projections, assembler, bus };
+  /*
+   * A REAL RecommendationService over the same stub, not a mock. The
+   * recommendation pass runs inside `refreshEntity`, so wiring the genuine
+   * one means these tests also prove that pass cannot break finding
+   * reconciliation — which is the whole risk of settling both in one sweep.
+   */
+  const recommendations = new RecommendationService(prisma as never);
+  const svc = new MediaIntelligenceProjectionService(
+    prisma as never,
+    assembler as never,
+    bus as never,
+    recommendations,
+  );
+  return { svc, prisma, calls, projections, assembler, bus, recommendations };
 }
 
 describe('MediaIntelligenceProjectionService.refreshEntity', () => {

@@ -95,6 +95,10 @@ export type EntityType =
   // Media Intelligence — a finding has a row and an id of its own, so unlike
   // `tv_show`/`season` (which are projections) it is directly addressable.
   | 'finding'
+  // Likewise a recommendation: `(findingId, type)` is its logical identity and
+  // it carries a row, so an action can address one directly rather than
+  // addressing the finding and hoping the right response is inferred.
+  | 'recommendation'
   // Platform
   | 'job'
   | 'notification'

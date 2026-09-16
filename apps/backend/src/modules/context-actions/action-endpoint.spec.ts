@@ -76,6 +76,11 @@ const ROUTES: Record<string, Array<[Ctor, string]>> = {
   ],
   'attention.finding.reset': [[MediaIntelligenceController, 'resetDisposition']],
 
+  // --- media intelligence: recommendations -------------------------------
+  // Verification reaches an indexer, so it is gated on `scan` rather than the
+  // `view` the queue reads under; the declaration must cover that.
+  'recommendation.verify': [[MediaIntelligenceController, 'verifyRecommendation']],
+
   // --- duplicates --------------------------------------------------------
   'duplicates.detect': [[MediaController, 'detectDuplicates']],
   'duplicates.ignore': [[MediaController, 'ignoreDuplicateGroup']],

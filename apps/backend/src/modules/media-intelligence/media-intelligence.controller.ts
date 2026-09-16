@@ -12,6 +12,8 @@ import { AuditService } from '../audit/audit.service';
 import { MediaIntelligenceService } from './media-intelligence.service';
 import { MediaIntelligenceProjectionService } from './media-intelligence-projection.service';
 import { AttentionService } from './attention/attention.service';
+import { RecommendationQueryService } from './recommendations/recommendation-query.service';
+import { UpgradeVerificationService } from './recommendations/upgrade-verification.service';
 import { AttentionDispositionService } from './attention/attention-disposition.service';
 import {
   ListFindingsDto,
@@ -24,6 +26,7 @@ import {
   ListAttentionDto,
   SnoozeDto,
 } from './dto/attention.dto';
+import { ListRecommendationsDto } from './dto/recommendation.dto';
 
 const P = PERMISSIONS;
 
@@ -54,6 +57,8 @@ export class MediaIntelligenceController {
     private readonly projections: MediaIntelligenceProjectionService,
     private readonly attention: AttentionService,
     private readonly dispositions: AttentionDispositionService,
+    private readonly recommendations: RecommendationQueryService,
+    private readonly verification: UpgradeVerificationService,
     private readonly audit: AuditService,
   ) {}
 
@@ -214,6 +219,86 @@ export class MediaIntelligenceController {
         ...(result.unknown.length ? { unknown: result.unknown.length } : {}),
         ...(result.skippedResolved.length ? { skippedResolved: result.skippedResolved.length } : {}),
         ...(snoozedUntil ? { snoozedUntil } : {}),
+      },
+    });
+    return result;
+  }
+
+  /*
+   * Recommendations.
+   *
+   * Every route here is a READ over persisted state. Opening this list starts
+   * no indexer search, no probe and no provider call — availability is
+   * established only by an explicit verification, never as a side effect of
+   * looking at the queue.
+   *
+   * Declared ABOVE the generic `:entityType/:entityId` routes below. Nest
+   * matches in declaration order and both `recommendations/summary` and
+   * `recommendations/:id` are two segments, so placing either beneath the
+   * parameterised pair would make it answer as entityType="recommendations"
+   * and never run. A repo-wide gate enforces this; Phase 3 shipped four
+   * unreachable routes of exactly this shape before it existed.
+   */
+  @Get('recommendations')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  listRecommendations(@Query() query: ListRecommendationsDto) {
+    return this.recommendations.list(query);
+  }
+
+  /** Counts, derived from the same predicate as the list. */
+  @Get('recommendations/summary')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  recommendationSummary() {
+    return this.recommendations.summary();
+  }
+
+  /** Every active recommendation for one finding. Loaded by the drawer. */
+  @Get('recommendations/finding/:findingId')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  recommendationsForFinding(@Param('findingId') findingId: string) {
+    return this.recommendations.forFinding(findingId);
+  }
+
+  /** One recommendation in full. */
+  @Get('recommendations/:id')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  recommendation(@Param('id') id: string) {
+    return this.recommendations.byId(id);
+  }
+
+  /*
+   * Establish whether a better release can ACTUALLY be obtained.
+   *
+   * The ONLY route in this module that reaches outside the installation, and
+   * it runs only because a person pressed something. Gated on `scan` rather
+   * than `view` — reading the queue must never be able to make the system go
+   * and ask an indexer — and deliberately single-target: Phase 4 ships no
+   * "verify my whole library", because fanning out across thousands of
+   * titles is a policy decision, not a button.
+   *
+   * It downloads nothing. A verified candidate is a normalized snapshot; the
+   * grab stays with Media Acquisition behind that module's own permission.
+   */
+  @Post('recommendations/:id/verify')
+  @RequirePermissions(P.MEDIA_MANAGER_SCAN)
+  async verifyRecommendation(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
+    @Body() _body: unknown,
+  ) {
+    const result = await this.verification.verify(id);
+    await this.audit.record({
+      userId: user?.id,
+      ...reqAuditContext(req),
+      action: 'media_intelligence.recommendation.verified',
+      objectType: 'media_intelligence_recommendation',
+      objectId: id,
+      metadata: {
+        status: result.status,
+        candidates: result.candidates.length,
+        indexersQueried: result.indexersQueried,
+        indexersFailed: result.indexersFailed,
       },
     });
     return result;

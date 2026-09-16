@@ -5,12 +5,16 @@ import { DOMAIN_EVENTS, MODULE_IDS } from '@ultratorrent/shared';
 import { DomainEventBus } from '../domain-events/domain-event-bus.service';
 import { ModuleRegistryService } from '../module-registry/module-registry.service';
 import { MediaAcquisitionModule } from '../media-acquisition/media-acquisition.module';
+import { IndexersModule } from '../indexers/indexers.module';
 import { MediaIntelligenceController } from './media-intelligence.controller';
 import { MediaIntelligenceProjectionService } from './media-intelligence-projection.service';
 import { MediaIntelligenceService } from './media-intelligence.service';
 import { MediaStateAssembler } from './media-state.assembler';
 import { QualityPreferenceResolver } from './quality/preference-resolution.service';
 import { AttentionService } from './attention/attention.service';
+import { RecommendationService } from './recommendations/recommendation.service';
+import { RecommendationQueryService } from './recommendations/recommendation-query.service';
+import { UpgradeVerificationService } from './recommendations/upgrade-verification.service';
 import { AttentionDispositionService } from './attention/attention-disposition.service';
 import { CapabilityRegistry } from '../context-actions/capability-registry.service';
 import { MEDIA_INTELLIGENCE_ACTIONS } from './media-intelligence-actions';
@@ -45,6 +49,7 @@ export class MediaIntelligenceReconciler implements OnModuleInit {
     private readonly bus: DomainEventBus,
     private readonly registry: ModuleRegistryService,
     private readonly projections: MediaIntelligenceProjectionService,
+    private readonly recommendations: RecommendationService,
   ) {}
 
   /*
@@ -85,13 +90,22 @@ export class MediaIntelligenceReconciler implements OnModuleInit {
     this.dirty.clear();
     void this.projections
       .rebuildAll()
-      .then((s) => {
+      .then(async (s) => {
         if (!s.skipped) {
           this.logger.log(
             `Reconciled Media Intelligence${hinted ? ' (source events seen)' : ''}: ` +
               `${s.movies} movies, ${s.series} series, ${s.failed} failed.`,
           );
         }
+        /*
+         * Age verified upgrade candidates out on the same clock.
+         *
+         * An indexer result is ephemeral, so a verification has to expire —
+         * but expiring a CLAIM must never cost network traffic. This is one
+         * bounded UPDATE over an index and calls no provider; re-earning the
+         * verification requires someone to explicitly ask again.
+         */
+        await this.recommendations.expireStaleVerifications(new Date());
       })
       .catch((err) => this.logger.warn(`Media Intelligence reconcile failed: ${(err as Error).message}`));
   }
@@ -110,20 +124,29 @@ export class MediaIntelligenceReconciler implements OnModuleInit {
  * import edge — adding one would be a redundant cycle risk, not extra safety.
  */
 @Module({
-  imports: [MediaAcquisitionModule],
+  imports: [MediaAcquisitionModule, IndexersModule],
   controllers: [MediaIntelligenceController],
   providers: [
     MediaStateAssembler,
     QualityPreferenceResolver,
     AttentionService,
     AttentionDispositionService,
+    RecommendationService,
+    RecommendationQueryService,
+    UpgradeVerificationService,
     MediaIntelligenceProjectionService,
     MediaIntelligenceService,
     MediaIntelligenceReconciler,
   ],
   // Exported so a future Attention Center (Phase 3) can read findings without
   // going through HTTP.
-  exports: [MediaIntelligenceService, MediaIntelligenceProjectionService, AttentionService],
+  exports: [
+    MediaIntelligenceService,
+    MediaIntelligenceProjectionService,
+    AttentionService,
+    RecommendationService,
+    RecommendationQueryService,
+  ],
 })
 export class MediaIntelligenceModule implements OnModuleInit {
   constructor(private readonly capabilities: CapabilityRegistry) {}

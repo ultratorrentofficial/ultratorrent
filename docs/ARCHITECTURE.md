@@ -1432,6 +1432,94 @@ Key files: `packages/shared/src/media-attention.ts`,
 query service, disposition service),
 `apps/frontend/src/pages/media-intelligence/MediaAttentionPage.tsx`.
 
+### Phase 4 — Explainable Recommendations
+
+**Status: complete, advisory.** Answers "given what UltraTorrent knows, what
+should I do about it". It proposes and explains; it executes nothing.
+
+**The rule this phase adds: Media Intelligence may own a RECOMMENDATION, but
+the owning domain owns the ACTION.** Every type either points at a capability
+another module already registered, or — for quality upgrades — orchestrates a
+read-only search through existing acquisition services and hands any resulting
+grab back to Media Acquisition.
+
+**A recommendation is not a field on a finding.** A finding describes a
+CONDITION and belongs to the evaluator; a recommendation describes a PROPOSED
+RESPONSE and has its own lifecycle. A condition can stay true while the
+sensible response changes — a capability is disabled, a preference is edited,
+a candidate goes stale. Collapsing them would make "still broken" and "still
+the right fix" indistinguishable, the same mistake Phase 3 refused to make
+with disposition versus `resolvedAt`.
+
+**The catalogue is smaller than the brief asked for, and that is the finding.**
+Nine types ship, each because a real capability backs it. Four candidates were
+dropped after auditing the actual surface rather than assuming it:
+`GATHER_TECHNICAL_DATA` (there is no user-invocable mediainfo probe anywhere —
+`MediaProbeService` is reachable only from the scheduled backfill and the
+intake pipeline), `SEARCH_FOR_MISSING_MOVIE` (no movie search path exists;
+`TvSearchQuery` has no movie fields and the selector hard-requires a season and
+episode), `ACQUIRE_MISSING_SUBTITLES` (download takes a chosen CANDIDATE, not
+an item — which release wins is a product decision nobody has made), and
+anything keyed to `BACKFILL_STALLED` (declared and classified but never emitted
+by any evaluator). `EPISODES_MISSING` likewise gets nothing: its search
+endpoint is keyed to a watchlist item and grabs as part of the same call, so
+there is no read-only per-entity search to point at. A dangling capability id
+renders as a dead control, which teaches operators to distrust the surface.
+
+**Upgrade POTENTIAL is still not upgrade AVAILABILITY, and only one file may
+change that.** A recommendation begins at `not_checked`, which is neutral, not
+a failure. `UpgradeVerificationService` is the sole operation in this module
+that reaches outside the installation, it runs only from an explicit operator
+action, and it introduces no new client: `IndexerService.searchAllDetailed` is
+the only search client in the codebase, `AcquisitionMatchPreferenceService`
+decides which ladder applies, and `evaluatePreferenceList` is the authoritative
+matcher. Superiority is decided by the operator's own ladder — a candidate must
+satisfy a STRICTLY more preferred rung than the owned copy — which is what
+keeps `x264 → x265` at equal quality from proposing a re-download, the same
+rule Smart Download enforces by subtracting codec from its comparison. The
+ladder is scoped by media kind through `ladderAppliesTo`, because an unscoped
+one previously marked 3,026 of 3,351 films `below_preference` on size alone.
+Candidates join to rungs on the candidate ID, never on
+`matchedCandidatePriority`: that field is `priorityOrder`, while a rung's index
+is its position in the ladder array, and the two coincide only by accident.
+
+**Confidence is three words, not a percentage.** `high | medium | low`,
+deterministic and explainable. A number like 93% implies a calibrated
+probability model and there is none. Because the column is text and sorts
+`high, low, medium` — putting the least-trusted advice first — the comparable
+rank is persisted in `confidenceRank`, exactly as Phase 3 had to do for
+`severity`.
+
+**Nothing here writes Phase 3 disposition.** Acknowledge, snooze, dismiss, the
+escalation reason and the transition history all stay on the finding. A
+recommendation resolves nothing either: an action starting, or even completing,
+never sets `resolvedAt`. The finding closes only when the next reconciliation
+proves it from source facts.
+
+**Persistence is derived, with two deliberate exceptions.** The sweep
+re-evaluates recommendations from findings every pass and the table can be
+dropped and rebuilt; what is NOT re-derived is a verification a person
+explicitly asked for (with its bounded candidate snapshot) and the row's own
+`createdAt`. Identity is `(findingId, type)` — a durable logical key, since
+reconciliation updates finding rows by primary key — which makes a rebuild an
+upsert rather than a source of duplicates. A verified candidate ages to `stale`
+after 12 hours on the existing reconcile tick, as one indexed UPDATE that calls
+no provider.
+
+**Security:** the candidate snapshot is a deliberate DTO — release name,
+indexer name, size, seeders, rung — and never the provider payload, because an
+indexer link can carry an authentication token and this object is rendered in a
+browser and persisted. Reads gate on `media_manager.view`; verification gates
+on `media_manager.scan`, since reading a queue must never be able to make the
+system go and ask an indexer.
+
+Key files: `packages/shared/src/media-recommendations.ts`,
+`apps/backend/src/modules/media-intelligence/recommendations/`
+(`recommendation-evaluator.ts` — pure, `recommendation.service.ts`,
+`recommendation-query.service.ts`, `upgrade-verification.service.ts`,
+`confidence-rank.ts`).
+
+
 ## Event-Driven Architecture
 
 Modules communicate through **domain events**, not tight coupling: a module
@@ -1734,6 +1822,7 @@ append a dated row here.
 
 | Date | Change |
 |------|--------|
+| 2026-09-16 | **Media Intelligence Phase 4: explainable recommendations.** Turns findings into proposed responses that state what, why, how sure, and — the part that matters — what is still unknown. New `media_intelligence_recommendations` table keyed on `(findingId, type)`, a pure `recommendation-evaluator.ts`, a reconciliation pass inside the existing sweep, a read-only query API, one CAMA action, and explicit indexer verification. **Auditing the real capability surface shrank the catalogue, which is the main finding:** nine types ship, and four plausible ones were refused because nothing backs them — `GATHER_TECHNICAL_DATA` (no user-invocable mediainfo probe exists; `MediaProbeService` has no controller), `SEARCH_FOR_MISSING_MOVIE` (no movie search path at all — `TvSearchQuery` carries no movie fields and the selector hard-requires season+episode), `ACQUIRE_MISSING_SUBTITLES` (download takes a candidate id, not an item), and anything on `BACKFILL_STALLED` (declared but never emitted). `EPISODES_MISSING` gets none either: its only search endpoint is watchlist-keyed and grabs as it goes. Upgrade POTENTIAL stays distinct from AVAILABILITY — a recommendation starts `not_checked`, and only `UpgradeVerificationService`, run from an explicit action gated on `media_manager.scan`, can reach `verified`. It adds no client, parser, matcher or scorer: `IndexerService.searchAllDetailed` + `AcquisitionMatchPreferenceService` + `evaluatePreferenceList`, with superiority decided by a STRICTLY better rung of the operator's own ladder (so codec-only differences propose nothing), the ladder scoped by `ladderAppliesTo`, and candidates joined to rungs by candidate ID rather than `matchedCandidatePriority` (that is `priorityOrder`, not the array index). Confidence is `high|medium|low`, never a fake percentage, with a persisted `confidenceRank` because the text column sorts high/low/medium. Verified candidates age to `stale` after 12h on the existing tick with no provider call. Disposition is never written from this phase and no action resolves a finding — reconciliation still has to prove it. Two review catches worth recording: literal NUL bytes reached two source files (the Write tool took `\u0000` verbatim) and were replaced with a printable separator, and an unguarded schema replace edited `MediaDuplicateGroup`'s index because `@@index([status, confidence])` was not unique in the file — caught by `prisma validate` and repaired to a provably additive diff (73 insertions, 0 deletions). Gates: shared build; backend tsc 0; backend suite 385 suites / 5409 tests; frontend tsc 0; i18n parity 319 keys; route-shadowing + action-endpoint 41; prisma validate + generate; two additive migrations; DI boot with the new Media Intelligence → Indexers edge. |
 | 2026-09-15 | **RSS: an episode rule could match a release that has no episode.** The pattern-less half of this was fixed on 2026-09-08 (a generated rule with an empty pattern matched an entire feed; `DiscoveryRuleService.generate()` now refuses to insert one). This is the complementary half, found by tracing a live incident from the same night: a rule that DOES carry a pattern, meeting a **date-based daily release**. `Match.Of.The.Day.2026.09.06.720p...` has no `SxxEyy`, so `parseRelease` returns no season and no episode, and `smart_episode_match` — having no season/episode constraint of its own to compare against — degenerated into a bare title test and passed. The importer then derived the SAME destination for every such grab, `Show - S01E` with an empty episode number, so each import collided with the previous one and was moved aside as `[dup2]`, `[dup3]`: four grabs, two survivors, the others overwritten before anyone saw them. `coreMatch` now requires parseable episode identity **when the candidate carries a pattern**, which is exactly the show-keyed rule case; a pattern-less rung is untouched because the acquisition ladder builds those on purpose (`profileToInput`, `ensureSeeded`) for a bridge that has already anchored the title and the exact `SxxEyy`, and requiring episode identity there would reject every release it was asked to rank. Anime is unaffected — `parseRelease` has no `absoluteEpisode`, so `One.Piece.1089` already failed on the title anchor, not on this. The success detail string also stopped reporting the RULE's constraints (`matched SundefinedEundefined`, which is what made the original traces unreadable) and now reports what the RELEASE is. Five new cases pin it, including that a pattern-less rung still matches a dated release; the two rules behind the incident were disabled separately, and the guard makes a third one impossible rather than relying on that. Gates: backend tsc 0; backend suite 383 suites / 5369 tests (+5); rss + media-acquisition 37 suites / 508 tests. |
 | 2026-09-15 | **Media Intelligence Attention Center: per-title grouping and a finding detail drawer.** Closes the two gaps left open when Phase 3 shipped. **Measuring first changed the design**: the per-episode fan-out that grouping was meant to solve does not exist — a live sweep holds 897 `series` and 44 `movie` findings and ZERO at episode level, because findings are keyed on the show — so grouping is by MEDIA and its honest benefit is 940 findings collapsing to 673 title cards (483 titles hold one finding, 126 two, 50 three, 14 four), not a dramatic reduction. Grouped mode (`?groupBy=media`) pages on DISTINCT TITLES rather than findings, because paging the finding table would split a title across two pages and render its card twice; it costs one `groupBy` plus one `findMany` regardless of page size, and reuses the flat list's `buildWhere` so counters and both list shapes cannot drift. A card carries the WORST severity it contains, computed explicitly from member priority rather than inherited from row order — reading `members[0]` would be correct only by accident of the current `ORDER BY`, and a later ordering change would silently render a critical finding behind a "warning" card. No new aggregate persistence: query/projection aggregation only. The drawer loads history lazily on open (`enabled: open`) so a 50-row page issues no history requests nobody asked for, renders evidence through the shared humanizer (nested values fall back to pretty JSON rather than an empty cell), labels every history event and attributes evaluator transitions to the system instead of leaving a blank where a name would go. Selection pruning now spans grouped members too, so a bulk action still cannot reach a row that is not on screen. Two defects caught in review rather than by a user: `HumanField` has no `key` (frontend `tsc`), and the grouping tests asserted against the spinner frame because the helper waited for the request to be ISSUED rather than rendered. Still unwired from Phase 3: `dispositionActorName` is always null and `actionCapabilityIds` always empty. Gates: shared build; backend tsc 0; backend suite 383 suites / 5365 tests (7 new grouped specs); frontend tsc 0; frontend vitest 83 files / 782 tests; i18n parity 265 keys; nest build; DI boot. |
 | 2026-09-15 | **Media Intelligence Phase 3 complete: the Attention Center is operator-facing.** Adds the query service, disposition mutations, CAMA registration and the page itself on top of the foundation committed earlier today. Ordering is a PERSISTED, explainable rank (`severityRank * 10 + acknowledged`, tie-broken by first-observed then id) rather than a sort on `severity`, whose text order is close to the reverse of its meaning; acknowledgement demotes within a severity, never across one. `isActiveAttention()`/`viewWhere()` define the active queue ONCE so the summary counts and the list cannot drift. Mutations de-duplicate ids, report unknown ones, and SKIP a finding the evaluator resolved between selection and click — the UPDATE re-checks `resolvedAt IS NULL` to close the remaining window — with one audit row per operator action naming the whole selection. New `finding` CAMA entity type plus four disposition actions gated on `media_manager.view` (triage changes no media); deliberately no search/upgrade/delete action, because remediation belongs to the owning module. Frontend: summary tiles, four views, server-side filters and search, bulk selection that prunes to visible rows so a hidden row cannot be mutated, native keyboard-operable snooze, severity labelled not just coloured, and an empty filter that never implies a healthy library. Two repo-wide gates earned their keep: route-shadowing found FOUR unreachable routes (`:entityType/:entityId` capturing `attention/summary`; `attention/:findingId/*` capturing `attention/bulk/*`), and the action-endpoint gate forced every new action id to map to a real handler with covering permissions. Additive migration: one defaulted `attentionPriority` column, one index, and a backfill derived from columns already on each row. Gates: shared build; backend tsc 0; backend suite 383 suites / 5358 tests; frontend tsc 0; frontend vitest 82 files / 765 tests; i18n parity 254 keys; nav-routes 77; prisma validate; DI boot. |

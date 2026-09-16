@@ -49,6 +49,10 @@ import type {
   UnifiedMediaState,
   MediaAttentionGroupedResult,
   MediaAttentionListResult,
+  MediaRecommendation,
+  MediaRecommendationListResult,
+  MediaRecommendationSummary,
+  MediaVerificationResult,
   MediaAttentionSummary,
   MediaAttentionHistoryEntry,
 } from '@ultratorrent/shared';
@@ -97,6 +101,21 @@ export interface AttentionQuery {
   q?: string;
   /** `'media'` asks for one card per title instead of one row per finding. */
   groupBy?: string;
+  [key: string]: string | undefined;
+}
+
+export interface RecommendationQuery {
+  page?: string;
+  pageSize?: string;
+  status?: string;
+  type?: string;
+  recommendationClass?: string;
+  confidence?: string;
+  verification?: string;
+  entityType?: string;
+  /** `'true'` for recommendations something can actually be done about. */
+  actionable?: string;
+  q?: string;
   [key: string]: string | undefined;
 }
 
@@ -4823,6 +4842,38 @@ export const api = {
       return request<MediaAttentionGroupedResult>('/media-intelligence/attention', {
         query: { ...query, groupBy: 'media' },
       });
+    },
+    /**
+     * The recommendation queue. A READ — opening it starts no indexer search.
+     */
+    recommendations(query: RecommendationQuery = {}): Promise<MediaRecommendationListResult> {
+      return request<MediaRecommendationListResult>('/media-intelligence/recommendations', { query });
+    },
+    recommendationSummary(): Promise<MediaRecommendationSummary> {
+      return request<MediaRecommendationSummary>('/media-intelligence/recommendations/summary');
+    },
+    /** Loaded lazily by the finding drawer, never per list row. */
+    recommendationsForFinding(findingId: string): Promise<MediaRecommendation[]> {
+      return request<MediaRecommendation[]>(
+        `/media-intelligence/recommendations/finding/${encodeURIComponent(findingId)}`,
+      );
+    },
+    /**
+     * Ask the indexers whether a better release can actually be obtained.
+     *
+     * The ONE call in this section that reaches outside the installation, and
+     * it happens only because a person pressed something — never on render.
+     */
+    verifyRecommendation(id: string): Promise<MediaVerificationResult> {
+      return request<MediaVerificationResult>(
+        `/media-intelligence/recommendations/${encodeURIComponent(id)}/verify`,
+        { method: 'POST', body: {} },
+      );
+    },
+    recommendation(id: string): Promise<MediaRecommendation> {
+      return request<MediaRecommendation>(
+        `/media-intelligence/recommendations/${encodeURIComponent(id)}`,
+      );
     },
     attentionSummary(): Promise<MediaAttentionSummary> {
       return request<MediaAttentionSummary>('/media-intelligence/attention/summary');

@@ -331,5 +331,75 @@
     "LIBRARY_NEVER_SCANNED": "Biblioteca nunca escaneada",
     "QUALITY_UPGRADE_POTENTIAL": "Potencial de mejora",
     "QUALITY_BELOW_PREFERENCE": "Por debajo de la calidad preferida"
+  },
+  "recommendations": {
+    "heading": "Recomendación",
+    "none": "Todavía no se puede recomendar nada para este hallazgo.",
+    "why": "Por qué",
+    "stillUnknown": "Aún se desconoce",
+    "expected": "Qué haría",
+    "confidence": "Confianza",
+    "availability": "Disponibilidad",
+    "verify": "Buscar una mejora",
+    "verifying": "Buscando…",
+    "openOwner": "Abrir la herramienta que lo maneja",
+    "candidate": "Mejor candidato encontrado",
+    "rung": "Nivel de preferencia",
+    "confidenceLevel": {
+      "high": "Alta",
+      "medium": "Media",
+      "low": "Baja"
+    },
+    "status": {
+      "active": "Activa",
+      "verified": "Verificada",
+      "invalidated": "Ya no aplica",
+      "satisfied": "Resuelta"
+    },
+    "verification": {
+      "not_required": "No hay nada que verificar — el objetivo ya existe aquí",
+      "not_checked": "Todavía no se ha verificado",
+      "checking": "Verificando…",
+      "verified": "Hay un lanzamiento mejor disponible",
+      "no_match": "Se buscó — ahora mismo no hay nada mejor",
+      "stale": "La última verificación ya venció",
+      "failed": "No se pudo completar la búsqueda"
+    },
+    "type": {
+      "SEARCH_FOR_QUALITY_UPGRADE": "Buscar un lanzamiento de mayor preferencia",
+      "SEARCH_SUBTITLES": "Buscar subtítulos",
+      "RETRY_FAILED_INTAKE": "Reintentar la importación fallida",
+      "REVIEW_FAILED_INTAKE": "Revisar la importación fallida",
+      "REVIEW_DUPLICATES": "Revisar las copias duplicadas",
+      "REVIEW_IDENTITY": "Confirmar qué título es este",
+      "REFRESH_METADATA": "Obtener los metadatos que faltan",
+      "SCAN_LIBRARY": "Escanear esta biblioteca",
+      "RECHECK_TORRENT": "Verificar el torrent de nuevo"
+    },
+    "unknown": {
+      "whether_a_superior_release_is_obtainable": "Si de verdad se puede conseguir un lanzamiento mejor — todavía no se le ha preguntado a ningún indexador.",
+      "whether_the_original_cause_was_addressed": "Si ya se arregló lo que causó la falla.",
+      "whether_the_failure_is_retryable": "Si esta importación se puede reintentar.",
+      "which_stage_should_resume": "Desde qué etapa debe continuar la importación — lo tiene que decidir una persona.",
+      "which_copy_should_be_kept": "Cuál copia se debe conservar.",
+      "which_title_this_actually_is": "Qué título es este en realidad.",
+      "whether_a_provider_has_this_title": "Si algún proveedor de metadatos conoce este título.",
+      "whether_any_required_language_is_missing": "Si falta algún idioma que su política exige.",
+      "whether_a_recheck_clears_the_error": "Si verificar de nuevo resuelve el error."
+    },
+    "step": {
+      "search_indexers": "Buscar en sus indexadores configurados",
+      "evaluate_against_preferences": "Ordenar los resultados según sus preferencias",
+      "compare_with_owned": "Comparar cada resultado con lo que ya tiene",
+      "present_candidates": "Mostrarle lo que se encontró",
+      "require_approval": "Esperar su aprobación",
+      "hand_off_to_owning_domain": "Entregar a la herramienta que hace el cambio",
+      "open_review_surface": "Abrir la página donde usted decide",
+      "retry_from_resume_state": "Reanudar la importación donde se quedó"
+    },
+    "improvement": {
+      "higher_preference_rung": "Cumple con un nivel más alto de su escala de preferencias"
+    },
+    "size": "Tamaño"
   }
 }

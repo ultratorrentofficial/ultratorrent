@@ -4697,6 +4697,8 @@ model MediaIntelligenceFinding {
   @@index([snoozedUntil])
   /// The Attention queue's own ordering: open rows, worst first, stably paged.
   @@index([resolvedAt, attentionPriority, firstObservedAt])
+  recommendations MediaIntelligenceRecommendation[]
+
   @@map("media_intelligence_findings")
 }
 
@@ -4725,4 +4727,75 @@ model MediaIntelligenceFindingEvent {
   /// The detail drawer reads one finding's history, newest first.
   @@index([findingId, createdAt])
   @@map("media_intelligence_finding_events")
+}
+
+/// A proposed response to a finding — Phase 4.
+///
+/// DERIVED, like every other Media Intelligence table: rebuildable from the
+/// findings and the source domains, and safe to drop. Two things are
+/// deliberately NOT derived and are the reason this is a table rather than a
+/// computed field: the verification a person explicitly asked for (and the
+/// bounded candidate snapshot it produced), and the history of how the
+/// recommendation changed. Re-deriving those would either lose them or, worse,
+/// fabricate a fresh verification nobody ran.
+///
+/// Identity is `(findingId, type)`. A finding row is already stable across
+/// rebuilds — reconciliation updates it by primary key and has never
+/// delete-and-recreated — so this pair is a durable logical key and a sweep
+/// updates in place instead of accumulating a row per run.
+model MediaIntelligenceRecommendation {
+  id         String @id @default(uuid())
+  findingId  String
+  /// Denormalized from the finding so the queue can filter without a join.
+  entityType String
+  entityId   String
+
+  /// Stable machine vocabulary. Text, not a Postgres enum, for the same
+  /// reason finding codes are: adding one must be a code change, not a
+  /// migration that locks the table.
+  type                String
+  recommendationClass String
+  status              String @default("active")
+  confidence          String
+  /// Comparable rank for `confidence`, which is text and sorts alphabetically
+  /// (high, low, medium) — putting the least-trusted advice above the rest.
+  /// Persisted so Postgres can order and page on an index. See
+  /// `recommendations/confidence-rank.ts`.
+  confidenceRank      Int    @default(9)
+
+  /// A deliberate DTO assembled by the evaluator — never the raw finding row.
+  evidence Json @default("{}")
+  /// What is still unknown, as stable codes. Rendered as caveats.
+  unknowns Json @default("[]")
+  /// Explanatory plan steps. Codes, translated at presentation.
+  plan     Json @default("[]")
+
+  /// The CAMA capability an owning module already registered, when one exists.
+  capabilityId String?
+
+  /// Availability, which only an explicit search can establish.
+  verification String @default("not_required")
+  verifiedAt   DateTime?
+  /// Bounded, normalized best candidate. Never a provider payload, never a
+  /// credentialed URL.
+  candidate    Json?
+
+  invalidationReason String?
+  invalidatedAt      DateTime?
+
+  evaluatedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  finding MediaIntelligenceFinding @relation(fields: [findingId], references: [id], onDelete: Cascade)
+
+  /// The logical identity. One recommendation of a kind per finding, ever.
+  @@unique([findingId, type])
+  /// The queue's own ordering predicate.
+  @@index([status, confidenceRank, createdAt])
+  @@index([entityType, entityId])
+  @@index([type, status])
+  /// Finding stale verifications without scanning the table.
+  @@index([verification, verifiedAt])
+  @@map("media_intelligence_recommendations")
 }
