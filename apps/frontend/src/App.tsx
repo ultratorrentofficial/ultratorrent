@@ -53,6 +53,7 @@ import { MediaIntelligencePage } from '@/pages/media-intelligence/MediaIntellige
 import { MediaIntelligenceDetailPage } from '@/pages/media-intelligence/MediaIntelligenceDetailPage';
 import { MediaAttentionPage } from '@/pages/media-intelligence/MediaAttentionPage';
 import { MediaPoliciesPage } from '@/pages/media-intelligence/MediaPoliciesPage';
+import { MediaRemediationPage } from '@/pages/media-intelligence/MediaRemediationPage';
 import { CleanupCenterPage } from '@/pages/cleanup/CleanupCenterPage';
 import { CleanupPoliciesPage } from '@/pages/cleanup/CleanupPoliciesPage';
 import { CleanupRunsPage } from '@/pages/cleanup/CleanupRunsPage';
@@ -278,6 +279,14 @@ export function App() {
                         element={
                           <ModuleRoute moduleId="media_intelligence">
                             <MediaPoliciesPage />
+                          </ModuleRoute>
+                        }
+                      />
+                      <Route
+                        path="/media/intelligence/remediation"
+                        element={
+                          <ModuleRoute moduleId="media_intelligence">
+                            <MediaRemediationPage />
                           </ModuleRoute>
                         }
                       />

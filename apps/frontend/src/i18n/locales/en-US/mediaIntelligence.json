@@ -517,5 +517,119 @@
     "conflict": "Two policies at the same level disagree about {{dimension}}",
     "conflictHint": "UltraTorrent picked one so the result stays predictable, but it will not choose between them for you.",
     "advisory": "This is a comparison, not a plan. Nothing here changes your media."
+  },
+  "remediation": {
+    "title": "Remediation",
+    "subtitle": "What UltraTorrent proposes to do about drift, and what it is waiting for.",
+    "advisory": "Nothing here runs without your approval. Approving authorises the plan; the owning module still enforces its own permission when the work actually happens.",
+    "empty": "No remediation plans.",
+    "emptyHint": "Plans appear when a lifecycle policy finds drift something can actually be done about.",
+    "columns": {
+      "title": "Title",
+      "intent": "Intends to",
+      "status": "Status",
+      "risk": "Risk",
+      "waiting": "Waiting for"
+    },
+    "status": {
+      "proposed": "Proposed",
+      "awaiting_approval": "Awaiting approval",
+      "approved": "Approved",
+      "executing": "Running",
+      "waiting": "Waiting",
+      "verifying": "Checking result",
+      "succeeded": "Done",
+      "failed": "Failed",
+      "blocked": "Blocked",
+      "cancelled": "Cancelled",
+      "superseded": "No longer needed"
+    },
+    "stepStatus": {
+      "pending": "Not started",
+      "running": "Running",
+      "waiting": "Waiting",
+      "succeeded": "Done",
+      "failed": "Failed",
+      "skipped": "Skipped",
+      "cancelled": "Cancelled"
+    },
+    "risk": {
+      "low": "Low",
+      "moderate": "Moderate",
+      "destructive": "Destructive",
+      "irreversible": "Irreversible"
+    },
+    "intent": {
+      "metadata_provider_present": "Fetch metadata from a provider"
+    },
+    "kind": {
+      "refresh_metadata": "Refresh metadata"
+    },
+    "blockReason": {
+      "desired_state_unknown": "a dimension this depends on could not be evaluated",
+      "policy_conflict": "two policies at the same level disagree",
+      "identity_uncertain": "this title is not confidently matched",
+      "quality_not_measured": "the files have never been measured",
+      "capability_unavailable": "nothing in UltraTorrent can carry this out",
+      "verification_stale": "the candidate check has aged out",
+      "candidate_not_superior": "the candidate is no longer better than what you have",
+      "item_locked": "this title is locked against automated changes",
+      "entity_missing": "this title no longer exists",
+      "seeding_state_unknown": "whether the payload is still seeding could not be established",
+      "path_unsafe": "the destination is outside a permitted root",
+      "budget_exhausted": "the execution budget for now is used up",
+      "circuit_open": "automation is paused after repeated failures",
+      "approval_invalidated": "the plan changed after it was approved",
+      "insufficient_authority": "you do not hold the permission this step needs"
+    },
+    "failureClass": {
+      "transient": "Temporary problem",
+      "permanent": "Will not succeed",
+      "safety_block": "Refused by a safety check",
+      "precondition_changed": "The world changed",
+      "authorization": "Not permitted",
+      "capability_unavailable": "No longer possible",
+      "external_rate_limit": "Rate limited",
+      "cancelled": "Cancelled"
+    },
+    "blocked": "Blocked: {{reason}}",
+    "blockedUnknowable": "Approving cannot clear this — the underlying fact has to become known first.",
+    "approve": "Approve",
+    "cancel": "Stop",
+    "approved": "Approved",
+    "approvedBy": "Approved {{when}}",
+    "reapprovalRequired": "This plan changed after it was approved. Review it again.",
+    "confirmApprove": "Approve this plan?",
+    "confirmApproveBody": "UltraTorrent will carry this out through {{domain}}. It re-checks every safety condition immediately before acting, so a change in the meantime still stops it.",
+    "confirmCancel": "Stop this plan?",
+    "confirmCancelBody": "No further steps will start. Anything already done is not undone — a request already sent to another module belongs to that module now.",
+    "cancelReason": "Reason (optional)",
+    "approveFailed": "Could not approve this plan",
+    "cancelFailed": "Could not stop this plan",
+    "steps": "Steps",
+    "stepOwner": "Handled by {{domain}}",
+    "stepPermission": "Requires {{permission}}",
+    "why": "Why this exists",
+    "whyPolicy": "Asked for by {{policy}}",
+    "whyFinding": "Responding to {{code}}",
+    "expiresAt": "Expires {{when}}",
+    "expired": "Expired",
+    "waitingForResult": "The work is done; UltraTorrent is checking whether it actually helped.",
+    "filters": {
+      "all": "Active",
+      "awaiting": "Awaiting approval",
+      "blocked": "Blocked",
+      "failed": "Failed",
+      "done": "Completed"
+    },
+    "summary": {
+      "awaitingApproval": "Awaiting approval",
+      "approved": "Approved",
+      "executing": "Running",
+      "waiting": "Waiting",
+      "blocked": "Blocked",
+      "failed": "Failed",
+      "recentlySucceeded": "Completed"
+    }
   }
 }

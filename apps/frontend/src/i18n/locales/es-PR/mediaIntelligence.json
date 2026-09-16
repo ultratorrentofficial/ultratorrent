@@ -517,5 +517,119 @@
     "conflict": "Dos políticas del mismo nivel no concuerdan sobre {{dimension}}",
     "conflictHint": "UltraTorrent eligió una para que el resultado sea predecible, pero no decidirá entre ellas por ti.",
     "advisory": "Esto es una comparación, no un plan. Nada de esto cambia tus medios."
+  },
+  "remediation": {
+    "title": "Remediación",
+    "subtitle": "Lo que UltraTorrent propone hacer ante una desviación, y qué está esperando.",
+    "advisory": "Nada de esto se ejecuta sin tu aprobación. Aprobar autoriza el plan; el módulo dueño sigue exigiendo su propio permiso cuando el trabajo ocurre.",
+    "empty": "No hay planes de remediación.",
+    "emptyHint": "Los planes aparecen cuando una política de ciclo de vida encuentra una desviación sobre la que sí se puede actuar.",
+    "columns": {
+      "title": "Título",
+      "intent": "Pretende",
+      "status": "Estado",
+      "risk": "Riesgo",
+      "waiting": "Esperando"
+    },
+    "status": {
+      "proposed": "Propuesto",
+      "awaiting_approval": "Esperando aprobación",
+      "approved": "Aprobado",
+      "executing": "Ejecutando",
+      "waiting": "Esperando",
+      "verifying": "Verificando resultado",
+      "succeeded": "Listo",
+      "failed": "Falló",
+      "blocked": "Bloqueado",
+      "cancelled": "Cancelado",
+      "superseded": "Ya no hace falta"
+    },
+    "stepStatus": {
+      "pending": "Sin empezar",
+      "running": "Ejecutando",
+      "waiting": "Esperando",
+      "succeeded": "Listo",
+      "failed": "Falló",
+      "skipped": "Omitido",
+      "cancelled": "Cancelado"
+    },
+    "risk": {
+      "low": "Bajo",
+      "moderate": "Moderado",
+      "destructive": "Destructivo",
+      "irreversible": "Irreversible"
+    },
+    "intent": {
+      "metadata_provider_present": "Obtener metadatos de un proveedor"
+    },
+    "kind": {
+      "refresh_metadata": "Actualizar metadatos"
+    },
+    "blockReason": {
+      "desired_state_unknown": "no se pudo evaluar una dimensión de la que esto depende",
+      "policy_conflict": "dos políticas del mismo nivel no concuerdan",
+      "identity_uncertain": "este título no está emparejado con certeza",
+      "quality_not_measured": "los archivos nunca se han medido",
+      "capability_unavailable": "nada en UltraTorrent puede llevar esto a cabo",
+      "verification_stale": "la verificación del candidato caducó",
+      "candidate_not_superior": "el candidato ya no es mejor que lo que tienes",
+      "item_locked": "este título está bloqueado contra cambios automáticos",
+      "entity_missing": "este título ya no existe",
+      "seeding_state_unknown": "no se pudo establecer si la carga sigue compartiéndose",
+      "path_unsafe": "el destino está fuera de una raíz permitida",
+      "budget_exhausted": "se agotó el presupuesto de ejecución por ahora",
+      "circuit_open": "la automatización está en pausa tras fallos repetidos",
+      "approval_invalidated": "el plan cambió después de aprobarse",
+      "insufficient_authority": "no tienes el permiso que requiere este paso"
+    },
+    "failureClass": {
+      "transient": "Problema temporal",
+      "permanent": "No va a funcionar",
+      "safety_block": "Rechazado por una comprobación de seguridad",
+      "precondition_changed": "El mundo cambió",
+      "authorization": "No permitido",
+      "capability_unavailable": "Ya no es posible",
+      "external_rate_limit": "Límite de tasa",
+      "cancelled": "Cancelado"
+    },
+    "blocked": "Bloqueado: {{reason}}",
+    "blockedUnknowable": "Aprobar no resuelve esto — primero hay que llegar a conocer el dato subyacente.",
+    "approve": "Aprobar",
+    "cancel": "Detener",
+    "approved": "Aprobado",
+    "approvedBy": "Aprobado {{when}}",
+    "reapprovalRequired": "Este plan cambió después de aprobarse. Revísalo de nuevo.",
+    "confirmApprove": "¿Aprobar este plan?",
+    "confirmApproveBody": "UltraTorrent lo llevará a cabo a través de {{domain}}. Vuelve a comprobar cada condición de seguridad justo antes de actuar, así que un cambio en el intervalo lo detiene igual.",
+    "confirmCancel": "¿Detener este plan?",
+    "confirmCancelBody": "No se iniciará ningún paso más. Lo ya hecho no se deshace — una petición ya enviada a otro módulo pertenece a ese módulo.",
+    "cancelReason": "Motivo (opcional)",
+    "approveFailed": "No se pudo aprobar este plan",
+    "cancelFailed": "No se pudo detener este plan",
+    "steps": "Pasos",
+    "stepOwner": "A cargo de {{domain}}",
+    "stepPermission": "Requiere {{permission}}",
+    "why": "Por qué existe",
+    "whyPolicy": "Pedido por {{policy}}",
+    "whyFinding": "En respuesta a {{code}}",
+    "expiresAt": "Caduca {{when}}",
+    "expired": "Caducado",
+    "waitingForResult": "El trabajo terminó; UltraTorrent está comprobando si realmente sirvió.",
+    "filters": {
+      "all": "Activos",
+      "awaiting": "Esperando aprobación",
+      "blocked": "Bloqueados",
+      "failed": "Fallidos",
+      "done": "Completados"
+    },
+    "summary": {
+      "awaitingApproval": "Esperando aprobación",
+      "approved": "Aprobados",
+      "executing": "Ejecutando",
+      "waiting": "Esperando",
+      "blocked": "Bloqueados",
+      "failed": "Fallidos",
+      "recentlySucceeded": "Completados"
+    }
   }
 }

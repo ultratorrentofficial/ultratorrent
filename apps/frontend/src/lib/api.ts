@@ -59,6 +59,9 @@ import type {
   LifecycleEvaluation,
   MediaAttentionSummary,
   MediaAttentionHistoryEntry,
+  MediaRemediationPlan,
+  MediaRemediationPlanListResult,
+  MediaRemediationSummary,
 } from '@ultratorrent/shared';
 
 /**
@@ -135,6 +138,25 @@ export interface RecommendationQuery {
   entityType?: string;
   /** `'true'` for recommendations something can actually be done about. */
   actionable?: string;
+  q?: string;
+  [key: string]: string | undefined;
+}
+
+/**
+ * Query for the remediation queue. Every value is a string: it becomes a
+ * query param.
+ *
+ * Omitting `status` is not the same as asking for everything — the server
+ * defaults to the plans that still need deciding, because a queue showing
+ * last month's completed work is a queue nobody reads.
+ */
+export interface RemediationPlanQuery {
+  page?: string;
+  pageSize?: string;
+  status?: string;
+  entityType?: string;
+  entityId?: string;
+  policyId?: string;
   q?: string;
   [key: string]: string | undefined;
 }
@@ -4905,6 +4927,50 @@ export const api = {
     drift(entityType: string, entityId: string): Promise<LifecycleEvaluation> {
       return request<LifecycleEvaluation>(
         `/media-intelligence/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}/drift`,
+      );
+    },
+
+    /* ------------------------------------------- remediation plans (Phase 6) */
+
+    /**
+     * The remediation queue.
+     *
+     * A read. Opening it starts nothing, claims nothing and contacts no
+     * provider — the server's query service is separate from its writer for
+     * exactly that reason.
+     */
+    remediationPlans(
+      query: RemediationPlanQuery = {},
+    ): Promise<MediaRemediationPlanListResult> {
+      return request<MediaRemediationPlanListResult>('/media-intelligence/remediation', { query });
+    },
+    remediationSummary(): Promise<MediaRemediationSummary> {
+      return request<MediaRemediationSummary>('/media-intelligence/remediation/summary');
+    },
+    remediationPlan(id: string): Promise<MediaRemediationPlan> {
+      return request<MediaRemediationPlan>(
+        `/media-intelligence/remediation/${encodeURIComponent(id)}`,
+      );
+    },
+    /**
+     * Approve a plan, clearing it to execute.
+     *
+     * Approving authorises the plan; it does not run it. The server
+     * re-establishes every safety condition immediately before the source
+     * call, so a lock applied — or a justification changed — between this
+     * click and execution still stops the work.
+     */
+    approveRemediationPlan(id: string): Promise<MediaRemediationPlan> {
+      return request<MediaRemediationPlan>(
+        `/media-intelligence/remediation/${encodeURIComponent(id)}/approve`,
+        { method: 'POST', body: {} },
+      );
+    },
+    /** Stop a plan. Never undoes a step that already ran. */
+    cancelRemediationPlan(id: string, reason?: string): Promise<MediaRemediationPlan> {
+      return request<MediaRemediationPlan>(
+        `/media-intelligence/remediation/${encodeURIComponent(id)}/cancel`,
+        { method: 'POST', body: { reason } },
       );
     },
 

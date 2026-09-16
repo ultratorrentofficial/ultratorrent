@@ -116,7 +116,8 @@
     "Users": "Users",
     "Watch History": "Watch History",
     "Workflow Approvals": "Workflow Approvals",
-    "Workflows": "Workflows"
+    "Workflows": "Workflows",
+    "Remediation": "Remediation"
   },
   "descriptions": {
     "Acquisition Intelligence": "Smart acquisition and upgrades",
@@ -209,7 +210,8 @@
     "Users": "User accounts, roles and permissions",
     "Watch History": "Completed playback history",
     "Workflow Approvals": "Decide workflow steps awaiting approval",
-    "Workflows": "Design automations visually on a canvas"
+    "Workflows": "Design automations visually on a canvas",
+    "Remediation": "Plans UltraTorrent proposes for drift, awaiting your approval."
   },
   "details": {
     "Account": "Account",
