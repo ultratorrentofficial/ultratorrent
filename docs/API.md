@@ -1176,3 +1176,78 @@ probing on request.
 `/preview` writes nothing and takes a template **by value**, so an unsaved one
 can be evaluated. `/evaluate` is the consequential endpoint — it can create
 watchlist entries and generate acquisition rules — and is audited before it runs.
+
+## Media Intelligence — `/api/media-intelligence`
+
+`@Controller('media-intelligence')` guarded by `JwtAuthGuard` +
+`PermissionsGuard`. Assembles one unified state per media entity from the
+domains that already own the facts, raises findings, proposes explainable
+recommendations, and — from Phase 5 — compares what the operator asked for
+against what is actually true. Full detail:
+[ARCHITECTURE.md](ARCHITECTURE.md#media-intelligence).
+
+**Nothing here acts on media.** Every route reads persisted or assembled
+state; the two that cost real work (`recommendations/:id/verify`, `rebuild`)
+are gated on `media_manager.scan` and say so. Lifecycle policies express
+intent and are never executed — there is no `automatic` mode and no scheduler
+that searches, grabs, deletes, replaces or moves anything on a policy's
+behalf. Acting on drift is deferred to a future phase, behind human approval.
+
+### State, findings & the attention queue
+
+| Method | Path | Permission |
+|--------|------|------------|
+| `GET` | `/api/media-intelligence` · `/overview` | `media_manager.view` |
+| `GET` | `/api/media-intelligence/attention` · `/attention/summary` | `media_manager.view` |
+| `GET` | `/api/media-intelligence/attention/:findingId/history` | `media_manager.view` |
+| `POST` | `/api/media-intelligence/attention/:findingId/{acknowledge,snooze,dismiss,reset}` | `media_manager.view` |
+| `POST` | `/api/media-intelligence/attention/bulk/{acknowledge,snooze,dismiss}` | `media_manager.view` |
+| `GET` | `/api/media-intelligence/:entityType/:entityId` · `/findings` | `media_manager.view` |
+| `POST` | `/api/media-intelligence/:entityType/:entityId/refresh` | `media_manager.view` |
+| `POST` | `/api/media-intelligence/rebuild` | `media_manager.scan` |
+
+### Recommendations
+
+| Method | Path | Permission |
+|--------|------|------------|
+| `GET` | `/api/media-intelligence/recommendations` · `/summary` · `/:id` | `media_manager.view` |
+| `GET` | `/api/media-intelligence/recommendations/finding/:findingId` | `media_manager.view` |
+| `POST` | `/api/media-intelligence/recommendations/:id/verify` | `media_manager.scan` |
+
+A recommendation starts `not_checked`. Only `/verify` — an explicit,
+`scan`-gated act — reaches an indexer, and it distinguishes upgrade
+*potential* from a real available candidate. Verified candidates age to
+`stale` after 12 hours.
+
+### Lifecycle policies & drift (Phase 5)
+
+| Method | Path | Permission |
+|--------|------|------------|
+| `GET` | `/api/media-intelligence/policies` · `/policies/:id` | `media_manager.view` |
+| `POST` | `/api/media-intelligence/policies` | `media_lifecycle.policy.manage` |
+| `PATCH` | `/api/media-intelligence/policies/:id` | `media_lifecycle.policy.manage` |
+| `DELETE` | `/api/media-intelligence/policies/:id` | `media_lifecycle.policy.manage` |
+| `POST` | `/api/media-intelligence/policies/preview` | `media_manager.view` |
+| `GET` | `/api/media-intelligence/:entityType/:entityId/desired-state` | `media_manager.view` |
+| `GET` | `/api/media-intelligence/:entityType/:entityId/drift` | `media_manager.view` |
+
+`/policies/preview` writes nothing and takes a draft **by value**, so an
+unsaved policy can be evaluated — it runs the *production* evaluator with the
+draft injected into the in-memory policy list, so the draft competes in
+precedence exactly as a saved one would, including losing to a narrower
+policy. It is bounded at 500 entities and reports `truncated` rather than
+implying a whole-library verdict from a sample.
+
+Reads stay on `media_manager.view` because explainability is not a privilege;
+**authoring intent is**, so the three mutations require
+`media_lifecycle.policy.manage`, which no non-admin role holds. Each mutation
+returns `{ reevaluationJobId }` — changing intent changes conclusions, so the
+library is re-derived by a cancellable background job rather than inside the
+request. One sweep is one sweep: an in-flight re-evaluation is returned
+untouched rather than starting a second traversal.
+
+`/drift` returns four outcomes per dimension — `compliant`, `drift`,
+`not_applicable` (no policy governs it) and `unknown` (a policy governs it but
+the facts cannot settle it). `unknown` never collapses into either verdict: an
+unprobed file is unmeasured, not wrong, and a library nobody could measure is
+not healthy.

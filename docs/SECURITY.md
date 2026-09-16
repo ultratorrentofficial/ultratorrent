@@ -198,6 +198,7 @@ into the catalog at load):
 | `indexers.*` | `view`, `manage`, `test` |
 | `integrations.prowlarr.*` | `view`, `manage`, `test`, `open` |
 | `media_manager.*` | `view`, `manage_libraries`, `scan`, `match`, `edit_metadata`, `manage_artwork`, `manage_subtitles`, `rename`, `move_files`, `generate_nfo`, `manage_integrations`, `delete`, `admin`, plus `imdb.{view,configure,import_dataset,search,match}` |
+| `media_lifecycle.*` | `policy.manage` — author lifecycle policies (what a title should be kept at). Reading policies, desired state and drift stays on `media_manager.view`, because explainability is not a privilege; **stating intent is**. Deliberately withheld from `POWER_USER` (and every other non-admin role), following Library Cleanup's "read + no-side-effect simulation only" line, because a future phase will act on these rows. Every create/update/delete is audited (`media_intelligence.lifecycle_policy.{created,updated,enabled,disabled,deleted}`) recording the intent expressed — dimensions and scope — and never the media it would touch. |
 | `media_renamer.*` | `view`, `preview`, `execute`, `rollback`, `manage_templates` |
 | `media_acquisition.*` | `view`, `manage_watchlist`, `manage_profiles`, `evaluate`, `approve`, `reject`, `override`, `history`, `settings`, `export` |
 | `release_scoring.*` | `view`, `manage` |
