@@ -7361,6 +7361,13 @@ export interface DiscoveredReleaseDate {
   confidence: number;
 }
 
+/** One step of a discovery evaluation: a gate, what it saw, and its verdict. */
+export interface DiscoveryTraceStep {
+  step: string;
+  status: 'pass' | 'fail' | 'info';
+  detail: string;
+}
+
 export interface DiscoveredMediaItem {
   id: string;
   mediaType: string;
@@ -7394,7 +7401,22 @@ export interface DiscoveredMediaItem {
    * template looked at it and found it out of scope, which is very different
    * from never having been looked at.
    */
-  evaluations?: Array<{ reason: string; decision: string; createdAt: string }>;
+  evaluations?: Array<{
+    reason: string;
+    decision: string;
+    createdAt: string;
+    /** The template that judged the title — tuning means opening it by name. */
+    template?: { name: string } | null;
+    /**
+     * Which gate ran, what it saw, and whether it passed.
+     *
+     * The decision reason is one sentence and frequently not actionable
+     * ("No configured category matched this title" names neither the template
+     * nor the title's own categories). The trace is what separates a provider
+     * that reported no genres from a template that is missing one.
+     */
+    trace?: DiscoveryTraceStep[];
+  }>;
 }
 
 export interface DiscoveredMediaPage {
@@ -7518,7 +7540,7 @@ export interface DiscoveryEvaluationRecord {
   id: string;
   decision: string;
   reason: string;
-  trace: Array<{ step: string; status: string; detail: string }>;
+  trace: DiscoveryTraceStep[];
   failureReason: string | null;
   createdAt: string;
 }

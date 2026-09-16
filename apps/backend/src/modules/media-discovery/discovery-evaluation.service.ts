@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { DOMAIN_EVENTS, zeroDecisionCounts } from '@ultratorrent/shared';
+import { DOMAIN_EVENTS, EXISTING_DECISIONS, zeroDecisionCounts } from '@ultratorrent/shared';
 import { DomainEventBus } from '../domain-events/domain-event-bus.service';
 import type { DiscoveryTemplate } from '@prisma/client';
 import type { DiscoveryDecision } from '@ultratorrent/shared';
@@ -380,14 +380,29 @@ export class DiscoveryEvaluationService {
         decisions.needs_review += 1;
       }
       /*
-       * Identity is also resolved for a past-release verdict.
+       * Identity is also resolved for any verdict that ASKS A PERSON to decide.
        *
        * A series that premiered in 2022 and has a new season coming is exactly
        * the case where "it already premiered" and "we are already monitoring it"
        * are both true. Reporting it as a past-release review item when it is
        * already being acquired would be noise about something working correctly.
+       *
+       * `needs_review` is the same case and the more common one: a template
+       * that does not monitor automatically, or one whose rule could not be
+       * built, produces a review item for a show whose every episode is
+       * already on disk. Measured on a live install — a series with eight
+       * downloaded episodes sat in the review queue carrying the very TMDB id
+       * its library items carry, because this gate never ran for it.
+       *
+       * The cost is three queries for a title somebody is about to be asked
+       * about, which is the one case where the answer is always read: it
+       * decides whether the question is worth asking at all.
        */
-      if (effective.decision === 'auto_monitor' || effective.decision === 'review_past_release') {
+      if (
+        effective.decision === 'auto_monitor' ||
+        effective.decision === 'review_past_release' ||
+        effective.decision === 'needs_review'
+      ) {
         existing = await this.identity.resolve(row);
 
         /*
@@ -405,16 +420,32 @@ export class DiscoveryEvaluationService {
           (row.rssRuleId != null && existing.rssRule?.id === row.rssRuleId);
 
         if (existing.state !== 'none' && !isOurOwn) {
+          /*
+           * Move the count off whichever decision actually held this title.
+           *
+           * Decrementing `auto_monitor` was hardcoded, and it was already
+           * wrong for a past-release verdict, which was never counted there.
+           * Now that a readiness failure can arrive here as `needs_review`
+           * too, the hardcoded version would drive one counter negative while
+           * leaving the other overstated.
+           */
+          const previous = effective.decision;
           effective = {
-            ...verdict,
+            ...effective,
             decision: EXISTING_STATE_DECISION[existing.state],
             reason: existing.detail,
+            /*
+             * Built on `effective`, not `verdict`: a readiness failure already
+             * appended its own step, and rebuilding from the raw verdict threw
+             * that away — losing the explanation of why the title was held in
+             * the first place.
+             */
             trace: [
-              ...verdict.trace,
+              ...effective.trace,
               { step: 'existing_identity', status: 'fail', detail: existing.detail },
             ],
           };
-          decisions.auto_monitor -= 1;
+          decisions[previous] -= 1;
           decisions[effective.decision] = (decisions[effective.decision] ?? 0) + 1;
         }
       }
@@ -832,6 +863,25 @@ export class DiscoveryEvaluationService {
     }
     if (decision === 'notify') return 'notified';
     if (decision === 'needs_review') return 'needs_review';
+    /*
+     * A past-release title is held for a person, not ignored.
+     *
+     * It fell through to `ignored`, which is why the Past release tab was
+     * permanently empty on every install while the titles it exists for sat
+     * in Ignored.
+     */
+    if (decision === 'review_past_release') return 'past_release';
+    /*
+     * "Already represented here" is not "ignored" either.
+     *
+     * The three existing-identity decisions also fell through, so a title the
+     * sweep correctly recognised as already in the library landed in Ignored —
+     * indistinguishable from one a category filter rejected, and absent from
+     * the Existing tab that exists for precisely this. The manual import path
+     * has always stamped `exists` (see `approve`); this makes the automatic
+     * path agree with it rather than contradict it.
+     */
+    if ((EXISTING_DECISIONS as readonly string[]).includes(decision)) return 'exists';
     return 'ignored';
   }
 

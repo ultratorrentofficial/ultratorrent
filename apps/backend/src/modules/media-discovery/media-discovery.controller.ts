@@ -46,7 +46,32 @@ const INBOX_INCLUDE = {
   evaluations: {
     orderBy: { createdAt: 'desc' as const },
     take: 1,
-    select: { reason: true, decision: true, templateId: true, createdAt: true },
+    /*
+     * The TRACE travels with the reason, and so does the template's NAME.
+     *
+     * `decisionReason` says "No configured category matched this title" for
+     * 122 of 132 ignored titles on one live install. That is true and useless
+     * for tuning: it names neither the template that judged the title nor the
+     * categories the title actually carries. The trace already separates
+     * "carries no categories at all" (a provider gap) from "carries Sports,
+     * which no template lists" (a template gap) — two different fixes that
+     * read identically without it. It has been written on every evaluation
+     * since the beginning and was simply never sent to the browser.
+     *
+     * A bare `templateId` cannot be acted on either: tuning means opening a
+     * template by name, so the name is what the card needs.
+     *
+     * Steps are `{step, status, detail}` — gate names and one-sentence
+     * explanations. No paths, no credentials, nothing provider-authenticated.
+     */
+    select: {
+      reason: true,
+      decision: true,
+      templateId: true,
+      createdAt: true,
+      trace: true,
+      template: { select: { name: true } },
+    },
   },
 };
 

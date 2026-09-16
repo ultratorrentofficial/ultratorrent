@@ -1142,3 +1142,147 @@ describe('scanning a newly monitored series for missing episodes', () => {
     expect(outcome.failed).toBe(0);
   });
 });
+
+/**
+ * A review item is a QUESTION, and the gate that answers "is this already
+ * here?" has to run before the question is worth asking.
+ *
+ * Identity resolution was gated to the decisions that CREATE something, so a
+ * title the template merely wanted a person to look at was never checked
+ * against the library. Measured on a live install: a series with eight
+ * downloaded episodes sat in the review queue carrying the very TMDB id its
+ * library items carry.
+ */
+describe('a title held for review is still checked against what already exists', () => {
+  const inLibrary = {
+    state: 'exists_not_monitored', matchedBy: 'external_id', matchedIdNamespace: 'tmdb',
+    watchlistItem: null, rssRule: null, libraryItemIds: ['mi1', 'mi2'],
+    detail: '8 item(s) already in your library',
+  };
+
+  /* The live shape: the template qualifies the title but does not auto-monitor. */
+  const notAutomatic = () => {
+    const h = harness({ existing: inLibrary });
+    h.templates.canAutoMonitor.mockReturnValue(false);
+    return h;
+  };
+
+  it('resolves identity for a verdict that only asks a person', async () => {
+    const h = notAutomatic();
+    await h.svc.runAll();
+    expect(h.identity.resolve).toHaveBeenCalled();
+  });
+
+  it('reports it as already in the library instead of asking about it', async () => {
+    const h = notAutomatic();
+    const [outcome] = await h.svc.runAll();
+    expect(outcome.decisions.exists_not_monitored).toBe(1);
+    expect(outcome.decisions.needs_review).toBe(0);
+  });
+
+  /*
+   * The counter the title actually came FROM is the one that must go down.
+   * Hardcoding `auto_monitor` drove it negative while leaving the real
+   * counter overstated — two wrong numbers from one wrong assumption.
+   */
+  it('moves the count off the decision it really held', async () => {
+    const h = notAutomatic();
+    const [outcome] = await h.svc.runAll();
+    expect(outcome.decisions.auto_monitor).toBe(0);
+  });
+
+  it('files it under Existing rather than Ignored', async () => {
+    const h = notAutomatic();
+    await h.svc.runAll();
+    expect(h.stamps[0].discoveryStatus).toBe('exists');
+  });
+
+  it('still creates nothing', async () => {
+    const h = notAutomatic();
+    await h.svc.runAll();
+    expect(h.watchlist.linkOrCreate).not.toHaveBeenCalled();
+    expect(h.rules.generate).not.toHaveBeenCalled();
+  });
+
+  /*
+   * A readiness failure reaches the gate by a different route, and its
+   * explanation has to survive: rebuilding the trace from the raw verdict
+   * discarded the step saying why the title was held in the first place.
+   */
+  it('keeps the earlier explanation in the trace', async () => {
+    const h = harness({
+      existing: inLibrary,
+      readiness: { ready: false, reason: 'Select match preferences before enabling automatic monitoring' },
+    });
+    await h.svc.runAll();
+    const steps = (h.evaluations[0].trace as Array<{ step: string }>).map((s) => s.step);
+    expect(steps).toContain('template_readiness');
+    expect(steps).toContain('existing_identity');
+  });
+});
+
+/**
+ * Where a decided title lands.
+ *
+ * `statusFor` fell through to `ignored` for every decision it did not name,
+ * which swept the existing-identity outcomes into the Ignored tab — beside
+ * titles a category filter genuinely rejected, and absent from the Existing
+ * tab that exists for exactly them.
+ */
+describe('an existing title is filed as existing, not ignored', () => {
+  const monitoredAlready = {
+    state: 'already_monitored', matchedBy: 'external_id', matchedIdNamespace: 'tmdb',
+    watchlistItem: { id: 'wl-existing', status: 'active', rssRuleId: 'r-existing', title: 'Show a' },
+    rssRule: { id: 'r-existing', name: 'Show a', generatedByDiscovery: false, userModifiedAt: null },
+    libraryItemIds: [], detail: 'Already monitored (matched by TMDB id)',
+  };
+
+  it('stamps `exists` for an already-monitored title', async () => {
+    const h = harness({ existing: monitoredAlready });
+    await h.svc.runAll();
+    expect(h.stamps[0].discoveryStatus).toBe('exists');
+  });
+
+  it('stamps `exists` for a half-configured one too', async () => {
+    const h = harness({
+      existing: { ...monitoredAlready, state: 'monitoring_incomplete', rssRule: null,
+        detail: 'On the watchlist but with no acquisition rule' },
+    });
+    await h.svc.runAll();
+    expect(h.stamps[0].discoveryStatus).toBe('exists');
+  });
+
+  /*
+   * A past-release title is held for a PERSON, and it fell through to
+   * `ignored` as well — which is why the Past release tab was empty on every
+   * install while the titles it exists for sat in Ignored.
+   *
+   * The fixture needs both halves, because two different gates read two
+   * different dates: a dated release inside the window so the release-window
+   * gate passes, and a series premiere already behind us so premiere
+   * eligibility reports `past`. Only `series_premiere` entries are read for
+   * the premiere itself.
+   */
+  it('files a past-release title under Past release', async () => {
+    const h = harness({
+      rows: [
+        row('a', {
+          releaseDates: [
+            { releaseType: 'series_premiere', date: soon(-60), region: 'US' },
+            { releaseType: 'season_premiere', date: soon(10), region: 'US' },
+          ],
+        }),
+      ],
+    });
+    const [outcome] = await h.svc.runAll(NOW);
+    expect(outcome.decisions.review_past_release).toBe(1);
+    expect(h.stamps[0].discoveryStatus).toBe('past_release');
+  });
+
+  /* The unchanged half: a real rejection still belongs in Ignored. */
+  it('still files a genuinely rejected title under Ignored', async () => {
+    const h = harness({ rows: [row('a', { genres: ['Reality'] })] });
+    await h.svc.runAll();
+    expect(h.stamps[0]?.discoveryStatus).toBe('ignored');
+  });
+});

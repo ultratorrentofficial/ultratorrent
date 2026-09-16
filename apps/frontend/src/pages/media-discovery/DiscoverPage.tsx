@@ -162,7 +162,22 @@ function DiscoveryCard({
     onError: (e: Error) => toast.error(e.message),
   });
   const heldForReview = item.decision === 'needs_review' || item.decision === 'review_past_release';
+  /*
+   * An ignored title can still be imported, and that is not a contradiction.
+   *
+   * Ignoring is a TEMPLATE's judgement, not a person's, and the commonest
+   * ignore reason on a live install — "no configured category matched" — is as
+   * often a gap in the template as a real rejection. The API has always
+   * allowed this: `approve()` loads the row by id and never looks at its
+   * status, so the capability existed and only the control was missing.
+   *
+   * Decline stays hidden here, because declining an already-ignored title is a
+   * no-op dressed up as a decision.
+   */
+  const canImport = heldForReview || item.discoveryStatus === 'ignored';
   const lastEvaluation = item.evaluations?.[0] ?? null;
+  const trace = lastEvaluation?.trace ?? [];
+  const [showWhy, setShowWhy] = useState(false);
   const tone = decisionTone(item.decision, Boolean(lastEvaluation));
   // The soonest dated release, described in the viewer's own time when the
   // provider gave a real instant, and as a plain day when it did not.
@@ -235,6 +250,60 @@ function DiscoveryCard({
             </p>
           )}
 
+          {/*
+            * The decision trace, on demand.
+            *
+            * The one-line reason is frequently not actionable: "No configured
+            * category matched this title" was the reason on 122 of 132 ignored
+            * titles on one live install, and it names neither the template that
+            * judged the title nor the categories the title carries. The trace
+            * distinguishes "this title carries no categories at all" — a
+            * provider gap — from "carries Sports, which no template lists" — a
+            * template gap. Two different fixes that read identically without it.
+            *
+            * Collapsed by default: the catalogue is scanned far more often than
+            * it is debugged.
+            */}
+          {trace.length > 0 && (
+            <div className="text-xs">
+              <button
+                type="button"
+                onClick={() => setShowWhy((v) => !v)}
+                className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
+              >
+                {showWhy ? t('why.hide') : t('why.show')}
+              </button>
+              {showWhy && (
+                <div className="mt-1 space-y-0.5 rounded bg-white/5 p-2" data-testid="discovery-why">
+                  <p className="text-[11px] text-muted-foreground">
+                    {lastEvaluation?.template?.name
+                      ? t('why.template', { name: lastEvaluation.template.name })
+                      : t('why.noTemplate')}
+                  </p>
+                  {trace.map((s, i) => (
+                    <p key={`${s.step}-${i}`} className="text-[11px] text-muted-foreground">
+                      <span
+                        className={
+                          s.status === 'fail'
+                            ? 'text-amber-300'
+                            : s.status === 'pass'
+                              ? 'text-emerald-300/80'
+                              : 'text-muted-foreground'
+                        }
+                      >
+                        {t(`why.status.${s.status}`, { defaultValue: s.status })}
+                      </span>
+                      {' · '}
+                      <span className="font-mono">{s.step}</span>
+                      {' — '}
+                      {s.detail}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
             {item.genres.slice(0, 3).map((g) => (
               <span key={g} className="rounded bg-white/5 px-1.5 py-0.5">
@@ -283,7 +352,7 @@ function DiscoveryCard({
             </p>
           )}
 
-          {heldForReview && (
+          {canImport && (
             <div className="flex flex-wrap items-center gap-2 pt-0.5">
               <Button
                 size="sm"
@@ -293,15 +362,17 @@ function DiscoveryCard({
               >
                 {importItem.isPending ? t('review.importing') : t('review.import')}
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 text-xs"
-                disabled={decline.isPending}
-                onClick={() => decline.mutate()}
-              >
-                {t('review.decline')}
-              </Button>
+              {heldForReview && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs"
+                  disabled={decline.isPending}
+                  onClick={() => decline.mutate()}
+                >
+                  {t('review.decline')}
+                </Button>
+              )}
             </div>
           )}
 

@@ -370,6 +370,17 @@
     "declined": "Se rechazó «{{title}}»",
     "partial": "Se importó «{{title}}», con un problema: {{reason}}"
   },
+  "why": {
+    "show": "¿Por qué?",
+    "hide": "Ocultar detalles",
+    "template": "Evaluado por la plantilla «{{name}}»",
+    "noTemplate": "No se registró ninguna plantilla para esta decisión",
+    "status": {
+      "pass": "pasó",
+      "fail": "falló",
+      "info": "nota"
+    }
+  },
   "seriesStatus": {
     "continuing": "En emisión",
     "returning": "Regresa",

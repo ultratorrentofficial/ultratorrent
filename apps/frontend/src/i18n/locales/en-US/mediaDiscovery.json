@@ -370,6 +370,17 @@
     "declined": "Declined “{{title}}”",
     "partial": "Imported “{{title}}”, with a problem: {{reason}}"
   },
+  "why": {
+    "show": "Why?",
+    "hide": "Hide details",
+    "template": "Judged by template “{{name}}”",
+    "noTemplate": "No template recorded for this decision",
+    "status": {
+      "pass": "passed",
+      "fail": "failed",
+      "info": "note"
+    }
+  },
   "seriesStatus": {
     "continuing": "Continuing",
     "returning": "Returning",
