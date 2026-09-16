@@ -271,6 +271,35 @@ export const PERMISSIONS = {
    */
   MEDIA_LIFECYCLE_POLICY_MANAGE: 'media_lifecycle.policy.manage',
 
+  /*
+   * Remediation plans (Media Intelligence Phase 6).
+   *
+   * Three keys, and the split is the point. Library Cleanup already
+   * established that approving is one gate and being allowed to perform *this
+   * kind* of change is another; Phase 6 keeps that separation and adds a
+   * third: the plan executor is NOT a privilege proxy. Approving a plan
+   * authorises the plan — the owning domain still enforces its own permission
+   * when the step actually calls it, so someone who may approve a metadata
+   * refresh does not thereby gain `media_manager.edit_metadata`.
+   *
+   * Reading plans stays on `media_manager.view`, like every other Media
+   * Intelligence surface: explaining what the system would do is not a
+   * privilege, and a separate read key would lock existing Power Users out of
+   * an explanatory page.
+   *
+   * None of these is in NEVER_INHERITED_PERMISSIONS, deliberately. That set
+   * exists for irreversible authority, and Phase 6 ships no irreversible
+   * remediation — nothing it can execute deletes media, retires a copy or
+   * removes torrent data. If a destructive remediation type is ever added,
+   * its permission belongs there and this comment is the reminder.
+   */
+  /** Approve a proposed plan, clearing it to execute. */
+  MEDIA_REMEDIATION_APPROVE: 'media_remediation.approve',
+  /** Stop a plan before further steps begin. Never undoes completed steps. */
+  MEDIA_REMEDIATION_CANCEL: 'media_remediation.cancel',
+  /** Change execution settings — budgets, and which types may be planned. */
+  MEDIA_REMEDIATION_MANAGE: 'media_remediation.manage',
+
   LIBRARY_CLEANUP_VIEW: 'library_cleanup.view',
   LIBRARY_CLEANUP_POLICY_CREATE: 'library_cleanup.policy.create',
   LIBRARY_CLEANUP_POLICY_EDIT: 'library_cleanup.policy.edit',

@@ -4698,6 +4698,9 @@ model MediaIntelligenceFinding {
   /// The Attention queue's own ordering: open rows, worst first, stably paged.
   @@index([resolvedAt, attentionPriority, firstObservedAt])
   recommendations MediaIntelligenceRecommendation[]
+  /// Phase 6. `SetNull`, not cascade: a plan records what UltraTorrent did and
+  /// must outlive the finding that justified it.
+  remediationPlans MediaRemediationPlan[]
 
   @@map("media_intelligence_findings")
 }
@@ -4788,6 +4791,8 @@ model MediaIntelligenceRecommendation {
   updatedAt   DateTime @updatedAt
 
   finding MediaIntelligenceFinding @relation(fields: [findingId], references: [id], onDelete: Cascade)
+  /// Phase 6. A plan survives its recommendation, so this does not cascade.
+  remediationPlans MediaRemediationPlan[]
 
   /// The logical identity. One recommendation of a kind per finding, ever.
   @@unique([findingId, type])
@@ -4855,4 +4860,185 @@ model MediaLifecyclePolicy {
   /// that read cheap without pretending scope matching is a pure SQL problem.
   @@index([enabled, scopeType])
   @@map("media_lifecycle_policies")
+}
+
+/// A remediation plan — Phase 6.
+///
+/// OPERATIONAL TRUTH, not a conclusion. Every other Media Intelligence table
+/// except `media_lifecycle_policies` holds something the module derived and
+/// can rebuild; this holds what UltraTorrent actually intended and did. A
+/// rebuild must never truncate it, and a plan outlives the finding that
+/// justified it precisely so "why did this happen" stays answerable.
+///
+/// **A recommendation is not a plan.** "Upgrade this title" is a proposed
+/// response; a plan is the ordered, safety-gated description of how that
+/// response is carried out, what it is pinned to, and who consented.
+///
+/// Shaped after `MediaCleanupPlan`, which already solved approval-gated
+/// execution here: pinned fingerprints re-checked immediately before the side
+/// effect, expiry as a safety property, and a status only the state machine
+/// may write. Phase 6 adds `verifying` — cleanup deletes a file and is done,
+/// while a lifecycle plan asks another domain to change the world and must
+/// then find out whether the world actually changed.
+model MediaRemediationPlan {
+  id String @id @default(uuid())
+
+  /// movie | series | season | episode. The projection's own identity.
+  entityType String
+  entityId   String
+
+  /// What justified this plan. All nullable: a plan survives its inputs so the
+  /// history stays readable after a finding resolves.
+  findingId        String?
+  recommendationId String?
+  policyId         String?
+
+  /// The recommendation type this plan carries out, e.g. REFRESH_METADATA.
+  type String
+  /// See REMEDIATION_PLAN_STATUSES. Text, not a PG enum: adding a state must
+  /// be a code change, not a migration that locks the table.
+  status String @default("proposed")
+  /// low | moderate | destructive | irreversible. Independent of policy mode —
+  /// the safety evaluator combines them and the stricter one wins.
+  riskClass String @default("low")
+
+  /// Why it cannot proceed, when it cannot. See REMEDIATION_BLOCK_REASONS.
+  blockReason String?
+  /// Bounded, scalar. Never a provider payload and never a credentialed URL.
+  explanation Json @default("{}")
+
+  /// What the plan was justified BY, hashed. Compared immediately before
+  /// execution; any difference supersedes rather than proceeds.
+  desiredStateFingerprint  String?
+  recommendationFingerprint String?
+  /// Set only for plans whose justification includes an indexer candidate.
+  verificationFingerprint  String?
+
+  /// Approval pins the exact plan a person saw. A material change invalidates
+  /// it rather than silently executing something else.
+  approvedById      String?
+  approvedAt        DateTime?
+  approvedFingerprint String?
+  /// A plan not executed before this is refused; fingerprints decay.
+  expiresAt DateTime?
+
+  createdById String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  /// Set when the plan stopped being justified — drift resolved, policy
+  /// changed, or a person fixed it by hand. UltraTorrent must cooperate with
+  /// operators rather than insist on finishing stale work.
+  supersededAt DateTime?
+  supersededReason String?
+
+  failureClass   String?
+  failureMessage String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  finding        MediaIntelligenceFinding?       @relation(fields: [findingId], references: [id], onDelete: SetNull)
+  recommendation MediaIntelligenceRecommendation? @relation(fields: [recommendationId], references: [id], onDelete: SetNull)
+
+  steps   MediaRemediationStep[]
+  history MediaRemediationPlanEvent[]
+
+  /// The scheduler's claim query: eligible plans, oldest first.
+  @@index([status, createdAt])
+  /// "Is there already a plan for this entity?" — the dedupe lookup.
+  @@index([entityType, entityId, status])
+  @@index([recommendationId])
+  @@index([policyId])
+  /// Expiry sweep.
+  @@index([status, expiresAt])
+  @@map("media_remediation_plans")
+}
+
+/// One ordered step of a plan.
+///
+/// A step names the DOMAIN THAT OWNS THE MUTATION and the capability it will
+/// invoke there. It never carries a filesystem path, a download URL, a
+/// provider payload or a client-supplied handler — the server decides what
+/// executes, and the owning domain enforces its own permission when called.
+///
+/// `status` is journalled `running` BEFORE the source call, following
+/// `MediaCleanupAction`: a crash mid-step must leave evidence of what was in
+/// flight rather than an untraceable gap, and an issued action that timed out
+/// is not proof the action did not happen.
+model MediaRemediationStep {
+  id     String @id @default(uuid())
+  planId String
+
+  ordinal Int
+  /// The step's machine kind, e.g. `refresh_metadata`.
+  kind    String
+  /// Which module owns the mutation — `media_manager`, `torrents`, …
+  ownerDomain String
+  /// The CAMA id the owning module already registered, when one exists.
+  capabilityId String?
+  /// The permission the OWNING domain requires. Recorded so an authority
+  /// change between approval and execution is detectable.
+  requiredPermission String?
+
+  /// pending | running | waiting | succeeded | failed | skipped | cancelled
+  status String @default("pending")
+
+  /// Bounded scalar inputs, resolved server-side. Never secrets.
+  inputSnapshot        Json @default("{}")
+  /// What must be true afterwards for this step to count as done.
+  expectedPostcondition Json @default("{}")
+
+  /// Deterministic, so a duplicate delivery cannot double-execute.
+  idempotencyKey String?
+
+  attemptCount Int @default(0)
+  /// transient | permanent | safety_block | precondition_changed | …
+  failureClass String?
+  failureMessage String?
+  /// e.g. precondition_unmet | already_satisfied — distinct from a failure.
+  skipReason   String?
+
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  plan MediaRemediationPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  /// The runner reads one plan's steps in order.
+  @@unique([planId, ordinal])
+  @@index([planId, status])
+  @@index([status])
+  /// Correlating a wake-up (a finished download, a completed import) to the
+  /// step that is waiting for it.
+  @@index([idempotencyKey])
+  @@map("media_remediation_steps")
+}
+
+/// A plan's transition history.
+///
+/// Written only when something CHANGES — never "still waiting" on every sweep,
+/// which would bury the trail under observation noise. Mirrors
+/// `MediaIntelligenceFindingEvent`, including its nullable actor.
+model MediaRemediationPlanEvent {
+  id     String @id @default(uuid())
+  planId String
+
+  /// created | approval_requested | approved | approval_invalidated | started |
+  /// step_started | step_completed | step_failed | blocked | waiting |
+  /// verification_started | verification_failed | reconciliation_satisfied |
+  /// completed | failed | cancelled | superseded
+  event String
+  /// Null for machine transitions: no person did it.
+  actorUserId String?
+  /// Small machine detail, e.g. {"from":"approved","to":"executing"}.
+  detail Json @default("{}")
+
+  createdAt DateTime @default(now())
+
+  plan MediaRemediationPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  /// The detail timeline reads one plan's history, newest first.
+  @@index([planId, createdAt])
+  @@map("media_remediation_plan_events")
 }

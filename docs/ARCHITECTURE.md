@@ -1695,6 +1695,101 @@ asserting no fix/repair/upgrade/search/download button exists in the section.
 An unpoliced title reads "no lifecycle policy covers this title", which is
 deliberately not a clean bill of health.
 
+### Phase 6 — Remediation Plans (6A–6C: contracts)
+
+**Status: the plan domain, approval semantics and capability classification
+ship. No executor, no routes, no frontend — nothing in this phase can
+execute anything yet.** Phase 5 explained what should be maintained; Phase 6
+adds the layer that could carry it out, and this half is the part with no
+behaviour.
+
+**The rule this phase adds: a recommendation is not a plan.** "Refresh this
+title's metadata" is a proposed response. A plan is the ordered, safety-gated,
+fingerprint-pinned description of how that response is carried out, which
+domain owns each mutation, and who consented. Collapsing the two would make
+"approve" mean something nobody can inspect.
+
+**Four parallel audits contradicted three of the brief's assumptions**, and
+each one narrowed the design rather than being worked around.
+
+**Platform jobs cannot host a long-running plan.** A job handler must run to
+completion inside one process lifetime: on boot every `running` job is failed
+out as `interrupted`, nothing anywhere scans for `queued` rows, `waiting` and
+`blocked` have no writers, `workerId` is a dead column, and there is no
+dispatcher, lease or `SKIP LOCKED` in the codebase. Building one would be the
+second generic job framework the brief forbids. So a plan owns its own state
+and a sweep advances it — the shape `IntakePipelineService` already uses
+(restart from the persisted state, run only the stages after it, record the
+state being *attempted* on failure) — with `platform_jobs` used for
+observability only, as `WorkflowJobBridge` and `CleanupJobBridge` already do.
+
+**There is no autonomous actor, so there is no automatic mode.** No system
+principal exists, `PermissionsGuard` knows only `req.user` and SUPER_ADMIN,
+the one synthetic actor in the repo carries zero permissions, and a job's
+`runAsUserId` is attribution rather than authority — the executor never reads
+it for an authorization decision. Automatic execution would mean inventing a
+platform concept, which is not a Media Intelligence change. Every row of the
+classification declares `supportsAutomatic: false`, and a test asserts it.
+
+**The reference quality-upgrade flow cannot validate its own result.**
+Acquisition can grab a chosen release and already records an intake intent,
+and `torrent.completed` correlates by hash — but intake-created items stay
+`matchStatus: 'unmatched'` at confidence 0 because `identify()` is never
+called on that path, the measured quality captured inline at import is
+written to `MediaIntakeJob.qualityScore` which nothing reads, and retiring an
+old copy needs inode identity that no column holds (`strategy` records intent,
+and the EXDEV and relocation-fallback paths silently diverge from it). So the
+upgrade stays advisory, exactly as Phase 4 and Phase 5 left it.
+
+**Plans are operational truth, not derived state.** Three additive tables.
+Unlike every other table in this module except lifecycle policies, a rebuild
+must never truncate them, and both foreign keys are `ON DELETE SET NULL`
+rather than cascade — a plan records what UltraTorrent intended and did, so it
+has to outlive the finding and the recommendation that justified it or "why
+did this happen" is deleted at the moment someone asks. One active plan per
+recommendation is enforced by a **partial** unique index over non-terminal
+statuses, which Prisma cannot express; the terminal list is duplicated into
+SQL and a test asserts the two agree.
+
+**Success is reachable only through verification.** The lifecycle graph has no
+edge to `succeeded` from anywhere but `verifying`, because a source action
+returning success is not the same as the drift being gone. `blocked` is
+deliberately not terminal — a block describes the present — but it returns to
+`proposed` and is re-gated from scratch rather than resuming on a safety check
+that predates the thing that blocked it.
+
+**Approval supplies consent, never knowledge.** This is the one real departure
+from Library Cleanup's `checkApproval`, which asks only "may this person
+authorise this?". A lifecycle plan must also ask "does the system know enough
+to act?", and `APPROVAL_PROOF_BLOCKERS` separates the two: a budget or a
+circuit breaker is what approval is *for*, while `quality_not_measured`,
+`identity_uncertain` and `seeding_state_unknown` survive a signature — and
+survive a super-admin, who short-circuits permissions but not physics.
+
+**The capability classification supports exactly one remediation type.** Five
+of the nine carry a CAMA id, but an executable remediation needs four things:
+a real action, the identifier that action takes present in the finding's
+evidence, an entity id that resolves to what it addresses, and a postcondition
+the next sweep can observe. Only `REFRESH_METADATA` on movies and episodes
+passes — `metadata.provider === null` is the finding, `MediaBulkService
+.refreshMetadata` is the action (which already skips locked items, so §20 is
+enforced by the domain that owns the lock), and writing the provider makes the
+next sweep resolve the finding. It is scoped to movie and episode because
+those entity ids *are* `MediaItem.id`; a series id is a `MediaShow.id` and
+there is no show-level refresh service and no `tv_show` action, so a series
+plan would be a plan with no remedy. The refusals: subtitle search executes
+but resolves no drift, so a plan on it would reach `succeeded` with the drift
+untouched; the duplicate and torrent findings carry counts rather than the
+group id or hash their actions need; library scan is `arity: 'none'` with no
+entity; intake retry has a proven job id but its domain registers no action,
+so executing it would bypass the `action-endpoint` gate that proves a
+permission still matches. Each refusal is a reason code on the row.
+
+Key files: `packages/shared/src/media-remediation.ts`,
+`apps/backend/src/modules/media-intelligence/remediation/`
+(`remediation-capabilities.ts`, `plan-approval.ts` and
+`remediation-fingerprint.ts` — all pure).
+
 
 ## Event-Driven Architecture
 
@@ -1998,6 +2093,7 @@ append a dated row here.
 
 | Date | Change |
 |------|--------|
+| 2026-09-16 | **Media Intelligence Phase 6A–6C: the remediation plan domain, and what the repository refused to support.** The contracts half of a controlled execution layer — plan lifecycle, three additive tables, canonical fingerprints, approval semantics and a server-side capability classification. **Nothing in it can execute anything**; that is deliberate sequencing, following the torrent scheduler's precedent of building and testing the machinery before anything can run it. Four parallel audits contradicted three of the brief's assumptions and each narrowed the design rather than being worked around. **Platform jobs cannot host a long-running plan**: a handler must finish inside one process lifetime, boot fails out every interrupted job, nothing scans for `queued`, `waiting`/`blocked` have zero writers, `workerId` is a dead column, and no dispatcher, lease or `SKIP LOCKED` exists anywhere — so a plan owns its state and a sweep advances it in the shape `IntakePipelineService` already uses, with `platform_jobs` for observability only as `WorkflowJobBridge` and `CleanupJobBridge` already do. **There is no autonomous actor, so there is no automatic mode**: no system principal, `PermissionsGuard` knows only `req.user` and SUPER_ADMIN, the repo's one synthetic actor carries zero permissions, and `runAsUserId` is attribution the executor never reads for authorization — every classification row declares `supportsAutomatic: false` and a test asserts it. **The reference quality-upgrade flow cannot validate its own result**: acquisition grabs and records an intake intent and `torrent.completed` correlates by hash, but intake items stay `unmatched`/confidence 0 (`identify()` is never called on that path), the inline mediainfo measurement is written to a column nothing reads, and old-copy retirement needs inode identity no column holds — `strategy` records intent and the EXDEV and relocation-fallback paths diverge from it silently. Plans are **operational truth**: both FKs are `SET NULL` rather than cascade so a plan outlives the finding that justified it, and one-active-plan-per-recommendation is a **partial** unique index over non-terminal statuses (Prisma cannot express it; the terminal list is duplicated into SQL and a test asserts the two agree). `succeeded` is reachable only from `verifying`, because an action returning 200 is not the drift being gone; `blocked` is non-terminal but returns to `proposed` to be re-gated rather than resuming on a stale safety check. The one departure from Library Cleanup's `checkApproval` is `APPROVAL_PROOF_BLOCKERS`: approval supplies consent, never knowledge, so `quality_not_measured`, `identity_uncertain` and `seeding_state_unknown` survive a signature and survive a super-admin, who short-circuits permissions but not physics. **The classification supports exactly one type.** Five carry a CAMA id, but an executable remediation needs a real action, the identifier it takes present in the evidence, a resolvable entity id, and an observable postcondition — only `REFRESH_METADATA` on movies and episodes passes (series excluded: a `MediaShow.id` has no show-level refresh service and no `tv_show` action). Subtitle search executes but resolves no drift; the duplicate and torrent findings carry counts, not the group id or hash their actions need; library scan is `arity: 'none'`; intake retry has a proven job id but its domain registers no action. Each refusal is a reason code, not an omission. Two self-corrections worth recording: a first pass reported the manifest-undeclared `media_lifecycle.policy.manage` as a Phase 5 defect, until a full scan showed **45 of 153 guarded permissions are manifest-undeclared** — the house norm, not a bug, and a gate asserting otherwise would fail on 45 pre-existing keys; and two shared-barrel name collisions (`canTransition`, `MediaRemediationStep`) were caught by the compiler, the second one meaningfully, since Phase 4's `MEDIA_REMEDIATION_STEPS` is the *explanatory* vocabulary and this is the *executable* one. Also noted: backend `tsc` resolves `@ultratorrent/shared` through `dist`, so it reports a false green on shared changes until the package is rebuilt. Gates: shared tsc 0 + dist rebuilt; backend tsc 0; prisma validate; schema diff 186 insertions / 0 deletions; one additive migration; backend suite 397 suites / 5608 tests (+5 suites, +77). |
 | 2026-09-16 | **Media Intelligence Phase 5G: the Phase 5 boundary becomes a control rather than a comment.** No new capability — 5G exists because the claims Phase 5 rests on ("preview mutates nothing", "this module explains but never maintains", "authoring intent is its own privilege") lived only in prose, and a comment is not a control. Three specs make them enforceable. `policy-preview.service.spec.ts` pins that the draft **participates** in precedence rather than preempting it (it is appended to the saved list, an edit replaces its stored self exactly once rather than appearing twice, and a disabled policy previews as if on because "what would this do" is the question), that the cap is applied to the QUERY (`take` = `LIFECYCLE_PREVIEW_LIMIT`, `media_kind` resolved to library ids *inside* the where-clause, since filtering after the take would evaluate fewer entities than the cap promises), that one entity counts once by its **worst** outcome, and — structurally, by scanning the source for `prisma.*.create/update/delete/$transaction` — that no write exists anywhere in the file, because persist-then-rollback is exactly the shortcut someone reaches for when the in-memory injection gets inconvenient. `policy-reevaluation.job.spec.ts` covers the idempotency `runDetached` cannot provide (an in-flight sweep is returned untouched, matched on `ACTIVE_STATUSES`), the refusal to overlap the scheduled reconcile (warn + `skipped`, never a success that did nothing), and that the job asks for `media_manager.scan` rather than the authoring permission. `policy-routes.spec.ts` reads `PERMISSIONS_KEY` off each handler to pin that the three mutations require `media_lifecycle.policy.manage` while every read — preview included, since requiring authoring would stop an operator checking a policy before asking for one — stays on `media_manager.view`, that no non-admin role holds the authoring permission, and, borrowing the Operations console's structural idiom, that the policy layer contains no `grab|addTorrent|download|searchAll|unlink|rename|moveFile` call and no second `@Interval`: the Phase 6 line, enforced instead of asserted. Docs caught up with three phases at once — Media Intelligence had **no API.md section at all** (Phases 3, 4 and 5 were undocumented), so one was written covering all 20 routes with their permissions, and SECURITY.md gained a `media_lifecycle.*` catalog row recording why Power Users are excluded and which five audit verbs fire (verified against the service rather than inferred). One spec-only compile error, of the class root `tsc` cannot see: a jest mock declared with no parameter narrows `mock.calls` to an empty tuple, so asserting on the WHERE it received failed `TS2493` — fixed by typing the mock's argument, not by casting the diagnostic away. Gates: backend tsc 0; policies 6 suites / 112 tests; backend suite 392 suites / 5531 tests (+3 suites, +44 tests). |
 | 2026-09-16 | **Media Intelligence Phase 5D–5F: lifecycle policies reach the operator.** Completes Phase 5 as an advisory feature — it explains what should be maintained and maintains nothing. **5D:** a policy changes a recommendation's CONFIDENCE, never which recommendation is proposed; only `QUALITY_UPGRADE_POTENTIAL` under `maintain_preferred` is raised (medium → high) and cites the policy by name, because "a better rung exists in your ladder" and "you asked this title to stay at your preferred rung" are different claims and only the second is a commitment the operator made. `maintain_acceptable` changes nothing and `do_not_manage` cites nothing — naming a policy there would imply an intent explicitly withheld. An installation with no policies produces byte-identical output to Phase 4, pinned by comparing both serialisations. **5E:** `PolicyPreviewService` answers "what would this do?" using the PRODUCTION evaluator, injecting the draft into the in-memory policy list so it competes in precedence exactly as a saved policy would (including losing to a narrower one) — a preview computed by a second code path is a guess about the real one, and when the two disagree the operator has validated something that will not happen. It writes nothing and is bounded at 500 entities with `truncated` reported, counting each entity once by its worst outcome (drift > unknown > compliant) so a title needing attention is never averaged away; it pages the projection and resolves `media_kind` to library ids inside the query so the cap stays meaningful. Mutations return `{ reevaluationJobId }` and hand the sweep to `PolicyReevaluationJob` — cancellable, deliberately not retryable (an automatic retry restarts a full sweep nobody asked for), idempotent against `ACTIVE_STATUSES` because `runDetached` bypasses `enqueue`'s short-circuit, reusing `rebuildAll()` rather than reimplementing paging, enqueued from the controller to keep policy → projection → job from becoming a cycle, and gated on `media_manager.scan` since the job changes no intent. **5F:** a policies page under Media Intelligence (no tenth workspace) with a typed editor — no raw JSON, a scope picker that clears `scopeId` on change, and an explicit "say nothing (inherit)" on every dimension because a blank box cannot distinguish silence from a decision; the mode help says outright that nothing acts automatically rather than leaving it to be inferred from an absent option. The detail page gains a drift section that renders `unknown` with its reason and never as a verdict, cites the policy behind each conclusion, surfaces same-level conflicts, and offers no remediation control — pinned by a test asserting no fix/repair/upgrade/search/download button exists there; an unpoliced title reads "no lifecycle policy covers this title", deliberately not a clean bill of health. Two self-inflicted defects caught by the gates: `prettifyValue` takes a string while drift values are `unknown` (a cast would have printed `[object Object]` at an operator, so a local formatter handles arrays and scalars honestly), and the detail suite did not mock `drift`, so the new section silently rendered nothing and the suite passed for the wrong reason — the mock and four real assertions were added. The page was also switched from `useAuth().hasPermission` to the `usePermission` helper the repo's test convention actually mocks. Gates: backend tsc 0; backend suite 389 suites / 5487 tests; frontend tsc 0; frontend media-intelligence + i18n + nav-routes 6 files / 143 tests (+11); i18n parity 411 keys both locales; route-shadowing + action-endpoint 41. One flake observed and dismissed with evidence: `common/html-text.spec.ts`'s 400 ms wall-clock budget failed once under full-suite load in an unmodified file, then passed isolated (23/23) and on a clean full re-run. |
 | 2026-09-16 | **Media Intelligence Phase 5C: desired-state resolution and drift.** Joins 5B's operator intent to the facts the assembler already gathers, through a second PURE evaluator. Four outcomes, and the two that are not `compliant`/`drift` are the point: `not_applicable` (no policy governs this dimension) and `unknown` (a policy governs it but the facts cannot settle it). The evaluator exists to stop two specific lies — UNKNOWN becoming DRIFT, which would send an operator chasing a problem that may not exist and, once Phase 6 can act, authorise a download to fix nothing; and UNKNOWN becoming COMPLIANT, a dashboard calling a library healthy because it could not look. Quality reuses Phase 2's verdict with no second ladder: `maintain_preferred` needs rung 0, `maintain_acceptable` accepts any configured rung, `below_preference` fails both, and `no_acquisition_ladder` is kept distinct from `quality_not_measured` because "you configured nothing" and "nothing was measured" demand different fixes. **Subtitles prove presence but never absence** — every required language present is provably compliant, while a required language with no record is `unknown`, because nothing records whether a subtitle scan ran, the sweep is off by default and skips unmatched items, and embedded tracks are unmodelled (`embeddedTracksKnown` hardcoded `false`); the check branches on that flag so it becomes real drift the day tracks are modelled. Completeness reuses Missing Episodes and carries `excludedFromScope` as evidence rather than inheriting the flaw that `missing` can include episodes a `monitor_new_only` operator declined — latent here (zero out-of-scope rows) but it would propose acquiring media nobody asked for. `LifecycleEvaluationService` reads persisted and assembled state only — no indexer, provider, probe or media server — and writes nothing; drift is derived on read, with no projection table until the frontend defines a query pattern worth designing one around. Two GET reads (`:entityType/:entityId/desired-state`, `/drift`) on `media_manager.view`, declared as siblings of `/findings`. One self-inflicted defect caught by the action-endpoint gate: I invented a call shape instead of copying the `params.entityType as MediaIntelligenceEntityType` cast two handlers above, and the spec failed to compile — `tsc` had been green only because it predated the edit. Gates: backend tsc 0; backend suite 389 suites / 5482 tests (+25); route-shadowing + action-endpoint 41; DI boot with both routes mapped. **Not yet built: preview, recommendation integration, frontend.** |
