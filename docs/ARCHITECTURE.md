@@ -1520,7 +1520,7 @@ Key files: `packages/shared/src/media-recommendations.ts`,
 `confidence-rank.ts`).
 
 
-### Phase 5 — Lifecycle Policies (5B: the policy domain)
+### Phase 5 — Lifecycle Policies (5B–5C)
 
 **Status: the policy domain is complete; desired-state evaluation and drift
 are not yet built.** This phase introduces the first thing Media Intelligence
@@ -1582,10 +1582,57 @@ whatever policies remain.
 
 Key files: `packages/shared/src/media-lifecycle.ts`,
 `apps/backend/src/modules/media-intelligence/policies/`
-(`policy-precedence.ts` — pure, `lifecycle-policy.service.ts`).
+(`policy-precedence.ts` and `drift-evaluator.ts` — both pure,
+`lifecycle-policy.service.ts`, `lifecycle-evaluation.service.ts`).
 
-**Not yet built:** desired-state resolution against live facts, drift
-evaluation, preview, recommendation integration, and the frontend.
+**Desired state and drift (5C).** `LifecycleEvaluationService` is a thin IO
+layer over two pure evaluators: it loads the enabled policies once, builds the
+entity's scope keys, asks the assembler for facts that already exist, and
+hands both to functions that need no database. It reads persisted state and
+nothing else — no indexer, no provider, no probe, no media server — because
+evaluating drift must never cost network traffic, and a library-wide sweep
+that did would be a provider stampede. It writes nothing: desired state and
+drift are derived on read, and no projection table exists for them yet
+because until the frontend defines a query pattern, a materialized view whose
+invalidation rules are guesswork is worse than a live computation.
+
+**Four drift outcomes, and the last two carry as much weight as the first
+two.** `compliant`, `drift`, `not_applicable` (no policy governs this) and
+`unknown` (a policy governs it but the facts cannot settle it). The two
+failure modes the evaluator exists to prevent are UNKNOWN becoming DRIFT — an
+unprobed file is unmeasured, not wrong, and once Phase 6 can act that would
+authorise a download to fix nothing — and UNKNOWN becoming COMPLIANT, a
+dashboard reporting a library healthy because it could not look.
+
+**Quality reuses Phase 2's verdict wholesale.** `maintain_preferred` is
+satisfied only by rung 0; `maintain_acceptable` by any rung the operator
+configured, since they chose those fallbacks themselves; `below_preference`
+fails either. Two unknowns are kept distinct because they demand different
+responses: `no_acquisition_ladder` ("you have configured nothing for this kind
+of media") versus `quality_not_measured` ("nothing about this file was
+measured").
+
+**Subtitles can prove presence but not absence, and the evaluator says so.**
+Sidecar rows and Subtitle Intelligence downloads are real records, so every
+required language present is provably `compliant`. A required language with no
+record resolves to `unknown`, never drift: nothing anywhere stores whether a
+subtitle scan ran (there is no `lastSubtitleScanAt` on any model), the sweep is
+off by default and skips unmatched items, and embedded tracks are unmodelled —
+`embeddedTracksKnown` is hardcoded `false`. The check branches on that flag, so
+the day tracks are modelled this dimension reports real drift with no change
+here. A dimension that admits it cannot verify something is worth more than one
+that fabricates a violation.
+
+**Completeness reuses Missing Episodes and surfaces a latent flaw rather than
+inheriting it.** `MediaCompletenessFacts.excludedFromScope` is declared but the
+assembler hardcodes it to `null`, so `missing` can include episodes a
+`monitor_new_only` operator explicitly declined. That is latent today (this
+installation has zero out-of-scope rows and no such series), but a policy
+acting on an inflated count would propose acquiring media nobody asked for, so
+the count is carried as evidence and the field is read when present — correct
+the moment the assembler fills it in, with no rewrite.
+
+**Not yet built:** preview, recommendation integration, and the frontend.
 
 
 ## Event-Driven Architecture
@@ -1890,6 +1937,7 @@ append a dated row here.
 
 | Date | Change |
 |------|--------|
+| 2026-09-16 | **Media Intelligence Phase 5C: desired-state resolution and drift.** Joins 5B's operator intent to the facts the assembler already gathers, through a second PURE evaluator. Four outcomes, and the two that are not `compliant`/`drift` are the point: `not_applicable` (no policy governs this dimension) and `unknown` (a policy governs it but the facts cannot settle it). The evaluator exists to stop two specific lies — UNKNOWN becoming DRIFT, which would send an operator chasing a problem that may not exist and, once Phase 6 can act, authorise a download to fix nothing; and UNKNOWN becoming COMPLIANT, a dashboard calling a library healthy because it could not look. Quality reuses Phase 2's verdict with no second ladder: `maintain_preferred` needs rung 0, `maintain_acceptable` accepts any configured rung, `below_preference` fails both, and `no_acquisition_ladder` is kept distinct from `quality_not_measured` because "you configured nothing" and "nothing was measured" demand different fixes. **Subtitles prove presence but never absence** — every required language present is provably compliant, while a required language with no record is `unknown`, because nothing records whether a subtitle scan ran, the sweep is off by default and skips unmatched items, and embedded tracks are unmodelled (`embeddedTracksKnown` hardcoded `false`); the check branches on that flag so it becomes real drift the day tracks are modelled. Completeness reuses Missing Episodes and carries `excludedFromScope` as evidence rather than inheriting the flaw that `missing` can include episodes a `monitor_new_only` operator declined — latent here (zero out-of-scope rows) but it would propose acquiring media nobody asked for. `LifecycleEvaluationService` reads persisted and assembled state only — no indexer, provider, probe or media server — and writes nothing; drift is derived on read, with no projection table until the frontend defines a query pattern worth designing one around. Two GET reads (`:entityType/:entityId/desired-state`, `/drift`) on `media_manager.view`, declared as siblings of `/findings`. One self-inflicted defect caught by the action-endpoint gate: I invented a call shape instead of copying the `params.entityType as MediaIntelligenceEntityType` cast two handlers above, and the spec failed to compile — `tsc` had been green only because it predated the edit. Gates: backend tsc 0; backend suite 389 suites / 5482 tests (+25); route-shadowing + action-endpoint 41; DI boot with both routes mapped. **Not yet built: preview, recommendation integration, frontend.** |
 | 2026-09-16 | **Media Intelligence Phase 5B: lifecycle policies — the policy domain.** Adds `media_lifecycle_policies`, the first NON-derived table in this module: every other table here holds a conclusion that can be rebuilt, this one holds what a person asked for, so no reconciliation path may write to it and deleting a policy removes intent alone. **The audit found that almost every hard requirement already had a working implementation in this repo, so this is assembly rather than invention.** Precedence is lifted from `torrent-scheduler/domain/policy.ts` — explicit most-specific-first scope order, per-dimension resolution so an override is a patch not a replacement, and per-field provenance — with the scope chain `movie|series → library → media_kind → global` (a library outranks a media kind because it is a concrete thing the operator named). One deliberate departure: the scheduler breaks same-scope ties by caller order, which silently arbitrates a configuration the operator cannot reason about; Phase 5 resolves deterministically AND reports a conflict. The three-valued inherit contract is carried in the VALUE rather than nullability, because Prisma cannot store `undefined` — NULL means "says nothing, inherit", `do_not_manage` means "explicitly unmanaged, stop inheriting", and for subtitles `[]` is a decision while `null` is silence. **No `automatic` mode exists and the service refuses it**, following the scheduler's refusal of `managed` while no reconciliation layer existed. Lifecycle policy is emphatically NOT an Automation rule: the engine suppresses itself while a condition stays true (`already satisfied last cycle — not a rising edge`), which is exactly when a desired-state policy must fire, and its conditions are torrent-shaped. New `media_lifecycle.policy.manage` permission for authoring while reads stay on `media_manager.view` — a departure from this module's no-new-permissions rule, justified because Phase 6 will act on these rows; Power Users are deliberately excluded. Five CRUD routes declared above `:entityType/:entityId` (that wildcard swallowed four routes in Phase 3). Gates: shared build; backend tsc 0; backend suite 388 suites / 5457 tests (+43); frontend tsc 0; route-shadowing + action-endpoint 41; prisma validate + generate; one additive migration applied; DI boot with all five policy routes mapped. **Not yet built: desired-state evaluation, drift, preview, recommendation integration, frontend.** |
 | 2026-09-16 | **Media Intelligence: upgrade verification now anchors on the show title.** Found while preparing the first live verification run, before it executed. Every rung of this installation's global ladder is PATTERN-LESS (`profileToInput` and `ensureSeeded` both set no pattern), so `evaluatePreferenceList` judges resolution, codec and size and **nothing else**. `UpgradeVerificationService` searched the indexers for a title and then accepted any candidate that satisfied a rung — with no check that the release belonged to the show it searched for. Running it against the live queue would have taken a `Breaking.Bad...1080p.x265` result and persisted it as Airwolf's verified upgrade: the Match of the Day failure mode, reintroduced one layer up. `AcquisitionMatchPreferenceService.select()` guards the identical hole with `showTitleMatch` against the RAW release name (its comment records a looser test mis-grabbing 132 of 714 episodes), and verification now does the same, with the projection's parenthesised year stripped first because release names do not carry it. Five cases pin it, including a wrong show that satisfies every quality rung, a prefix spinoff (`Airwolf Chronicles`), and a title that is only a year (`1923`) where stripping must not empty the anchor — an empty pattern makes `showTitleMatch` return true for everything, which is how the pattern-less variant of this bug behaved on 2026-09-08. Gates: backend tsc 0; backend suite 386 suites / 5414 tests (+5); frontend tsc 0; route-shadowing + action-endpoint + domain-event + presentation 155. |
 | 2026-09-16 | **Media Intelligence Phase 4: explainable recommendations.** Turns findings into proposed responses that state what, why, how sure, and — the part that matters — what is still unknown. New `media_intelligence_recommendations` table keyed on `(findingId, type)`, a pure `recommendation-evaluator.ts`, a reconciliation pass inside the existing sweep, a read-only query API, one CAMA action, and explicit indexer verification. **Auditing the real capability surface shrank the catalogue, which is the main finding:** nine types ship, and four plausible ones were refused because nothing backs them — `GATHER_TECHNICAL_DATA` (no user-invocable mediainfo probe exists; `MediaProbeService` has no controller), `SEARCH_FOR_MISSING_MOVIE` (no movie search path at all — `TvSearchQuery` carries no movie fields and the selector hard-requires season+episode), `ACQUIRE_MISSING_SUBTITLES` (download takes a candidate id, not an item), and anything on `BACKFILL_STALLED` (declared but never emitted). `EPISODES_MISSING` gets none either: its only search endpoint is watchlist-keyed and grabs as it goes. Upgrade POTENTIAL stays distinct from AVAILABILITY — a recommendation starts `not_checked`, and only `UpgradeVerificationService`, run from an explicit action gated on `media_manager.scan`, can reach `verified`. It adds no client, parser, matcher or scorer: `IndexerService.searchAllDetailed` + `AcquisitionMatchPreferenceService` + `evaluatePreferenceList`, with superiority decided by a STRICTLY better rung of the operator's own ladder (so codec-only differences propose nothing), the ladder scoped by `ladderAppliesTo`, and candidates joined to rungs by candidate ID rather than `matchedCandidatePriority` (that is `priorityOrder`, not the array index). Confidence is `high|medium|low`, never a fake percentage, with a persisted `confidenceRank` because the text column sorts high/low/medium. Verified candidates age to `stale` after 12h on the existing tick with no provider call. Disposition is never written from this phase and no action resolves a finding — reconciliation still has to prove it. Two review catches worth recording: literal NUL bytes reached two source files (the Write tool took `\u0000` verbatim) and were replaced with a printable separator, and an unguarded schema replace edited `MediaDuplicateGroup`'s index because `@@index([status, confidence])` was not unique in the file — caught by `prisma validate` and repaired to a provably additive diff (73 insertions, 0 deletions). Gates: shared build; backend tsc 0; backend suite 385 suites / 5409 tests; frontend tsc 0; i18n parity 319 keys; route-shadowing + action-endpoint 41; prisma validate + generate; two additive migrations; DI boot with the new Media Intelligence → Indexers edge. |

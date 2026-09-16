@@ -15,6 +15,7 @@ import { AttentionService } from './attention/attention.service';
 import { RecommendationQueryService } from './recommendations/recommendation-query.service';
 import { UpgradeVerificationService } from './recommendations/upgrade-verification.service';
 import { LifecyclePolicyService } from './policies/lifecycle-policy.service';
+import { LifecycleEvaluationService } from './policies/lifecycle-evaluation.service';
 import { AttentionDispositionService } from './attention/attention-disposition.service';
 import {
   ListFindingsDto,
@@ -65,6 +66,7 @@ export class MediaIntelligenceController {
     private readonly recommendations: RecommendationQueryService,
     private readonly verification: UpgradeVerificationService,
     private readonly policies: LifecyclePolicyService,
+    private readonly lifecycle: LifecycleEvaluationService,
     private readonly audit: AuditService,
   ) {}
 
@@ -410,6 +412,41 @@ export class MediaIntelligenceController {
    * Automatic evaluations are deliberately NOT audited — an unattended sweep
    * writing a row per entity would drown the trail it exists to keep readable.
    */
+  /**
+   * What the operator wants for this entity, and which policy said so.
+   *
+   * Resolvable from the policies and the entity's scope keys alone, so it
+   * stays cheap even where a full evaluation would not be. Every dimension
+   * carries its provenance — which policy supplied it, whether it was
+   * inherited, and what it overrode — because a desired state that cannot
+   * cite its source is not something an operator can argue with.
+   */
+  @Get(':entityType/:entityId/desired-state')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  desiredState(@Param() params: MediaIntelligenceEntityParamsDto) {
+    return this.lifecycle.desiredState(
+      params.entityType as MediaIntelligenceEntityType,
+      params.entityId,
+    );
+  }
+
+  /**
+   * Desired state, actual state, and the difference.
+   *
+   * A READ over facts that already exist: no indexer, no provider, no probe,
+   * no media server. `unknown` is a first-class answer here and never
+   * collapses into either `compliant` or `drift` — an unmeasured file is not
+   * wrong, and a library nobody could measure is not healthy.
+   */
+  @Get(':entityType/:entityId/drift')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  drift(@Param() params: MediaIntelligenceEntityParamsDto) {
+    return this.lifecycle.evaluate(
+      params.entityType as MediaIntelligenceEntityType,
+      params.entityId,
+    );
+  }
+
   @Post(':entityType/:entityId/refresh')
   @RequirePermissions(P.MEDIA_MANAGER_VIEW)
   async refresh(
