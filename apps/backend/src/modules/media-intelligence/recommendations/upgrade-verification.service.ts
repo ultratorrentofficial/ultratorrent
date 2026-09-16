@@ -11,7 +11,7 @@ import {
 
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
 import { IndexerService } from '../../indexers/indexer.service';
-import { evaluatePreferenceList } from '../../rss/match-engine';
+import { evaluatePreferenceList, showTitleMatch } from '../../rss/match-engine';
 import type { MatchCandidateInput } from '../../rss/match-engine';
 import { parseTorrentName } from '../../rss/torrent-name-parser';
 import { AcquisitionMatchPreferenceService } from '../../media-acquisition/acquisition-match-preference.service';
@@ -150,8 +150,27 @@ export class UpgradeVerificationService {
     if (!prefs.length) return { ...this.empty('no_match', now), indexersQueried: run.queried, indexersFailed: run.failed };
     const rungById = new Map(ladder.rungs.map((r) => [r.id, r]));
 
+    /*
+     * ANCHOR ON THE SHOW TITLE FIRST.
+     *
+     * This is not defensive decoration — without it this method is unsound on
+     * this installation. Every rung of the live global ladder is
+     * PATTERN-LESS, so `evaluatePreferenceList` judges resolution, codec and
+     * size and nothing else: a search for one show would accept any 1080p
+     * release an indexer happened to return, including a different show
+     * entirely, and persist it as that title's verified upgrade.
+     *
+     * `AcquisitionMatchPreferenceService.select()` solves this the same way
+     * and for the same reason — its own comment records that a looser test
+     * mis-grabbed 132 of 714 episodes. Matched against the RAW release name,
+     * because `showTitleMatch` does its own show-region extraction and is
+     * stricter than the parser's title guess.
+     */
+    const anchor = title.replace(/\s*\((19|20)\d{2}\)\s*$/, '').trim() || title;
+
     const better: MediaUpgradeCandidate[] = [];
     for (const c of run.candidates) {
+      if (!showTitleMatch(anchor, c.title)) continue;
       const evaluation = evaluatePreferenceList(prefs, { title: c.title, sizeBytes: c.sizeBytes ?? null });
       if (!evaluation.matched || !evaluation.matchedCandidateId) continue;
 
