@@ -30,6 +30,7 @@ const SCHEDULE_MODULE: Record<string, string> = {
   media_server_health_check: 'media_manager',
   media_library_periodic_scan: 'media_manager',
   media_intelligence_reconcile: 'media_intelligence',
+  media_intelligence_remediation: 'media_intelligence',
   platform_job_stall_detector: 'jobs_center',
 };
 

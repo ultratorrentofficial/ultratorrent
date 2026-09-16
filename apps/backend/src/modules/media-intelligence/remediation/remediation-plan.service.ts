@@ -1,4 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import {
   TERMINAL_PLAN_STATUSES,
   canTransitionPlan,
@@ -8,7 +15,9 @@ import {
 } from '@ultratorrent/shared';
 
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
+import { AuditService } from '../../audit/audit.service';
 import { buildPlan, type PlanDraft } from './plan-builder';
+import { checkPlanApproval, type ApprovalCheck } from './plan-approval';
 import {
   desiredStateFingerprint,
   fingerprintDrift,
@@ -54,7 +63,10 @@ import {
 export class RemediationPlanService {
   private readonly logger = new Logger(RemediationPlanService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   /**
    * Bring plans for one entity in line with its current recommendations.
@@ -216,6 +228,179 @@ export class RemediationPlanService {
     await this.writeHistory(history);
   }
 
+  /* ------------------------------------------------------ human decisions */
+
+  /**
+   * Approve a plan, clearing it to execute.
+   *
+   * Every precondition is gathered by the pure `checkPlanApproval` rather
+   * than checked inline, so a caller cannot satisfy three of the four. The
+   * refusal is AUDITED as well as thrown: "who tried to approve what, and why
+   * were they refused" is exactly the question an audit trail exists for, and
+   * a 403 that leaves no trace answers it badly.
+   *
+   * Approval grants permission; it does not act. The executor re-establishes
+   * every safety property again immediately before the source call, because
+   * everything checked here describes a world that may have moved on.
+   */
+  async approve(planId: string, user: ApprovingUser, ctx: AuditCtx = {}) {
+    const plan = await this.load(planId);
+    const steps = await this.prisma.mediaRemediationStep.count({
+      where: { planId, status: { in: ['pending', 'failed'] } },
+    });
+
+    const verdict = checkPlanApproval({
+      status: plan.status as RemediationPlanStatus,
+      riskClass: plan.riskClass as never,
+      blockReason: plan.blockReason as never,
+      expiresAt: plan.expiresAt,
+      now: new Date(),
+      holderPermissions: user.permissions ?? [],
+      superAdmin: (user.roles ?? []).includes('SUPER_ADMIN'),
+      actionableSteps: steps,
+      /*
+       * Drift is NOT re-derived here, and that is a deliberate limit worth
+       * stating rather than implying. The sweep clears an approval when a
+       * pinned input moves, so this reflects the last sweep — up to six
+       * hours old. A plan whose justification changed minutes ago can
+       * therefore still be approved.
+       *
+       * It cannot be EXECUTED, which is where the guarantee actually lives:
+       * the executor recomputes the recommendation fingerprint immediately
+       * before the source call and blocks on any difference. Recomputing it
+       * here as well would cost a query per approval to move a check that
+       * has to happen at execution time regardless.
+       */
+      inputsDrifted: false,
+    });
+
+    if (!verdict.allowed) {
+      await this.audit.record({
+        userId: user.id,
+        ...ctx,
+        action: 'media_intelligence.remediation.approve_refused',
+        objectType: 'media_remediation_plan',
+        objectId: planId,
+        result: 'failure',
+        metadata: {
+          reason: verdict.reason,
+          blockReason: verdict.blockReason ?? null,
+          missingPermission: verdict.missingPermission ?? null,
+        },
+      });
+      throw this.refusal(verdict);
+    }
+
+    const moved = await this.transition(plan, 'approved', {
+      approvedById: user.id,
+      approvedAt: new Date(),
+      // Pins WHAT was approved. The executor compares against this, so a
+      // later change cannot execute under an older signature.
+      approvedFingerprint: plan.recommendationFingerprint,
+    });
+    if (!moved) throw new BadRequestException(`Plan is ${plan.status} and cannot be approved`);
+
+    /*
+     * Self-approval is permitted and separately audited, following Library
+     * Cleanup: most installations have one operator, and a workflow nobody
+     * can complete is worse than one recorded honestly.
+     */
+    await this.audit.record({
+      userId: user.id,
+      ...ctx,
+      action:
+        plan.createdById === user.id
+          ? 'media_intelligence.remediation.self_approved'
+          : 'media_intelligence.remediation.approved',
+      objectType: 'media_remediation_plan',
+      objectId: planId,
+      metadata: { type: plan.type, riskClass: plan.riskClass, actionableSteps: steps },
+    });
+    await this.writeHistory([{ planId, event: 'approved', detail: { actorUserId: user.id } }]);
+    return this.load(planId);
+  }
+
+  /**
+   * Stop a plan before further steps begin.
+   *
+   * Cancellation means "start nothing more" — it never undoes a step that
+   * already ran. A source action issued to another domain is that domain's
+   * now, and pretending otherwise would promise a rollback this phase
+   * deliberately does not implement.
+   */
+  async cancel(planId: string, reason: string | undefined, user: ApprovingUser, ctx: AuditCtx = {}) {
+    const plan = await this.load(planId);
+    const moved = await this.transition(plan, 'cancelled', { supersededReason: reason ?? null });
+    if (!moved) throw new BadRequestException(`Plan is ${plan.status} and cannot be cancelled`);
+
+    await this.audit.record({
+      userId: user.id,
+      ...ctx,
+      action: 'media_intelligence.remediation.cancelled',
+      objectType: 'media_remediation_plan',
+      objectId: planId,
+      metadata: { reason: reason ?? null, previousStatus: plan.status },
+    });
+    await this.writeHistory([
+      { planId, event: 'cancelled', detail: { reason: reason ?? null, from: plan.status } },
+    ]);
+    return this.load(planId);
+  }
+
+  /** Load a plan or 404. */
+  private async load(planId: string) {
+    const plan = await this.prisma.mediaRemediationPlan.findUnique({ where: { id: planId } });
+    if (!plan) throw new NotFoundException(`Unknown remediation plan: ${planId}`);
+    return plan;
+  }
+
+  /** Turn a machine verdict into the right HTTP failure, with its reason. */
+  private refusal(verdict: ApprovalCheck): Error {
+    switch (verdict.reason) {
+      case 'missing_permission':
+        return new ForbiddenException(
+          `Approving a ${verdict.missingPermission ? 'plan of this risk' : 'plan'} requires ${verdict.missingPermission}`,
+        );
+      case 'expired':
+        return new BadRequestException(
+          'This plan expired; its pinned inputs are too old to act on. It will be rebuilt on the next sweep.',
+        );
+      case 'unknowable':
+        /*
+         * The distinction Phase 6 exists to hold. This is not "you may not" —
+         * it is "the system does not know enough", and no signature supplies
+         * knowledge.
+         */
+        return new UnprocessableEntityException(
+          `Cannot approve: ${verdict.blockReason}. Approval cannot establish this — the underlying fact has to become known.`,
+        );
+      case 'blocked':
+        return new UnprocessableEntityException(`Cannot approve while blocked: ${verdict.blockReason}`);
+      case 'approval_invalidated':
+        return new BadRequestException('This plan changed since it was built; review it again.');
+      case 'nothing_to_do':
+        return new UnprocessableEntityException('This plan has no steps left to run.');
+      default:
+        return new BadRequestException('This plan cannot be approved in its current state.');
+    }
+  }
+
+  /** One place that writes a plan status, so the state machine cannot be bypassed. */
+  private async transition(
+    plan: { id: string; status: string },
+    to: RemediationPlanStatus,
+    data: Record<string, unknown>,
+  ): Promise<boolean> {
+    if (!canTransitionPlan(plan.status as RemediationPlanStatus, to)) return false;
+    // Compare-and-swap on the status we read, so a concurrent decision loses
+    // rather than both being applied.
+    const res = await this.prisma.mediaRemediationPlan.updateMany({
+      where: { id: plan.id, status: plan.status },
+      data: { status: to, ...data },
+    });
+    return res.count === 1;
+  }
+
   /** Create a plan and its steps in one transaction, plus its opening event. */
   private async create(
     draft: PlanDraft,
@@ -316,6 +501,23 @@ interface HistoryRow {
   event: string;
   detail: Record<string, unknown>;
 }
+
+/**
+ * The approving principal, narrowed to what the decision actually reads.
+ *
+ * Deliberately not `AuthenticatedUser`: this service needs an id, the held
+ * permissions and whether the caller is a super-admin, and taking the whole
+ * request principal would invite reading things a decision has no business
+ * depending on.
+ */
+export interface ApprovingUser {
+  id: string;
+  permissions?: readonly string[];
+  roles?: readonly string[];
+}
+
+/** ip/userAgent, spread straight from `reqAuditContext`. */
+type AuditCtx = { ipAddress?: string; userAgent?: string };
 
 /** Project a resolved desired state onto the fingerprint's narrow input. */
 function toDesiredInput(

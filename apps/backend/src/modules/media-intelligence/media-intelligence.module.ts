@@ -21,6 +21,9 @@ import { PolicyReevaluationJob } from './policies/policy-reevaluation.job';
 import { PolicyPreviewService } from './policies/policy-preview.service';
 import { AttentionDispositionService } from './attention/attention-disposition.service';
 import { RemediationPlanService } from './remediation/remediation-plan.service';
+import { RemediationPlanExecutorService } from './remediation/plan-executor.service';
+import { RemediationQueryService } from './remediation/remediation-query.service';
+import { RemediationSweepService } from './remediation/remediation-sweep.service';
 import { CapabilityRegistry } from '../context-actions/capability-registry.service';
 import { MEDIA_INTELLIGENCE_ACTIONS } from './media-intelligence-actions';
 
@@ -144,6 +147,9 @@ export class MediaIntelligenceReconciler implements OnModuleInit {
     PolicyReevaluationJob,
     PolicyPreviewService,
     RemediationPlanService,
+    RemediationQueryService,
+    RemediationPlanExecutorService,
+    RemediationSweepService,
     MediaIntelligenceProjectionService,
     MediaIntelligenceService,
     MediaIntelligenceReconciler,

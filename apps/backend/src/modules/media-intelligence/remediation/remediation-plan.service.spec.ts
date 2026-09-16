@@ -18,20 +18,42 @@ type Row = Record<string, unknown>;
 
 const NOW = new Date('2026-09-16T12:00:00Z');
 
-function stub(opts: { recommendations?: Row[]; plans?: Row[]; item?: Row | null } = {}) {
+function stub(
+  opts: {
+    recommendations?: Row[];
+    plans?: Row[];
+    item?: Row | null;
+    /** A single plan returned by `findUnique`, for the decision paths. */
+    plan?: Row | null;
+    actionableSteps?: number;
+    casCount?: number;
+  } = {},
+) {
   const calls = {
     created: [] as Row[],
     updated: [] as Row[],
     history: [] as Row[],
     deleted: 0,
+    audits: [] as Row[],
   };
 
   const prisma = {
     mediaIntelligenceRecommendation: {
       findMany: jest.fn(async () => opts.recommendations ?? []),
     },
+    mediaRemediationStep: {
+      // `approve()` counts what is left to run: a plan with nothing
+      // actionable is not approvable.
+      count: jest.fn(async () => opts.actionableSteps ?? 1),
+    },
     mediaRemediationPlan: {
       findMany: jest.fn(async () => opts.plans ?? []),
+      findUnique: jest.fn(async () => (opts.plan === undefined ? null : opts.plan)),
+      // The decision CAS. A count of 0 means a concurrent decision won.
+      updateMany: jest.fn(async (args: { where: Row; data: Row }) => {
+        calls.updated.push({ ...args.where, ...args.data });
+        return { count: opts.casCount ?? 1 };
+      }),
       create: jest.fn(async (args: { data: Row }) => {
         calls.created.push(args.data);
         return { id: 'plan-new' };
@@ -62,7 +84,13 @@ function stub(opts: { recommendations?: Row[]; plans?: Row[]; item?: Row | null 
     },
   };
 
-  return { svc: new RemediationPlanService(prisma as never), prisma, calls };
+  const audit = {
+    record: jest.fn(async (e: Row) => {
+      calls.audits.push(e);
+    }),
+  };
+
+  return { svc: new RemediationPlanService(prisma as never, audit as never), prisma, audit, calls };
 }
 
 const rec = (over: Row = {}): Row => ({

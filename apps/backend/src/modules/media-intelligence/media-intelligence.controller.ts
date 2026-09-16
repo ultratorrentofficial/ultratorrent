@@ -19,6 +19,8 @@ import { LifecycleEvaluationService } from './policies/lifecycle-evaluation.serv
 import { PolicyReevaluationJob } from './policies/policy-reevaluation.job';
 import { PolicyPreviewService } from './policies/policy-preview.service';
 import { AttentionDispositionService } from './attention/attention-disposition.service';
+import { RemediationPlanService } from './remediation/remediation-plan.service';
+import { RemediationQueryService } from './remediation/remediation-query.service';
 import {
   ListFindingsDto,
   ListMediaIntelligenceDto,
@@ -31,6 +33,10 @@ import {
   SnoozeDto,
 } from './dto/attention.dto';
 import { ListRecommendationsDto } from './dto/recommendation.dto';
+import {
+  CancelRemediationPlanDto,
+  ListRemediationPlansDto,
+} from './dto/remediation.dto';
 import {
   CreateLifecyclePolicyDto,
   PreviewLifecyclePolicyDto,
@@ -78,6 +84,10 @@ export class MediaIntelligenceController {
      */
     private readonly reevaluation: PolicyReevaluationJob,
     private readonly policyPreview: PolicyPreviewService,
+    /** Writes: approve and cancel. */
+    private readonly plans: RemediationPlanService,
+    /** Reads only — the queue must never start anything. */
+    private readonly planQuery: RemediationQueryService,
     private readonly audit: AuditService,
   ) {}
 
@@ -441,6 +451,75 @@ export class MediaIntelligenceController {
     } catch {
       return { reevaluationJobId: null };
     }
+  }
+
+  /* ------------------------------------------------- remediation (Phase 6) */
+
+  /*
+   * Declared ABOVE `:entityType/:entityId`. That wildcard swallowed four
+   * routes in Phase 3, and `route-shadowing.spec.ts` fails the build if a
+   * literal ever slips below it again.
+   *
+   * Reading plans stays on `media_manager.view`, like every other Media
+   * Intelligence surface: explaining what the system would do is not a
+   * privilege. Deciding is — and the decision permissions are separate from
+   * the permission the OWNING domain enforces when a step actually runs, so
+   * approving a plan never confers the authority to perform its mutation.
+   */
+
+  /** The remediation queue. Reads persisted plans; starts nothing. */
+  @Get('remediation')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  remediationPlans(@Query() query: ListRemediationPlansDto) {
+    return this.planQuery.list(query);
+  }
+
+  @Get('remediation/summary')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  remediationSummary() {
+    return this.planQuery.summary();
+  }
+
+  @Get('remediation/:planId')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  remediationPlan(@Param('planId') planId: string) {
+    return this.planQuery.detail(planId);
+  }
+
+  /**
+   * Approve a plan, clearing it to execute.
+   *
+   * Approving grants permission; it does not act. The executor re-establishes
+   * every safety property immediately before the source call, so a lock
+   * applied — or a justification changed — between this click and execution
+   * still stops the work.
+   */
+  @Post('remediation/:planId/approve')
+  @RequirePermissions(P.MEDIA_REMEDIATION_APPROVE)
+  approveRemediationPlan(
+    @Param('planId') planId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
+  ) {
+    return this.plans.approve(planId, user, reqAuditContext(req));
+  }
+
+  /**
+   * Stop a plan before further steps begin.
+   *
+   * Never undoes a step that already ran: a source action issued to another
+   * domain belongs to that domain now, and this phase implements no rollback
+   * it could honestly promise.
+   */
+  @Post('remediation/:planId/cancel')
+  @RequirePermissions(P.MEDIA_REMEDIATION_CANCEL)
+  cancelRemediationPlan(
+    @Param('planId') planId: string,
+    @Body() dto: CancelRemediationPlanDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
+  ) {
+    return this.plans.cancel(planId, dto?.reason, user, reqAuditContext(req));
   }
 
   /**

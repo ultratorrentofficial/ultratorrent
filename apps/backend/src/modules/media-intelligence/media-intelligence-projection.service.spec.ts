@@ -188,7 +188,7 @@ function build(over: { findings?: Row[]; assembled?: unknown; entities?: boolean
    * now runs inside `refreshEntity` as the last pass, so these tests prove it
    * cannot break finding reconciliation or the recommendation pass either.
    */
-  const plans = new RemediationPlanService(prisma as never);
+  const plans = new RemediationPlanService(prisma as never, { record: jest.fn() } as never);
   const svc = new MediaIntelligenceProjectionService(
     prisma as never,
     assembler as never,
