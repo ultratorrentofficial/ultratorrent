@@ -16,6 +16,8 @@ import { RecommendationQueryService } from './recommendations/recommendation-que
 import { UpgradeVerificationService } from './recommendations/upgrade-verification.service';
 import { LifecyclePolicyService } from './policies/lifecycle-policy.service';
 import { LifecycleEvaluationService } from './policies/lifecycle-evaluation.service';
+import { PolicyReevaluationJob } from './policies/policy-reevaluation.job';
+import { PolicyPreviewService } from './policies/policy-preview.service';
 import { AttentionDispositionService } from './attention/attention-disposition.service';
 import {
   ListFindingsDto,
@@ -31,6 +33,7 @@ import {
 import { ListRecommendationsDto } from './dto/recommendation.dto';
 import {
   CreateLifecyclePolicyDto,
+  PreviewLifecyclePolicyDto,
   UpdateLifecyclePolicyDto,
 } from './dto/lifecycle-policy.dto';
 
@@ -67,6 +70,14 @@ export class MediaIntelligenceController {
     private readonly verification: UpgradeVerificationService,
     private readonly policies: LifecyclePolicyService,
     private readonly lifecycle: LifecycleEvaluationService,
+    /*
+     * Enqueued from the controller rather than injected into the policy
+     * service on purpose: the job depends on the projection service, which
+     * depends on the policy service, so injecting it there would close a
+     * dependency cycle. The controller already holds both ends.
+     */
+    private readonly reevaluation: PolicyReevaluationJob,
+    private readonly policyPreview: PolicyPreviewService,
     private readonly audit: AuditService,
   ) {}
 
@@ -341,23 +352,48 @@ export class MediaIntelligenceController {
 
   @Post('policies')
   @RequirePermissions(P.MEDIA_LIFECYCLE_POLICY_MANAGE)
-  createPolicy(
+  async createPolicy(
     @Body() dto: CreateLifecyclePolicyDto,
     @CurrentUser() user: AuthenticatedUser,
     @Req() req: Request,
   ) {
-    return this.policies.create(dto as never, user?.id, reqAuditContext(req));
+    const policy = await this.policies.create(dto as never, user?.id, reqAuditContext(req));
+    return { ...policy, ...(await this.requestReevaluation(policy, 'created', user?.id)) };
+  }
+
+  /**
+   * What would this policy do?
+   *
+   * A SIMULATION against current media, using the same evaluator
+   * reconciliation runs — a preview computed by a second code path is a guess
+   * about the real one, and the moment they disagree the operator has
+   * validated something that will not happen.
+   *
+   * Mutates nothing: the draft is evaluated by inserting it into the
+   * in-memory policy list, never written and rolled back. Bounded, and it
+   * reports `truncated` rather than implying a whole-library verdict from a
+   * sample.
+   *
+   * Gated on `view`: it reveals nothing the detail page does not already
+   * show, and requiring the authoring permission would stop an operator
+   * checking a policy before asking for one.
+   */
+  @Post('policies/preview')
+  @RequirePermissions(P.MEDIA_MANAGER_VIEW)
+  previewPolicy(@Body() dto: PreviewLifecyclePolicyDto) {
+    return this.policyPreview.preview(dto as never);
   }
 
   @Patch('policies/:id')
   @RequirePermissions(P.MEDIA_LIFECYCLE_POLICY_MANAGE)
-  updatePolicy(
+  async updatePolicy(
     @Param('id') id: string,
     @Body() dto: UpdateLifecyclePolicyDto,
     @CurrentUser() user: AuthenticatedUser,
     @Req() req: Request,
   ) {
-    return this.policies.update(id, dto as never, user?.id, reqAuditContext(req));
+    const policy = await this.policies.update(id, dto as never, user?.id, reqAuditContext(req));
+    return { ...policy, ...(await this.requestReevaluation(policy, 'updated', user?.id)) };
   }
 
   /**
@@ -368,12 +404,43 @@ export class MediaIntelligenceController {
    */
   @Delete('policies/:id')
   @RequirePermissions(P.MEDIA_LIFECYCLE_POLICY_MANAGE)
-  deletePolicy(
+  async deletePolicy(
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
     @Req() req: Request,
   ) {
-    return this.policies.remove(id, user?.id, reqAuditContext(req));
+    const removed = await this.policies.remove(id, user?.id, reqAuditContext(req));
+    // Removing intent changes conclusions too: anything that leaned on this
+    // policy has to be re-derived from the policies that remain.
+    return {
+      ...removed,
+      ...(await this.requestReevaluation({ id, name: null }, 'deleted', user?.id)),
+    };
+  }
+
+  /**
+   * Ask for a background re-evaluation after operator intent changed.
+   *
+   * A global policy reaches every title in the library, so this must never
+   * happen inside the request. The mutation returns immediately with a
+   * `jobId` the operator can watch in the Jobs Center; a failure to enqueue
+   * is logged by the job layer and never fails the save, because losing the
+   * recompute is recoverable and losing the policy is not.
+   */
+  private async requestReevaluation(
+    policy: { id: string; name: string | null },
+    reason: 'created' | 'updated' | 'deleted',
+    userId?: string,
+  ): Promise<{ reevaluationJobId: string | null }> {
+    try {
+      const { jobId } = await this.reevaluation.request(
+        { policyId: policy.id, policyName: policy.name, reason },
+        userId,
+      );
+      return { reevaluationJobId: jobId };
+    } catch {
+      return { reevaluationJobId: null };
+    }
   }
 
   /**

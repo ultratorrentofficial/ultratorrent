@@ -17,6 +17,8 @@ import { RecommendationQueryService } from './recommendations/recommendation-que
 import { UpgradeVerificationService } from './recommendations/upgrade-verification.service';
 import { LifecyclePolicyService } from './policies/lifecycle-policy.service';
 import { LifecycleEvaluationService } from './policies/lifecycle-evaluation.service';
+import { PolicyReevaluationJob } from './policies/policy-reevaluation.job';
+import { PolicyPreviewService } from './policies/policy-preview.service';
 import { AttentionDispositionService } from './attention/attention-disposition.service';
 import { CapabilityRegistry } from '../context-actions/capability-registry.service';
 import { MEDIA_INTELLIGENCE_ACTIONS } from './media-intelligence-actions';
@@ -138,6 +140,8 @@ export class MediaIntelligenceReconciler implements OnModuleInit {
     UpgradeVerificationService,
     LifecyclePolicyService,
     LifecycleEvaluationService,
+    PolicyReevaluationJob,
+    PolicyPreviewService,
     MediaIntelligenceProjectionService,
     MediaIntelligenceService,
     MediaIntelligenceReconciler,

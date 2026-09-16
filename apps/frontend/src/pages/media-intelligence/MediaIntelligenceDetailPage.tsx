@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
 import {
   MEDIA_INTELLIGENCE_DOMAINS,
+  type LifecycleDrift,
   type MediaQualityFacts,
   type MediaFinding,
   type MediaIntelligenceDomain,
@@ -121,6 +122,8 @@ export function MediaIntelligenceDetailPage() {
 
       <QualityCard state={s} />
 
+      <DriftCard entityType={entityType} entityId={entityId} />
+
       <Card>
         <CardContent className="space-y-3 py-4">
           <h2 className="text-sm font-semibold">{t('detail.findings')}</h2>
@@ -148,6 +151,138 @@ export function MediaIntelligenceDetailPage() {
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+/** Drift status → badge. `unknown` is outline, never a success or a warning. */
+const DRIFT_VARIANT: Record<LifecycleDrift['status'], 'success' | 'warning' | 'outline'> = {
+  compliant: 'success',
+  drift: 'warning',
+  not_applicable: 'outline',
+  unknown: 'outline',
+};
+
+/**
+ * Desired state versus actual, for one title.
+ *
+ * Kept in its own query rather than folded into the detail payload: an
+ * installation with no policies should pay nothing for this, and the section
+ * then renders the honest empty state instead of an error.
+ *
+ * The section is deliberately a COMPARISON, not a plan. It never offers to
+ * fix anything — Phase 5 explains what should be maintained and stops there.
+ */
+function DriftCard({
+  entityType,
+  entityId,
+}: {
+  entityType: MediaIntelligenceEntityType;
+  entityId: string;
+}) {
+  const { t } = useTranslation('mediaIntelligence');
+
+  const evaluation = useQuery({
+    queryKey: ['mediaIntelligence', 'drift', entityType, entityId],
+    queryFn: () => api.mediaIntelligence.drift(entityType, entityId),
+    enabled: Boolean(entityType && entityId),
+  });
+
+  // A failure here must not take the page down; the rest of the detail is
+  // still true. Staying silent is the right call for a supplementary section.
+  if (evaluation.isLoading || evaluation.isError || !evaluation.data) return null;
+
+  const { desiredState, drifts, evaluatedAt } = evaluation.data;
+  const governed = drifts.filter((d) => d.status !== 'not_applicable');
+
+  return (
+    <Card>
+      <CardContent className="space-y-3 py-4" data-testid="drift-section">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-sm font-semibold">{t('drift.title')}</h2>
+          <span className="text-xs text-muted-foreground">
+            {t('drift.evaluatedAt', { when: formatDateTime(evaluatedAt) })}
+          </span>
+        </div>
+        <p className="text-xs text-muted-foreground">{t('drift.subtitle')}</p>
+
+        {governed.length === 0 ? (
+          <EmptyState title={t('drift.none')} description={t('drift.noneHint')} />
+        ) : (
+          <div className="space-y-2">
+            {governed.map((d) => (
+              <DriftRow key={d.dimension} drift={d} />
+            ))}
+          </div>
+        )}
+
+        {desiredState.conflicts.map((c) => (
+          <p key={c.dimension} className="text-xs text-warning">
+            {t('drift.conflict', {
+              dimension: t(`drift.dimension.${c.dimension}` as 'drift.dimension.quality'),
+            })}{' '}
+            <span className="text-muted-foreground">{t('drift.conflictHint')}</span>
+          </p>
+        ))}
+
+        <p className="text-xs text-muted-foreground">{t('drift.advisory')}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Render a desired or actual value.
+ *
+ * These are typed `unknown` because a dimension's value genuinely varies: a
+ * quality intent is a code, `subtitleLanguages` is a list, `acquisition` is an
+ * object. `prettifyValue` takes a string, so passing these through it would
+ * either fail to compile or — worse, behind a cast — print `[object Object]`
+ * at an operator who is trying to understand a verdict.
+ */
+function driftValue(value: unknown): string {
+  if (value == null) return '—';
+  if (Array.isArray(value)) return value.length ? value.map(String).join(', ') : '—';
+  if (typeof value === 'string') return prettifyValue(value);
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  // An object dimension has no honest one-line form; say so rather than guess.
+  return '—';
+}
+
+/** One dimension's verdict, with the policy that asked for it. */
+function DriftRow({ drift }: { drift: LifecycleDrift }) {
+  const { t } = useTranslation('mediaIntelligence');
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-md border border-border px-3 py-2">
+      <Badge variant={DRIFT_VARIANT[drift.status]} dot>
+        {t(`drift.status.${drift.status}` as 'drift.status.compliant')}
+      </Badge>
+      <span className="text-sm font-medium">
+        {t(`drift.dimension.${drift.dimension}` as 'drift.dimension.quality')}
+      </span>
+
+      {/* An unknown states WHY, and never shows a comparison it cannot make. */}
+      {drift.status === 'unknown' && drift.unknownReason ? (
+        <span className="text-xs text-muted-foreground">
+          {t('detail.unknownBecause', {
+            reason: t(
+              `drift.unknownReason.${drift.unknownReason}` as 'drift.unknownReason.quality_not_measured',
+            ),
+          })}
+        </span>
+      ) : (
+        <span className="text-xs text-muted-foreground">
+          {t('drift.desired')}: {driftValue(drift.desired)}
+          {drift.actual == null ? null : <> · {t('drift.actual')}: {driftValue(drift.actual)}</>}
+        </span>
+      )}
+
+      {drift.source ? (
+        <span className="ml-auto text-xs text-muted-foreground">
+          {t('drift.source', { policy: drift.source.policyName })}
+        </span>
+      ) : null}
     </div>
   );
 }

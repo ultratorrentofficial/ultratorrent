@@ -401,5 +401,121 @@
       "higher_preference_rung": "Satisfies a higher rung of your preference ladder"
     },
     "size": "Size"
+  },
+  "policies": {
+    "title": "Lifecycle Policies",
+    "subtitle": "What you want UltraTorrent to maintain. Policies explain and recommend — they never act on their own.",
+    "empty": "No lifecycle policies yet. Nothing is being maintained, which is the honest default.",
+    "emptyHint": "A policy states what you want kept true. UltraTorrent compares it to what is actually true and explains the difference.",
+    "create": "New policy",
+    "edit": "Edit",
+    "delete": "Delete",
+    "save": "Save",
+    "cancel": "Cancel",
+    "preview": "Preview",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "name": "Name",
+    "namePlaceholder": "e.g. TV Library Standard",
+    "description": "Description",
+    "scope": "Applies to",
+    "scopeId": "Which one",
+    "scopePick": "Choose…",
+    "scopeNone": "Nothing of this kind exists yet.",
+    "mode": "Mode",
+    "columns": {
+      "name": "Name",
+      "scope": "Scope",
+      "maintains": "Maintains",
+      "mode": "Mode",
+      "state": "State"
+    },
+    "scopeType": {
+      "global": "Everything",
+      "media_kind": "A media kind",
+      "library": "A library",
+      "series": "One series",
+      "movie": "One movie"
+    },
+    "modes": {
+      "recommend_only": "Recommend only",
+      "approval_required": "Require my approval"
+    },
+    "modeHelp": "Neither mode acts on its own. Automatic maintenance does not exist yet.",
+    "quality": {
+      "label": "Quality",
+      "help": "Judged against your existing Auto-Download preference ladder. This does not create a second quality setting.",
+      "unset": "Say nothing (inherit)",
+      "do_not_manage": "Explicitly do not manage",
+      "maintain_acceptable": "Any rung I configured is fine",
+      "maintain_preferred": "Keep it at my preferred rung"
+    },
+    "completeness": {
+      "label": "Completeness",
+      "help": "Uses the same aired / unaired / ignored classification as Missing Episodes.",
+      "unset": "Say nothing (inherit)",
+      "do_not_manage": "Explicitly do not manage",
+      "maintain_aired": "Keep every aired episode"
+    },
+    "subtitles": {
+      "label": "Required subtitle languages",
+      "help": "Comma-separated. Leave blank to say nothing; an empty saved list means explicitly none.",
+      "placeholder": "english, spanish",
+      "caveat": "UltraTorrent can confirm a language is present, but cannot prove one is absent — embedded tracks are not catalogued and subtitle scans are not recorded. A missing language reports as unknown, never as a violation."
+    },
+    "inherit": "Inherited from {{policy}}",
+    "overrides": "Overrides {{policy}}",
+    "conflict": "Two equally specific policies disagree about {{dimension}}. Resolve it by changing one of them.",
+    "previewTitle": "Policy preview",
+    "previewIntro": "A simulation against current media. Nothing is saved and nothing is acted on.",
+    "previewTruncated": "Showing the first {{count}} entities in scope — the scope is larger than that.",
+    "previewEvaluated": "{{count}} evaluated",
+    "previewEmpty": "Nothing in scope to evaluate yet.",
+    "status": {
+      "compliant": "Already as you want it",
+      "drift": "Differs",
+      "unknown": "Cannot tell",
+      "not_applicable": "Not governed"
+    },
+    "samples": "Examples",
+    "saveFailed": "Could not save that policy",
+    "deleteFailed": "Could not delete that policy",
+    "previewFailed": "Could not preview that policy",
+    "reevaluating": "Re-evaluating your library in the background."
+  },
+  "drift": {
+    "title": "Desired state",
+    "subtitle": "What your policies ask for, and how this title compares.",
+    "none": "No lifecycle policy covers this title.",
+    "noneHint": "Without a policy there is nothing to compare against — this is not the same as the title being correct.",
+    "evaluatedAt": "Compared {{when}}",
+    "dimension": {
+      "quality": "Quality",
+      "completeness": "Completeness",
+      "subtitleLanguages": "Subtitles",
+      "acquisition": "Acquisition"
+    },
+    "status": {
+      "compliant": "Matches",
+      "drift": "Differs",
+      "not_applicable": "No policy",
+      "unknown": "Not known"
+    },
+    "desired": "Asked for",
+    "actual": "Actually",
+    "unknownReason": {
+      "no_acquisition_ladder": "no quality ladder is configured to compare against",
+      "quality_not_measured": "the files have never been measured",
+      "completeness_not_monitored": "this title is not monitored for missing episodes",
+      "subtitle_scan_state_unknown": "no subtitle scan has been recorded, and embedded tracks are not catalogued",
+      "identity_unresolved": "this title is not matched to a known work"
+    },
+    "source": "From {{policy}}",
+    "inherited": "Inherited from a broader policy",
+    "overriddenBy": "Overrides {{count}} broader policy",
+    "overriddenBy_other": "Overrides {{count}} broader policies",
+    "conflict": "Two policies at the same level disagree about {{dimension}}",
+    "conflictHint": "UltraTorrent picked one so the result stays predictable, but it will not choose between them for you.",
+    "advisory": "This is a comparison, not a plan. Nothing here changes your media."
   }
 }

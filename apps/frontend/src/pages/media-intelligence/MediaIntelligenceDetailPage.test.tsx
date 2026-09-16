@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import '@/i18n';
@@ -18,7 +18,7 @@ vi.mock('@/components/media/MediaPoster', () => ({
   MediaPoster: ({ alt }: { alt: string }) => <img alt={alt} data-testid="poster" />,
 }));
 
-const intelSpy = vi.hoisted(() => ({ detail: vi.fn(), refresh: vi.fn() }));
+const intelSpy = vi.hoisted(() => ({ detail: vi.fn(), refresh: vi.fn(), drift: vi.fn() }));
 const mediaSpy = vi.hoisted(() => ({ getItem: vi.fn(), showDetail: vi.fn() }));
 vi.mock('@/lib/api', () => ({
   ApiError: class ApiError extends Error {
@@ -111,6 +111,28 @@ const state = {
   freshness: { assembledAt: '2026-09-15T00:00:00.000Z', sections: [] },
 };
 
+/** A lifecycle evaluation carrying only the drifts a case cares about. */
+const evaluation = (drifts: Array<Record<string, unknown>>) => ({
+  entityType: 'series',
+  entityId: 'show-1',
+  desiredState: {
+    entityType: 'series',
+    entityId: 'show-1',
+    quality: { value: null, source: null, inherited: false, overridden: [] },
+    completeness: { value: null, source: null, inherited: false, overridden: [] },
+    subtitleLanguages: { value: null, source: null, inherited: false, overridden: [] },
+    acquisition: { value: null, source: null, inherited: false, overridden: [] },
+    mode: null,
+    applicablePolicies: [],
+    conflicts: [],
+    evaluatedAt: '2026-09-15T00:00:00.000Z',
+  },
+  drifts,
+  evaluatedAt: '2026-09-15T00:00:00.000Z',
+});
+
+const source = { policyId: 'pol-1', policyName: 'TV Library Standard', scopeType: 'library' };
+
 function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -150,6 +172,9 @@ describe('MediaIntelligenceDetailPage', () => {
       ],
     });
     mediaSpy.getItem.mockResolvedValue({ title: 'Heat', metadata: null, artwork: [] });
+    // Default: no policy covers this title. Most of this suite predates
+    // Phase 5 and must keep asserting what it always did.
+    intelSpy.drift.mockResolvedValue(evaluation([]));
   });
 
   it('shows the entity and its health verdict', async () => {
@@ -175,6 +200,87 @@ describe('MediaIntelligenceDetailPage', () => {
     expect(screen.queryByText('measuredFileCount')).not.toBeInTheDocument();
     expect(screen.getByText('Poster present')).toBeInTheDocument();
     expect(screen.queryByText('true')).not.toBeInTheDocument();
+  });
+
+  /**
+   * Desired state versus actual.
+   *
+   * Phase 5 explains what should be maintained and stops there, so the claims
+   * worth pinning are that an unknown never reads as a verdict, and that
+   * nothing in this section offers to fix anything.
+   */
+  it('says no policy covers a title rather than implying it is correct', async () => {
+    renderPage();
+    await screen.findByRole('heading', { name: /Breaking Bad/ });
+    const section = within(await screen.findByTestId('drift-section'));
+    expect(section.getByText(/No lifecycle policy covers this title/i)).toBeInTheDocument();
+    // The dangerous misreading: absence of a policy as a clean bill of health.
+    expect(section.queryByText(/Matches/)).not.toBeInTheDocument();
+  });
+
+  it('cites the policy behind a verdict', async () => {
+    intelSpy.drift.mockResolvedValue(
+      evaluation([
+        {
+          dimension: 'quality',
+          status: 'drift',
+          desired: 'maintain_preferred',
+          actual: 'below_preference',
+          unknownReason: null,
+          source,
+          evidence: {},
+        },
+      ]),
+    );
+    renderPage();
+    const section = within(await screen.findByTestId('drift-section'));
+    expect(section.getByText('Differs')).toBeInTheDocument();
+    // A verdict that cannot name its policy is unfalsifiable.
+    expect(section.getByText(/TV Library Standard/)).toBeInTheDocument();
+  });
+
+  it('states why a dimension is unknown, and never calls it compliant or drift', async () => {
+    intelSpy.drift.mockResolvedValue(
+      evaluation([
+        {
+          dimension: 'subtitleLanguages',
+          status: 'unknown',
+          desired: ['en'],
+          actual: null,
+          unknownReason: 'subtitle_scan_state_unknown',
+          source,
+          evidence: {},
+        },
+      ]),
+    );
+    renderPage();
+    const section = within(await screen.findByTestId('drift-section'));
+    expect(section.getByText('Not known')).toBeInTheDocument();
+    expect(section.getByText(/no subtitle scan has been recorded/i)).toBeInTheDocument();
+    // An unprobed file is unmeasured, not wrong — and not fine either.
+    expect(section.queryByText('Differs')).not.toBeInTheDocument();
+    expect(section.queryByText('Matches')).not.toBeInTheDocument();
+  });
+
+  it('offers no remedy — this phase explains, it does not maintain', async () => {
+    intelSpy.drift.mockResolvedValue(
+      evaluation([
+        {
+          dimension: 'quality',
+          status: 'drift',
+          desired: 'maintain_preferred',
+          actual: 'below_preference',
+          unknownReason: null,
+          source,
+          evidence: {},
+        },
+      ]),
+    );
+    renderPage();
+    const section = within(await screen.findByTestId('drift-section'));
+    expect(
+      section.queryByRole('button', { name: /fix|repair|upgrade|search|download|apply/i }),
+    ).not.toBeInTheDocument();
   });
 
   it('shows the artwork and metadata from the Media Manager', async () => {

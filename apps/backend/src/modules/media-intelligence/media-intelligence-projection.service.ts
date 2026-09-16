@@ -18,6 +18,8 @@ import { evaluateDispositionRetention } from './attention/escalation';
 import { attentionPriority } from './attention/priority';
 import { MediaStateAssembler } from './media-state.assembler';
 import { RecommendationService } from './recommendations/recommendation.service';
+import { LifecyclePolicyService } from './policies/lifecycle-policy.service';
+import { resolveDesiredState } from './policies/policy-precedence';
 
 /**
  * Maintains the DERIVED projection that powers the Media Health list.
@@ -57,6 +59,7 @@ export class MediaIntelligenceProjectionService {
     private readonly assembler: MediaStateAssembler,
     private readonly bus: DomainEventBus,
     private readonly recommendations: RecommendationService,
+    private readonly policies: LifecyclePolicyService,
   ) {}
 
   isRebuilding(): boolean {
@@ -72,6 +75,15 @@ export class MediaIntelligenceProjectionService {
   async refreshEntity(
     entityType: MediaIntelligenceEntityType,
     entityId: string,
+    /**
+     * Enabled lifecycle policies, preloaded by a sweep.
+     *
+     * A sweep reads them ONCE for the whole run and hands them down; a
+     * single-entity refresh loads them itself. Resolving per entity would be
+     * one query per title — thirty thousand on this installation — which is
+     * exactly the N+1 the Phase 5 brief forbids.
+     */
+    preloadedPolicies?: Awaited<ReturnType<LifecyclePolicyService['enabled']>>,
   ): Promise<{ health: MediaHealthStatus; findingCount: number; transitions: AttentionTransition[] } | null> {
     const assembled = await this.assembler.assemble(entityType, entityId);
     if (!assembled) {
@@ -141,7 +153,29 @@ export class MediaIntelligenceProjectionService {
      * and a failure here must not be able to corrupt finding truth or the
      * operator's disposition.
      */
-    await this.recommendations.reconcile(entityType, entityId, reconciled, now);
+    /*
+     * Resolve the operator's intent for this entity, so a recommendation can
+     * cite the policy behind it rather than only the ladder. Policies are
+     * cheap to resolve (pure, in memory) once the list is in hand — the cost
+     * is the READ, which a sweep does once.
+     */
+    const policies = preloadedPolicies ?? (await this.policies.enabled());
+    const lib = (assembled.facts as unknown as {
+      library?: { libraryId: string | null; libraryKind: string | null };
+    }).library;
+    const desired = resolveDesiredState(
+      policies,
+      {
+        entityType,
+        entityId,
+        libraryId: lib?.libraryId ?? null,
+        mediaKind: lib?.libraryKind ?? null,
+        showId: entityType === 'series' ? entityId : null,
+      },
+      now,
+    );
+
+    await this.recommendations.reconcile(entityType, entityId, reconciled, now, desired);
 
     return { health: health.status, findingCount: findings.length, transitions };
   }
@@ -363,6 +397,11 @@ export class MediaIntelligenceProjectionService {
     const summary: RebuildSummary = { skipped: false, movies: 0, series: 0, failed: 0 };
     // Accumulated for ONE digest at the end of the run, never per entity.
     const transitions: AttentionTransition[] = [];
+    /*
+     * ONE policy read for the entire sweep. Operator intent does not change
+     * mid-run, and re-reading it per entity would add a query per title.
+     */
+    const policies = await this.policies.enabled().catch(() => []);
 
     try {
       // Movies: every `movie` item is a first-class entity.
@@ -377,7 +416,7 @@ export class MediaIntelligenceProjectionService {
         if (!page.length) break;
         for (const row of page) {
           try {
-            const r = await this.refreshEntity('movie', row.id);
+            const r = await this.refreshEntity('movie', row.id, policies);
             if (r) transitions.push(...r.transitions);
             summary.movies += 1;
           } catch (err) {
@@ -399,7 +438,7 @@ export class MediaIntelligenceProjectionService {
         if (!page.length) break;
         for (const row of page) {
           try {
-            const r = await this.refreshEntity('series', row.id);
+            const r = await this.refreshEntity('series', row.id, policies);
             if (r) transitions.push(...r.transitions);
             summary.series += 1;
           } catch (err) {

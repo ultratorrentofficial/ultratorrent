@@ -1,5 +1,6 @@
 import {
   MEDIA_FINDING_CODES,
+  type LifecycleQualityIntent,
   MEDIA_RECOMMENDATION_TYPES,
   type MediaRecommendationClass,
   type MediaRecommendationConfidence,
@@ -52,6 +53,24 @@ export interface RecommendationInput {
    * library-wide sweep cannot turn into one query per entity.
    */
   retryableIntakeJobId?: string | null;
+  /**
+   * The operator's resolved intent for this entity, when a lifecycle policy
+   * governs it (Phase 5).
+   *
+   * A policy does not create a recommendation and never changes which type is
+   * proposed — the finding still decides that. What it changes is how much
+   * weight the suggestion carries and what it can cite: "a better rung exists
+   * in your ladder" and "you asked this title to stay at your preferred rung"
+   * are different sentences, and only the second is something the operator
+   * committed to.
+   *
+   * Absent means no policy applies, and every rule below behaves exactly as
+   * it did before Phase 5.
+   */
+  policy?: {
+    quality?: LifecycleQualityIntent | null;
+    qualitySource?: { policyId: string; policyName: string } | null;
+  } | null;
 }
 
 export interface RecommendationDraft {
@@ -70,6 +89,28 @@ export interface RecommendationDraft {
 
 const T = MEDIA_RECOMMENDATION_TYPES;
 const F = MEDIA_FINDING_CODES;
+
+/**
+ * Scalar evidence naming the policy behind a quality recommendation.
+ *
+ * Emitted ONLY when a policy actually governs the dimension, so a
+ * recommendation never implies an intent nobody expressed. Scalar keys, like
+ * everything else in evidence — a humanizer can prettify a key and format a
+ * value, but it cannot take apart a sentence.
+ */
+function policyEvidence(input: RecommendationInput): Record<string, unknown> {
+  const intent = input.policy?.quality;
+  if (!intent || intent === 'do_not_manage') return {};
+  return {
+    policyIntent: intent,
+    ...(input.policy?.qualitySource
+      ? {
+          policyName: input.policy.qualitySource.policyName,
+          policyId: input.policy.qualitySource.policyId,
+        }
+      : {}),
+  };
+}
 
 /** Read a number from evidence without inventing one. */
 function num(evidence: Record<string, unknown>, key: string): number | null {
@@ -110,6 +151,7 @@ export function evaluateRecommendation(input: RecommendationInput): Recommendati
           totalRungs: input.evidence.totalRungs ?? null,
           failedOn: input.evidence.failedOn ?? null,
           measuredFileCount: input.evidence.measuredFileCount ?? null,
+          ...policyEvidence(input),
         },
         unknowns: ['whether_a_superior_release_is_obtainable'],
         plan: [
@@ -132,7 +174,14 @@ export function evaluateRecommendation(input: RecommendationInput): Recommendati
         findingId: input.findingId,
         type: T.SEARCH_FOR_QUALITY_UPGRADE,
         recommendationClass: 'search',
-        confidence: 'medium',
+        /*
+         * `medium` on its own merits: the operator configured that fallback
+         * rung themselves, so a better one existing is an opportunity rather
+         * than a problem. A policy that explicitly asks for the preferred
+         * rung changes that — they have now said they want the top rung for
+         * this title, so the suggestion is one they committed to.
+         */
+        confidence: input.policy?.quality === 'maintain_preferred' ? 'high' : 'medium',
         evidence: {
           ownedResolution: input.evidence.ownedResolution ?? null,
           matchedRung: input.evidence.matchedRung ?? null,
@@ -140,6 +189,7 @@ export function evaluateRecommendation(input: RecommendationInput): Recommendati
           preferredRung: input.evidence.preferredRung ?? null,
           totalRungs: input.evidence.totalRungs ?? null,
           preferenceSource: input.evidence.preferenceSource ?? null,
+          ...policyEvidence(input),
         },
         unknowns: ['whether_a_superior_release_is_obtainable'],
         plan: [

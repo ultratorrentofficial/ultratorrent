@@ -197,3 +197,74 @@ describe('evaluateRecommendations', () => {
     );
   });
 });
+
+describe('evaluateRecommendation — lifecycle policy (Phase 5)', () => {
+  const upgradeEvidence = { matchedRung: 2, preferredRung: 0, totalRungs: 4 };
+
+  it('leaves every rule untouched when no policy governs the entity', () => {
+    // The most important case here. Phase 5 must not alter a single existing
+    // recommendation on an installation that has authored no policies.
+    const without = evaluateRecommendation(input({ evidence: upgradeEvidence }));
+    const explicitNull = evaluateRecommendation(input({ evidence: upgradeEvidence, policy: null }));
+
+    expect(without?.confidence).toBe('medium');
+    expect(without?.evidence.policyIntent).toBeUndefined();
+    expect(JSON.stringify(explicitNull)).toBe(JSON.stringify(without));
+  });
+
+  it('raises confidence when the operator explicitly asked for the top rung', () => {
+    // "A better rung exists in your ladder" and "you asked this title to stay
+    // at your preferred rung" are different claims; only the second is a
+    // commitment the operator made.
+    const r = evaluateRecommendation(
+      input({
+        evidence: upgradeEvidence,
+        policy: {
+          quality: 'maintain_preferred',
+          qualitySource: { policyId: 'pol-1', policyName: 'TV Library Standard' },
+        },
+      }),
+    );
+    expect(r?.confidence).toBe('high');
+    expect(r?.evidence.policyIntent).toBe('maintain_preferred');
+    expect(r?.evidence.policyName).toBe('TV Library Standard');
+  });
+
+  it('does not raise confidence for an intent that tolerates the current rung', () => {
+    const r = evaluateRecommendation(
+      input({
+        evidence: upgradeEvidence,
+        policy: { quality: 'maintain_acceptable', qualitySource: { policyId: 'p', policyName: 'Relaxed' } },
+      }),
+    );
+    // They said any configured rung is fine, so this stays an opportunity.
+    expect(r?.confidence).toBe('medium');
+  });
+
+  it('cites nothing when the policy explicitly declines to manage quality', () => {
+    const r = evaluateRecommendation(
+      input({
+        evidence: upgradeEvidence,
+        policy: { quality: 'do_not_manage', qualitySource: { policyId: 'p', policyName: 'Hands off' } },
+      }),
+    );
+    // Emitting a policy name here would imply an intent the operator
+    // explicitly withheld.
+    expect(r?.evidence.policyIntent).toBeUndefined();
+    expect(r?.evidence.policyName).toBeUndefined();
+    expect(r?.confidence).toBe('medium');
+  });
+
+  it('never changes WHICH recommendation is proposed — the finding decides that', () => {
+    const r = evaluateRecommendation(
+      input({
+        code: F.DUPLICATE_MEDIA_PRESENT,
+        evidence: { groups: 2 },
+        policy: { quality: 'maintain_preferred', qualitySource: { policyId: 'p', policyName: 'X' } },
+      }),
+    );
+    expect(r?.type).toBe('REVIEW_DUPLICATES');
+    // A quality policy has no bearing on a duplicate finding.
+    expect(r?.evidence.policyIntent).toBeUndefined();
+  });
+});

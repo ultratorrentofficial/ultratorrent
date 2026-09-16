@@ -3,6 +3,7 @@ import {
   Inbox,
   Bell,
   BellRing,
+  Target,
   Award,
   Bot,
   Workflow,
@@ -233,6 +234,7 @@ export const NAV_CONTRIBUTIONS: NavContribution[] = [
   { slot: { domain: 'media', order: 60 }, item: { id: 'media-rename', to: '/media/rename-preview', label: 'Rename Engine', icon: Wand2, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_manager', descriptionKey: 'Rename Engine' } },
   { slot: { domain: 'media', order: 65 }, item: { id: 'media-intelligence', to: '/media/intelligence', label: 'Media Intelligence', icon: Activity, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_intelligence', descriptionKey: 'Media Intelligence' } },
   { slot: { domain: 'media', order: 67 }, item: { id: 'media-attention', to: '/media/intelligence/attention', label: 'Media Attention', icon: BellRing, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_intelligence', descriptionKey: 'Media Attention' } },
+  { slot: { domain: 'media', order: 68 }, item: { id: 'media-policies', to: '/media/intelligence/policies', label: 'Lifecycle Policies', icon: Target, permission: PERMISSIONS.MEDIA_MANAGER_VIEW, module: 'media_intelligence', descriptionKey: 'Lifecycle Policies' } },
   { slot: { domain: 'media', order: 70 }, item: {
     id: 'subtitles', to: '/subtitles', label: 'Subtitles', icon: Captions, permission: PERMISSIONS.SUBTITLE_INTELLIGENCE_VIEW, module: 'subtitle_intelligence', end: true, descriptionKey: 'Subtitles',
     children: [

@@ -70,3 +70,30 @@ export class UpdateLifecyclePolicyDto {
 
   @IsOptional() @IsObject() acquisition?: Record<string, unknown>;
 }
+
+/**
+ * A draft policy to preview.
+ *
+ * Every field optional and nothing required but the shape: an operator
+ * previews a half-built policy, and refusing to evaluate one because it has
+ * no name yet would make the feature useless exactly when it is most needed.
+ * Validation of what may be SAVED stays in the service.
+ */
+export class PreviewLifecyclePolicyDto {
+  /** Set when previewing an edit to a saved policy; absent for a new one. */
+  @IsOptional() @IsString() @MaxLength(64) id?: string;
+  @IsOptional() @IsString() @MaxLength(120) name?: string;
+
+  @IsOptional() @IsIn(LIFECYCLE_SCOPE_TYPES as unknown as string[]) scopeType?: string;
+  @IsOptional() @IsString() @MaxLength(200) scopeId?: string;
+
+  @IsOptional() @IsIn(LIFECYCLE_POLICY_MODES as unknown as string[]) mode?: string;
+
+  @IsOptional() @IsIn(LIFECYCLE_QUALITY_INTENTS as unknown as string[]) quality?: string;
+  @IsOptional() @IsIn(LIFECYCLE_COMPLETENESS_INTENTS as unknown as string[]) completeness?: string;
+
+  @IsOptional() @IsArray() @ArrayMaxSize(20) @IsString({ each: true })
+  subtitleLanguages?: string[];
+
+  @IsOptional() @IsObject() acquisition?: Record<string, unknown>;
+}

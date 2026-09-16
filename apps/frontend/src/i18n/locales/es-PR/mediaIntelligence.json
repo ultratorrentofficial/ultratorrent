@@ -401,5 +401,121 @@
       "higher_preference_rung": "Cumple con un nivel más alto de su escala de preferencias"
     },
     "size": "Tamaño"
+  },
+  "policies": {
+    "title": "Políticas de ciclo de vida",
+    "subtitle": "Lo que usted quiere que UltraTorrent mantenga. Las políticas explican y recomiendan — nunca actúan solas.",
+    "empty": "Todavía no hay políticas. No se está manteniendo nada, que es lo honesto por defecto.",
+    "emptyHint": "Una política dice qué quiere que siga siendo cierto. UltraTorrent lo compara con lo que realmente es cierto y explica la diferencia.",
+    "create": "Nueva política",
+    "edit": "Editar",
+    "delete": "Eliminar",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "preview": "Vista previa",
+    "enabled": "Activa",
+    "disabled": "Desactivada",
+    "name": "Nombre",
+    "namePlaceholder": "ej. Estándar de la biblioteca de TV",
+    "description": "Descripción",
+    "scope": "Se aplica a",
+    "scopeId": "Cuál",
+    "scopePick": "Elija…",
+    "scopeNone": "Todavía no existe nada de este tipo.",
+    "mode": "Modo",
+    "columns": {
+      "name": "Nombre",
+      "scope": "Alcance",
+      "maintains": "Mantiene",
+      "mode": "Modo",
+      "state": "Estado"
+    },
+    "scopeType": {
+      "global": "Todo",
+      "media_kind": "Un tipo de medio",
+      "library": "Una biblioteca",
+      "series": "Una serie",
+      "movie": "Una película"
+    },
+    "modes": {
+      "recommend_only": "Solo recomendar",
+      "approval_required": "Requerir mi aprobación"
+    },
+    "modeHelp": "Ningún modo actúa por su cuenta. El mantenimiento automático todavía no existe.",
+    "quality": {
+      "label": "Calidad",
+      "help": "Se juzga con su escala de preferencias de descarga automática. Esto no crea una segunda configuración de calidad.",
+      "unset": "No decir nada (heredar)",
+      "do_not_manage": "No administrar explícitamente",
+      "maintain_acceptable": "Cualquier nivel que configuré está bien",
+      "maintain_preferred": "Mantener mi nivel preferido"
+    },
+    "completeness": {
+      "label": "Completitud",
+      "help": "Usa la misma clasificación de emitido / no emitido / ignorado que Episodios Faltantes.",
+      "unset": "No decir nada (heredar)",
+      "do_not_manage": "No administrar explícitamente",
+      "maintain_aired": "Mantener todos los episodios emitidos"
+    },
+    "subtitles": {
+      "label": "Idiomas de subtítulos requeridos",
+      "help": "Separados por comas. Déjelo vacío para no decir nada; una lista vacía guardada significa explícitamente ninguno.",
+      "placeholder": "english, spanish",
+      "caveat": "UltraTorrent puede confirmar que un idioma está presente, pero no puede probar que falte — las pistas incrustadas no se catalogan y los escaneos de subtítulos no se registran. Un idioma ausente se reporta como desconocido, nunca como incumplimiento."
+    },
+    "inherit": "Heredado de {{policy}}",
+    "overrides": "Reemplaza a {{policy}}",
+    "conflict": "Dos políticas igual de específicas no concuerdan sobre {{dimension}}. Resuélvalo cambiando una de ellas.",
+    "previewTitle": "Vista previa de la política",
+    "previewIntro": "Una simulación con los medios actuales. No se guarda nada y no se ejecuta nada.",
+    "previewTruncated": "Mostrando las primeras {{count}} entidades del alcance — el alcance es más grande.",
+    "previewEvaluated": "{{count}} evaluadas",
+    "previewEmpty": "Todavía no hay nada que evaluar en este alcance.",
+    "status": {
+      "compliant": "Ya está como usted quiere",
+      "drift": "Difiere",
+      "unknown": "No se puede saber",
+      "not_applicable": "No regulado"
+    },
+    "samples": "Ejemplos",
+    "saveFailed": "No se pudo guardar esa política",
+    "deleteFailed": "No se pudo eliminar esa política",
+    "previewFailed": "No se pudo generar la vista previa",
+    "reevaluating": "Reevaluando su biblioteca en segundo plano."
+  },
+  "drift": {
+    "title": "Estado deseado",
+    "subtitle": "Lo que piden tus políticas y cómo se compara este título.",
+    "none": "Ninguna política de ciclo de vida cubre este título.",
+    "noneHint": "Sin una política no hay con qué comparar — eso no significa que el título esté correcto.",
+    "evaluatedAt": "Comparado {{when}}",
+    "dimension": {
+      "quality": "Calidad",
+      "completeness": "Completitud",
+      "subtitleLanguages": "Subtítulos",
+      "acquisition": "Adquisición"
+    },
+    "status": {
+      "compliant": "Coincide",
+      "drift": "Difiere",
+      "not_applicable": "Sin política",
+      "unknown": "No se sabe"
+    },
+    "desired": "Se pidió",
+    "actual": "En realidad",
+    "unknownReason": {
+      "no_acquisition_ladder": "no hay una escala de calidad configurada para comparar",
+      "quality_not_measured": "los archivos nunca se han medido",
+      "completeness_not_monitored": "este título no se monitorea por episodios faltantes",
+      "subtitle_scan_state_unknown": "no hay registro de un escaneo de subtítulos, y las pistas incrustadas no están catalogadas",
+      "identity_unresolved": "este título no está emparejado con una obra conocida"
+    },
+    "source": "De {{policy}}",
+    "inherited": "Heredado de una política más amplia",
+    "overriddenBy": "Sustituye {{count}} política más amplia",
+    "overriddenBy_other": "Sustituye {{count}} políticas más amplias",
+    "conflict": "Dos políticas del mismo nivel no concuerdan sobre {{dimension}}",
+    "conflictHint": "UltraTorrent eligió una para que el resultado sea predecible, pero no decidirá entre ellas por ti.",
+    "advisory": "Esto es una comparación, no un plan. Nada de esto cambia tus medios."
   }
 }

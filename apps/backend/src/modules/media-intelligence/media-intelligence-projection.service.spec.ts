@@ -2,6 +2,7 @@ import { MEDIA_FINDING_CODES } from '@ultratorrent/shared';
 
 import { MediaIntelligenceProjectionService } from './media-intelligence-projection.service';
 import { RecommendationService } from './recommendations/recommendation.service';
+import { LifecyclePolicyService } from './policies/lifecycle-policy.service';
 
 /**
  * The projection store, tested against hand-rolled stubs.
@@ -70,6 +71,12 @@ function stubPrisma(over: { findings?: Row[]; entities?: boolean } = {}) {
     // Phase 4 reconciles recommendations in the same sweep. Stubbed here
     // because the projection service now calls it; the recommendation rules
     // themselves are tested against their own pure spec.
+    // Phase 5 resolves operator intent inside the same pass. No policies in
+    // these fixtures, which is the common case and must leave every Phase 4
+    // behaviour untouched.
+    mediaLifecyclePolicy: {
+      findMany: jest.fn(async () => []),
+    },
     mediaIntelligenceRecommendation: {
       findMany: jest.fn(async () => []),
       upsert: jest.fn(async () => ({})),
@@ -139,13 +146,20 @@ function build(over: { findings?: Row[]; assembled?: unknown; entities?: boolean
    * reconciliation — which is the whole risk of settling both in one sweep.
    */
   const recommendations = new RecommendationService(prisma as never);
+  /*
+   * A REAL LifecyclePolicyService too, for the same reason: policy resolution
+   * now runs inside `refreshEntity`, so these tests prove it cannot break
+   * finding reconciliation either.
+   */
+  const policies = new LifecyclePolicyService(prisma as never, { record: jest.fn() } as never);
   const svc = new MediaIntelligenceProjectionService(
     prisma as never,
     assembler as never,
     bus as never,
     recommendations,
+    policies,
   );
-  return { svc, prisma, calls, projections, assembler, bus, recommendations };
+  return { svc, prisma, calls, projections, assembler, bus, recommendations, policies };
 }
 
 describe('MediaIntelligenceProjectionService.refreshEntity', () => {

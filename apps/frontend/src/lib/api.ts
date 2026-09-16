@@ -53,6 +53,10 @@ import type {
   MediaRecommendationListResult,
   MediaRecommendationSummary,
   MediaVerificationResult,
+  MediaLifecyclePolicy,
+  LifecyclePolicyPreview,
+  ResolvedDesiredState,
+  LifecycleEvaluation,
   MediaAttentionSummary,
   MediaAttentionHistoryEntry,
 } from '@ultratorrent/shared';
@@ -102,6 +106,22 @@ export interface AttentionQuery {
   /** `'media'` asks for one card per title instead of one row per finding. */
   groupBy?: string;
   [key: string]: string | undefined;
+}
+
+/** What a caller may set on a lifecycle policy. Mirrors the backend DTO. */
+export interface LifecyclePolicyInput {
+  name?: string;
+  description?: string | null;
+  enabled?: boolean;
+  scopeType?: string;
+  scopeId?: string | null;
+  mode?: string;
+  /** `null` says nothing (inherit); `do_not_manage` explicitly stops it. */
+  quality?: string | null;
+  completeness?: string | null;
+  /** `null` says nothing; `[]` explicitly requires none. */
+  subtitleLanguages?: string[] | null;
+  acquisition?: Record<string, unknown> | null;
 }
 
 export interface RecommendationQuery {
@@ -4846,6 +4866,48 @@ export const api = {
     /**
      * The recommendation queue. A READ — opening it starts no indexer search.
      */
+    /* ---------------------------------------- lifecycle policies (Phase 5) */
+
+    policies(): Promise<MediaLifecyclePolicy[]> {
+      return request<MediaLifecyclePolicy[]>('/media-intelligence/policies');
+    },
+    policy(id: string): Promise<MediaLifecyclePolicy> {
+      return request<MediaLifecyclePolicy>(`/media-intelligence/policies/${encodeURIComponent(id)}`);
+    },
+    /** Returns the saved policy plus the id of the background re-evaluation. */
+    createPolicy(body: LifecyclePolicyInput): Promise<MediaLifecyclePolicy & { reevaluationJobId: string | null }> {
+      return request('/media-intelligence/policies', { method: 'POST', body });
+    },
+    updatePolicy(
+      id: string,
+      body: LifecyclePolicyInput,
+    ): Promise<MediaLifecyclePolicy & { reevaluationJobId: string | null }> {
+      return request(`/media-intelligence/policies/${encodeURIComponent(id)}`, { method: 'PATCH', body });
+    },
+    deletePolicy(id: string): Promise<{ id: string; reevaluationJobId: string | null }> {
+      return request(`/media-intelligence/policies/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    },
+    /**
+     * Simulate a draft against current media. Saves nothing and acts on
+     * nothing — the same evaluator reconciliation uses.
+     */
+    previewPolicy(body: LifecyclePolicyInput & { id?: string }): Promise<LifecyclePolicyPreview> {
+      return request<LifecyclePolicyPreview>('/media-intelligence/policies/preview', {
+        method: 'POST',
+        body,
+      });
+    },
+    desiredState(entityType: string, entityId: string): Promise<ResolvedDesiredState> {
+      return request<ResolvedDesiredState>(
+        `/media-intelligence/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}/desired-state`,
+      );
+    },
+    drift(entityType: string, entityId: string): Promise<LifecycleEvaluation> {
+      return request<LifecycleEvaluation>(
+        `/media-intelligence/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}/drift`,
+      );
+    },
+
     recommendations(query: RecommendationQuery = {}): Promise<MediaRecommendationListResult> {
       return request<MediaRecommendationListResult>('/media-intelligence/recommendations', { query });
     },

@@ -217,5 +217,11 @@
     "description": "Busca en los indexadores los episodios ya emitidos de una serie y los obtiene, con límite para no saturar.",
     "phase": "Buscando episodios…",
     "episodeFailed": "No se pudo buscar un episodio: {{error}}"
+  },
+  "policyReevaluate": {
+    "label": "Reevaluación de políticas de ciclo de vida",
+    "description": "Recalcula las conclusiones de Inteligencia de Medios después de cambiar una política. Solo lee datos guardados — no inicia escaneos, sondeos ni búsquedas en indexadores.",
+    "phase": "Evaluando los medios según sus políticas",
+    "alreadyRunning": "Ya había una reconciliación en curso, así que se omitió en lugar de duplicarla."
   }
 }

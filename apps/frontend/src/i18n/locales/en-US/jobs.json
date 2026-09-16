@@ -217,5 +217,11 @@
     "description": "Searches indexers for a series' already-aired episodes and grabs them, bounded so it never floods.",
     "phase": "Searching episodes…",
     "episodeFailed": "An episode could not be searched: {{error}}"
+  },
+  "policyReevaluate": {
+    "label": "Lifecycle policy re-evaluation",
+    "description": "Recomputes Media Intelligence conclusions after a lifecycle policy changed. Reads stored facts only — it starts no scan, probe or indexer search.",
+    "phase": "Evaluating media against your policies",
+    "alreadyRunning": "A reconciliation was already running, so this was skipped rather than duplicating it."
   }
 }

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   VERIFICATION_FRESHNESS_HOURS,
   type MediaRecommendationInvalidationReason,
+  type ResolvedDesiredState,
 } from '@ultratorrent/shared';
 
 import { PrismaService } from '../../../infrastructure/prisma/prisma.service';
@@ -55,6 +56,13 @@ export class RecommendationService {
       resolved: boolean;
     }>,
     now: Date,
+    /**
+     * The operator's resolved intent, when a lifecycle policy governs this
+     * entity (Phase 5). Passed in rather than resolved here so a library-wide
+     * sweep reads the policies ONCE for the whole run instead of once per
+     * entity — the difference between one query and thirty thousand.
+     */
+    desired?: ResolvedDesiredState | null,
   ): Promise<void> {
     const existing = await this.prisma.mediaIntelligenceRecommendation.findMany({
       where: { entityType, entityId },
@@ -83,6 +91,19 @@ export class RecommendationService {
         entityType,
         entityId,
         evidence: finding.evidence,
+        // Null when no policy governs this entity, which leaves every rule
+        // behaving exactly as it did before Phase 5.
+        policy: desired
+          ? {
+              quality: desired.quality.value,
+              qualitySource: desired.quality.source
+                ? {
+                    policyId: desired.quality.source.policyId,
+                    policyName: desired.quality.source.policyName,
+                  }
+                : null,
+            }
+          : null,
       } satisfies RecommendationInput);
       if (!draft) continue;
 
