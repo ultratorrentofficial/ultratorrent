@@ -288,6 +288,20 @@ export const APPROVAL_PROOF_BLOCKERS: ReadonlySet<RemediationBlockReason> =
     'entity_missing',
     'seeding_state_unknown',
     'path_unsafe',
+    /*
+     * A lock is here for two reasons, and the second is the decisive one.
+     *
+     * It is a separate, deliberate operator act — "keep automation off this
+     * title" — and approving an unrelated remediation is not a decision to
+     * revoke it. Someone who wants the plan to run unlocks the item, which is
+     * an explicit choice with its own audit trail.
+     *
+     * And mechanically, the owning domains skip locked items silently
+     * (`MediaBulkService.unlockedOf` filters them out before any work). So a
+     * plan approved past a lock would execute, touch nothing, and still reach
+     * `succeeded` — reporting a drift resolved that was never addressed.
+     */
+    'item_locked',
   ]);
 
 export function survivesApproval(reason: RemediationBlockReason): boolean {

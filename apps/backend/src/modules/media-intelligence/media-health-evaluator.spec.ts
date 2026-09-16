@@ -42,6 +42,7 @@ function facts(over: Partial<Facts> = {}): Facts {
       matchStatus: 'matched',
       confidence: 1,
       conflictingExternalIds: false,
+      locked: false,
     },
     library: {
       ...known('media_manager'),
@@ -261,7 +262,7 @@ describe('evaluateMediaHealth — UNKNOWN is not a failure and not a zero', () =
 
   it('blind on identity AND library yields UNKNOWN overall, not healthy', () => {
     const r = evaluate({
-      identity: { ...unknown('media_manager', 'no_mapping'), externalIds: {}, matchStatus: null, confidence: null, conflictingExternalIds: false, title: null, normalizedTitle: null, year: null, seasonNumber: null, episodeNumber: null, episodeTitle: null },
+      identity: { ...unknown('media_manager', 'no_mapping'), externalIds: {}, matchStatus: null, confidence: null, conflictingExternalIds: false, locked: null, title: null, normalizedTitle: null, year: null, seasonNumber: null, episodeNumber: null, episodeTitle: null },
       library: { ...unknown('media_manager', 'not_scanned'), present: null, libraryId: null, libraryName: null, libraryKind: null, path: null, fileCount: null, episodeCount: null, seasonCount: null, totalBytes: null, duplicateGroupCount: null, duplicateReclaimableBytes: null, lastScanAt: null },
     } as unknown as Partial<Facts>);
     expect(r.health.status).toBe('unknown');

@@ -3,6 +3,7 @@ import { MEDIA_FINDING_CODES } from '@ultratorrent/shared';
 import { MediaIntelligenceProjectionService } from './media-intelligence-projection.service';
 import { RecommendationService } from './recommendations/recommendation.service';
 import { LifecyclePolicyService } from './policies/lifecycle-policy.service';
+import { RemediationPlanService } from './remediation/remediation-plan.service';
 
 /**
  * The projection store, tested against hand-rolled stubs.
@@ -27,6 +28,10 @@ function stubPrisma(over: { findings?: Row[]; entities?: boolean } = {}) {
     /** Finding-history rows. Transitions only — never re-observations. */
     history: [] as Row[],
     deleted: 0,
+    /** Phase 6 plan writes, so a test can assert the last pass ran. */
+    plansCreated: [] as Row[],
+    plansUpdated: [] as Row[],
+    planHistory: [] as Row[],
   };
   let nextId = 0;
 
@@ -36,6 +41,9 @@ function stubPrisma(over: { findings?: Row[]; entities?: boolean } = {}) {
     // `entities` to make the sweep actually visit something.
     mediaItem: {
       findMany: jest.fn(async () => (over.entities ? [{ id: 'item-1' }] : [])),
+      // Phase 6 reads the lock flag per entity. Unlocked by default, so the
+      // fixtures exercise the unblocked path.
+      findUnique: jest.fn(async () => ({ locked: false })),
     },
     mediaShow: {
       findMany: jest.fn(async () => []),
@@ -88,6 +96,29 @@ function stubPrisma(over: { findings?: Row[]; entities?: boolean } = {}) {
         return { count: args.data.length };
       }),
     },
+    /*
+     * Phase 6 settles remediation plans as the LAST pass of `refreshEntity`.
+     * Stubbed here for the same reason the recommendation delegates are: the
+     * real service runs against this stub, so these fixtures also prove the
+     * plan pass cannot break finding reconciliation.
+     */
+    mediaRemediationPlan: {
+      findMany: jest.fn(async () => []),
+      create: jest.fn(async (args: { data: Row }) => {
+        calls.plansCreated.push(args.data);
+        return { id: `plan${nextId++}` };
+      }),
+      update: jest.fn(async (args: { where: Row; data: Row }) => {
+        calls.plansUpdated.push({ ...args.where, ...args.data });
+        return {};
+      }),
+    },
+    mediaRemediationPlanEvent: {
+      createMany: jest.fn(async (args: { data: Row[] }) => {
+        calls.planHistory.push(...args.data);
+        return { count: args.data.length };
+      }),
+    },
     $transaction: jest.fn(async (ops: unknown[]) => Promise.all(ops as Promise<unknown>[])),
   };
   return { prisma, calls, projections };
@@ -104,7 +135,7 @@ function assembled(over: { missing?: number | null; failedIntake?: number } = {}
       identity: {
         ...known('media_manager'), title: 'Breaking Bad', normalizedTitle: 'breaking bad', year: 2008,
         seasonNumber: null, episodeNumber: null, episodeTitle: null,
-        externalIds: { imdb: 'tt0903747' }, matchStatus: 'matched', confidence: 1, conflictingExternalIds: false,
+        externalIds: { imdb: 'tt0903747' }, matchStatus: 'matched', confidence: 1, conflictingExternalIds: false, locked: false,
       },
       library: {
         ...known('media_manager'), present: true, libraryId: 'lib-1', libraryName: 'TV Shows',
@@ -152,15 +183,75 @@ function build(over: { findings?: Row[]; assembled?: unknown; entities?: boolean
    * finding reconciliation either.
    */
   const policies = new LifecyclePolicyService(prisma as never, { record: jest.fn() } as never);
+  /*
+   * A REAL RemediationPlanService too, on the same stub. Plan reconciliation
+   * now runs inside `refreshEntity` as the last pass, so these tests prove it
+   * cannot break finding reconciliation or the recommendation pass either.
+   */
+  const plans = new RemediationPlanService(prisma as never);
   const svc = new MediaIntelligenceProjectionService(
     prisma as never,
     assembler as never,
     bus as never,
     recommendations,
     policies,
+    plans,
   );
-  return { svc, prisma, calls, projections, assembler, bus, recommendations, policies };
+  return { svc, prisma, calls, projections, assembler, bus, recommendations, policies, plans };
 }
+
+describe('MediaIntelligenceProjectionService.refreshEntity — the plan pass', () => {
+  /*
+   * Proves the Phase 6 pass is REACHED, not merely that it does not throw.
+   *
+   * Every other fixture here has no recommendations, so the plan pass runs
+   * and produces nothing — which means the call site could be deleted and
+   * the whole suite would still pass. This is the test that would fail.
+   */
+  it('settles remediation plans as the last pass, against a real recommendation', async () => {
+    const { svc, prisma, calls } = build();
+    prisma.mediaIntelligenceRecommendation.findMany.mockResolvedValue([
+      {
+        id: 'rec-1',
+        findingId: 'find-1',
+        type: 'REFRESH_METADATA',
+        status: 'active',
+        evidence: { provider: null },
+        confidence: 'high',
+        capabilityId: 'media.metadata.refresh',
+      },
+    ] as never);
+
+    await svc.refreshEntity('movie', 'item-1');
+
+    expect(calls.plansCreated).toHaveLength(1);
+    expect(calls.plansCreated[0]).toMatchObject({
+      entityType: 'movie',
+      entityId: 'item-1',
+      recommendationId: 'rec-1',
+      status: 'proposed',
+    });
+  });
+
+  it('plans nothing for an entity type the remediation cannot address', async () => {
+    // A series id is a MediaShow.id; there is no show-level metadata refresh.
+    const { svc, prisma, calls } = build();
+    prisma.mediaIntelligenceRecommendation.findMany.mockResolvedValue([
+      {
+        id: 'rec-1',
+        findingId: 'find-1',
+        type: 'REFRESH_METADATA',
+        status: 'active',
+        evidence: {},
+        confidence: 'high',
+        capabilityId: 'media.metadata.refresh',
+      },
+    ] as never);
+
+    await svc.refreshEntity('series', 'show-1');
+    expect(calls.plansCreated).toEqual([]);
+  });
+});
 
 describe('MediaIntelligenceProjectionService.refreshEntity', () => {
   it('writes a projection row for a healthy entity, not just for broken ones', async () => {

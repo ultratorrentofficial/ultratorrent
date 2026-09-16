@@ -20,6 +20,7 @@ import { LifecycleEvaluationService } from './policies/lifecycle-evaluation.serv
 import { PolicyReevaluationJob } from './policies/policy-reevaluation.job';
 import { PolicyPreviewService } from './policies/policy-preview.service';
 import { AttentionDispositionService } from './attention/attention-disposition.service';
+import { RemediationPlanService } from './remediation/remediation-plan.service';
 import { CapabilityRegistry } from '../context-actions/capability-registry.service';
 import { MEDIA_INTELLIGENCE_ACTIONS } from './media-intelligence-actions';
 
@@ -142,6 +143,7 @@ export class MediaIntelligenceReconciler implements OnModuleInit {
     LifecycleEvaluationService,
     PolicyReevaluationJob,
     PolicyPreviewService,
+    RemediationPlanService,
     MediaIntelligenceProjectionService,
     MediaIntelligenceService,
     MediaIntelligenceReconciler,

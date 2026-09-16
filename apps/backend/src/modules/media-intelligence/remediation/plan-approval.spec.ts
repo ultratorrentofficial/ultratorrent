@@ -86,6 +86,11 @@ describe('checkPlanApproval — consent versus knowledge', () => {
       'desired_state_unknown',
       'path_unsafe',
       'capability_unavailable',
+      // A lock is an operator's standing "automation off" for this title.
+      // Approving a different decision does not revoke it — and the owning
+      // domain skips locked items anyway, so a plan approved past one would
+      // run, touch nothing, and still claim success.
+      'item_locked',
     ] as const) {
       const r = checkPlanApproval(input({ blockReason }));
       expect(r.allowed).toBe(false);

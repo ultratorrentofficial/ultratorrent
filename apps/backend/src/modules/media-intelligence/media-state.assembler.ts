@@ -157,6 +157,8 @@ export class MediaStateAssembler {
         // that was actually matched can claim a confidence.
         confidence: item.matchStatus === 'unmatched' ? null : item.confidence,
         conflictingExternalIds: conflicting,
+        // Already on the row this method fetched; no extra query.
+        locked: item.locked,
       },
       library: {
         status: 'known' as const,
@@ -334,6 +336,10 @@ export class MediaStateAssembler {
         matchStatus: show.imdbId || show.tmdbId ? 'matched' : 'unmatched',
         confidence: null,
         conflictingExternalIds: false,
+        // A show carries no `locked` column — the flag lives on MediaItem. Null
+        // is "not knowable for this entity shape", never "not locked", and
+        // Phase 6 reads that as a blocker rather than as permission.
+        locked: null,
       },
       library: {
         status: 'known' as const,

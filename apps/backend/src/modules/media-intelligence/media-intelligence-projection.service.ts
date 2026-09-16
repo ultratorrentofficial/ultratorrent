@@ -19,6 +19,7 @@ import { attentionPriority } from './attention/priority';
 import { MediaStateAssembler } from './media-state.assembler';
 import { RecommendationService } from './recommendations/recommendation.service';
 import { LifecyclePolicyService } from './policies/lifecycle-policy.service';
+import { RemediationPlanService } from './remediation/remediation-plan.service';
 import { resolveDesiredState } from './policies/policy-precedence';
 
 /**
@@ -60,6 +61,7 @@ export class MediaIntelligenceProjectionService {
     private readonly bus: DomainEventBus,
     private readonly recommendations: RecommendationService,
     private readonly policies: LifecyclePolicyService,
+    private readonly plans: RemediationPlanService,
   ) {}
 
   isRebuilding(): boolean {
@@ -176,6 +178,19 @@ export class MediaIntelligenceProjectionService {
     );
 
     await this.recommendations.reconcile(entityType, entityId, reconciled, now, desired);
+
+    /*
+     * Remediation plans settle LAST, for the same reason recommendations
+     * settle after findings: each pass writes only to its own tables, so
+     * ordering — not a swallowed exception — is what stops a failure in the
+     * outer layer from corrupting the inner one. A throw here still reaches
+     * `rebuildAll`, which isolates it to this entity.
+     *
+     * Reads the recommendations back rather than taking them as an argument:
+     * a plan is keyed on a recommendation ROW, and the pass above may have
+     * just created, invalidated or satisfied one.
+     */
+    await this.plans.reconcile(entityType, entityId, now, desired);
 
     return { health: health.status, findingCount: findings.length, transitions };
   }

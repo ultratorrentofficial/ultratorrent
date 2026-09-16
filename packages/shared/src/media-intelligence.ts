@@ -139,6 +139,21 @@ export interface MediaIdentityFacts extends MediaFactProvenance {
   confidence: number | null;
   /** Two library rows claiming the same external id. Evidence, never a merge. */
   conflictingExternalIds: boolean;
+  /**
+   * The operator's standing "automation off" for this title, from
+   * `MediaItem.locked`.
+   *
+   * `null` means NOT KNOWABLE for this entity shape rather than false — a
+   * series is a `MediaShow`, which carries no such column. Phase 6 reads this
+   * as a blocker either way: a lock is a deliberate separate act that no
+   * approval revokes, and the owning domains skip locked items silently, so a
+   * plan that ran past one would touch nothing and still claim success.
+   *
+   * Carried on facts the assembler ALREADY loads — the item row is fetched
+   * whole — so this costs no query. A per-entity lookup would have been one
+   * query per title on a thirty-thousand-title sweep.
+   */
+  locked: boolean | null;
 }
 
 /** Where the media physically lives, and how fresh that observation is. */
