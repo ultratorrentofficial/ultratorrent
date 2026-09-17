@@ -132,12 +132,48 @@ export interface PolicyContext {
 const norm = (s: string) => s.trim().toLowerCase();
 
 /**
+ * A category, plus the parts a compound one is built from.
+ *
+ * TMDB's TELEVISION taxonomy ships three compound buckets — `Action &
+ * Adventure`, `Sci-Fi & Fantasy`, `War & Politics` — while its movie taxonomy,
+ * every other provider, and every template written by hand use the split
+ * names. A template listing Action, Adventure, Sci-Fi and Fantasy therefore
+ * matched none of them on television, and the titles were reported as carrying
+ * no configured category at all.
+ *
+ * Both sides are expanded, so `Action` matches `Action & Adventure`, the
+ * compound written out in full still matches itself, and a template that names
+ * the compound matches a provider that splits it.
+ *
+ * Only `&` is split. It is the separator these taxonomies actually use;
+ * treating `/` or `-` the same way would start splitting real names like
+ * `Sci-Fi` on a guess.
+ */
+const expand = (category: string): string[] => {
+  const whole = norm(category);
+  const parts = whole.split('&').map((p) => p.trim()).filter(Boolean);
+  return parts.length > 1 ? [whole, ...parts] : [whole];
+};
+
+/** Every form a policy list will accept, compounds broken out. */
+const wantSet = (list: string[]): Set<string> => {
+  const want = new Set<string>();
+  for (const entry of list) for (const form of expand(entry)) want.add(form);
+  return want;
+};
+
+/**
  * Does a title's category list satisfy a policy list, under a match mode?
  *
  * A title with NO categories never matches, under any mode. `ALL` is the mode
  * where that needs saying: "every category qualifies" is vacuously true of an
  * empty list, and a vacuous truth here would auto-monitor every untagged daily
  * news programme in the TVmaze schedule.
+ *
+ * A compound category qualifies when ANY of its parts is configured. A bucket
+ * you asked for half of is a bucket you asked for — and the stricter reading
+ * would make `War & Politics` unreachable, since no provider emits `Politics`
+ * on its own for a template to name.
  */
 export function categoriesMatch(
   categories: string[],
@@ -145,23 +181,30 @@ export function categoriesMatch(
   mode: CategoryMatchMode | string,
 ): boolean {
   if (!categories.length || !list.length) return false;
-  const want = new Set(list.map(norm));
-  const have = categories.map(norm);
+  const want = wantSet(list);
+  const qualifies = (c: string) => expand(c).some((form) => want.has(form));
   switch (mode) {
     case 'ALL':
-      return have.every((c) => want.has(c));
+      return categories.every(qualifies);
     case 'PRIMARY':
-      return want.has(have[0]);
+      return qualifies(categories[0]);
     case 'ANY':
     default:
-      return have.some((c) => want.has(c));
+      return categories.some(qualifies);
   }
 }
 
-/** Every category of the title that appears in `list`, for the trace. */
+/** Every category of the title that `list` accepts, for the trace. */
 function overlap(categories: string[], list: string[]): string[] {
-  const want = new Set(list.map(norm));
-  return categories.filter((c) => want.has(norm(c)));
+  const want = wantSet(list);
+  return categories.filter((c) => expand(c).some((form) => want.has(form)));
+}
+
+/** The title's categories that appear in NONE of the given policy lists. */
+function unconfigured(categories: string[], ...lists: string[][]): string[] {
+  const want = new Set<string>();
+  for (const list of lists) for (const form of wantSet(list)) want.add(form);
+  return categories.filter((c) => !expand(c).some((form) => want.has(form)));
 }
 
 export function evaluateDiscovery(
@@ -274,6 +317,30 @@ export function evaluateDiscovery(
      * keeps the inbox meaningful: a template says what it is looking for, and
      * surfacing everything it did not ask about would bury the titles it did.
      */
+    /*
+     * Under ALL, "nothing matched" is usually FALSE, and always useless.
+     *
+     * A title carrying Mystery and Action & Adventure, with Mystery configured,
+     * fails ALL on the second category alone — and was told that no configured
+     * category matched it, which is untrue and names nothing to act on. Saying
+     * WHICH category is unlisted is the difference between a dead end and a
+     * one-word template edit.
+     *
+     * Only when some categories did match: if none did, the original sentence
+     * is both true and the right thing to say.
+     */
+    const missing = unconfigured(
+      media.genres,
+      template.autoMonitorCategories,
+      template.notifyOnlyCategories,
+    );
+    if (mode === 'ALL' && missing.length && missing.length < media.genres.length) {
+      add('category_policy', 'fail', `Not every category is configured — missing: ${missing.join(', ')}`);
+      return verdict(
+        'ignore',
+        `This template requires every category to match, and ${missing.join(', ')} is not configured`,
+      );
+    }
     add('category_policy', 'fail', 'No configured category matched');
     return verdict('ignore', 'No configured category matched this title');
   }

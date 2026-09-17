@@ -456,7 +456,7 @@ describe('retraction', () => {
 
   it('deletes the generated rule and archives the watchlist entry', async () => {
     const h = harness({ rows: [monitored({ genres: ['Cooking'] })] });
-    const [outcome] = await h.svc.runAll();
+    const [outcome] = await h.svc.runAll(NOW);
     expect(outcome.retracted).toBe(1);
     expect(h.prisma.rssRule.deleteMany).toHaveBeenCalledWith({
       where: { id: 'r1', generatedByDiscovery: true, userModifiedAt: null },
@@ -472,7 +472,7 @@ describe('retraction', () => {
    */
   it('never deletes media or torrents', async () => {
     const h = harness({ rows: [monitored({ genres: ['Cooking'] })] });
-    await h.svc.runAll();
+    await h.svc.runAll(NOW);
     // The evaluator has no media-deletion collaborator at all, and the only
     // thing it may ask of removal is to drop the catalogue row.
     expect(Object.keys(h.removal)).toEqual(['suppress']);
@@ -485,7 +485,7 @@ describe('retraction', () => {
    */
   it('leaves a hand-edited rule alone', async () => {
     const h = harness({ rows: [monitored({ genres: ['Cooking'] })], ruleIsUserModified: true });
-    const [outcome] = await h.svc.runAll();
+    const [outcome] = await h.svc.runAll(NOW);
     expect(outcome.retracted).toBe(1);
     // deleteMany still runs, but its filter refuses to match — the guard is in
     // the WHERE clause rather than in a branch that could be forgotten.
@@ -494,7 +494,7 @@ describe('retraction', () => {
 
   it('does not overrule a watchlist entry a person paused', async () => {
     const h = harness({ rows: [monitored({ genres: ['Cooking'] })], watchlistStatus: 'paused' });
-    await h.svc.runAll();
+    await h.svc.runAll(NOW);
     expect(h.prisma.mediaAcquisitionWatchlistItem.update).not.toHaveBeenCalled();
   });
 
@@ -511,14 +511,14 @@ describe('retraction', () => {
      * so an expired window can no longer be what removes a title.
      */
     const h = harness({ rows: [monitored({ originalLanguage: 'ja' })], template: { ...TEMPLATE, languages: ['en'] } });
-    const [outcome] = await h.svc.runAll();
+    const [outcome] = await h.svc.runAll(NOW);
     expect(outcome.removedFromCatalog).toBe(1);
     expect(h.removal.suppress).toHaveBeenCalledWith('m1', 'retracted');
   });
 
   it('keeps a title that still matches, only at a lower decision', async () => {
     const h = harness({ rows: [monitored({ confidence: 0.2 })] });
-    const [outcome] = await h.svc.runAll();
+    const [outcome] = await h.svc.runAll(NOW);
     expect(outcome.retracted).toBe(1);
     expect(outcome.removedFromCatalog).toBe(0);
     expect(h.removal.suppress).not.toHaveBeenCalled();
@@ -530,14 +530,14 @@ describe('retraction', () => {
    */
   it('does not retract a title this template never monitored', async () => {
     const h = harness({ rows: [row('x', { genres: ['Cooking'] })] });
-    const [outcome] = await h.svc.runAll();
+    const [outcome] = await h.svc.runAll(NOW);
     expect(outcome.retracted).toBe(0);
     expect(h.prisma.rssRule.deleteMany).not.toHaveBeenCalled();
   });
 
   it('does not retract a title that still qualifies', async () => {
     const h = harness({ rows: [monitored()] });
-    const [outcome] = await h.svc.runAll();
+    const [outcome] = await h.svc.runAll(NOW);
     expect(outcome.retracted).toBe(0);
   });
 });
@@ -559,7 +559,7 @@ describe('the identity gate', () => {
 
   it('creates nothing when the show is already monitored', async () => {
     const h = harness({ existing: already });
-    const [outcome] = await h.svc.runAll();
+    const [outcome] = await h.svc.runAll(NOW);
     expect(h.watchlist.linkOrCreate).not.toHaveBeenCalled();
     expect(h.rules.generate).not.toHaveBeenCalled();
     expect(h.intake.provision).not.toHaveBeenCalled();
@@ -574,7 +574,7 @@ describe('the identity gate', () => {
    */
   it('records why, naming the existing identity', async () => {
     const h = harness({ existing: already });
-    await h.svc.runAll();
+    await h.svc.runAll(NOW);
     expect(h.stamps[0].decision).toBe('already_monitored');
     expect(h.stamps[0].decisionReason).toMatch(/Already monitored/);
   });
@@ -586,14 +586,14 @@ describe('the identity gate', () => {
    */
   it('links the catalogue row to the existing watchlist entry and rule', async () => {
     const h = harness({ existing: already });
-    await h.svc.runAll();
+    await h.svc.runAll(NOW);
     expect(h.stamps[0].watchlistItemId).toBe('wl-existing');
     expect(h.stamps[0].rssRuleId).toBe('r-existing');
   });
 
   it('does not spend the auto-add budget on something it did not add', async () => {
     const h = harness({ existing: already });
-    const [outcome] = await h.svc.runAll();
+    const [outcome] = await h.svc.runAll(NOW);
     expect(outcome.monitored).toBe(0);
   });
 
@@ -602,7 +602,7 @@ describe('the identity gate', () => {
       existing: { ...already, state: 'monitoring_incomplete', rssRule: null,
         detail: 'On the watchlist but with no acquisition rule' },
     });
-    const [outcome] = await h.svc.runAll();
+    const [outcome] = await h.svc.runAll(NOW);
     expect(outcome.decisions.exists_monitoring_incomplete).toBe(1);
     expect(h.watchlist.linkOrCreate).not.toHaveBeenCalled();
     expect(h.rules.generate).not.toHaveBeenCalled();
@@ -613,14 +613,14 @@ describe('the identity gate', () => {
       existing: { ...already, state: 'exists_not_monitored', watchlistItem: null, rssRule: null,
         libraryItemIds: ['mi1'], detail: '1 item(s) already in your library' },
     });
-    const [outcome] = await h.svc.runAll();
+    const [outcome] = await h.svc.runAll(NOW);
     expect(outcome.decisions.exists_not_monitored).toBe(1);
     expect(h.watchlist.linkOrCreate).not.toHaveBeenCalled();
   });
 
   it('still creates for a genuinely new title', async () => {
     const h = harness();
-    const [outcome] = await h.svc.runAll();
+    const [outcome] = await h.svc.runAll(NOW);
     expect(h.watchlist.linkOrCreate).toHaveBeenCalled();
     expect(outcome.decisions.auto_monitor).toBe(1);
   });
@@ -632,7 +632,7 @@ describe('the identity gate', () => {
    */
   it('does not resolve identity for a title it was never going to monitor', async () => {
     const h = harness({ rows: [row('x', { genres: ['Cooking'] })] });
-    await h.svc.runAll();
+    await h.svc.runAll(NOW);
     expect(h.identity.resolve).not.toHaveBeenCalled();
   });
 });
@@ -649,7 +649,7 @@ describe('template readiness', () => {
 
   it('creates no watchlist entry, no rule and no directory', async () => {
     const h = harness({ readiness: unready });
-    await h.svc.runAll();
+    await h.svc.runAll(NOW);
     expect(h.watchlist.linkOrCreate).not.toHaveBeenCalled();
     expect(h.rules.generate).not.toHaveBeenCalled();
     expect(h.intake.provision).not.toHaveBeenCalled();
@@ -657,7 +657,7 @@ describe('template readiness', () => {
 
   it('holds the title for review with the precise reason', async () => {
     const h = harness({ readiness: unready });
-    const [outcome] = await h.svc.runAll();
+    const [outcome] = await h.svc.runAll(NOW);
     expect(outcome.decisions.needs_review).toBe(1);
     expect(outcome.decisions.auto_monitor).toBe(0);
     expect(h.stamps[0].decisionReason).toMatch(/Select match preferences/);
@@ -666,20 +666,20 @@ describe('template readiness', () => {
   /* Asked once per run: a template cannot change configuration mid-pass. */
   it('checks readiness once, not once per title', async () => {
     const h = harness({ readiness: unready, rows: [row('a'), row('b'), row('c')] });
-    await h.svc.runAll();
+    await h.svc.runAll(NOW);
     expect(h.templates.acquisitionReadiness).toHaveBeenCalledTimes(1);
   });
 
   it('does not ask at all for a template that only notifies', async () => {
     const h = harness();
     h.templates.canAutoMonitor.mockReturnValue(false);
-    await h.svc.runAll();
+    await h.svc.runAll(NOW);
     expect(h.templates.acquisitionReadiness).not.toHaveBeenCalled();
   });
 
   it('proceeds normally when the template is ready', async () => {
     const h = harness();
-    const [outcome] = await h.svc.runAll();
+    const [outcome] = await h.svc.runAll(NOW);
     expect(outcome.decisions.auto_monitor).toBe(1);
     expect(h.watchlist.linkOrCreate).toHaveBeenCalled();
   });
@@ -709,7 +709,7 @@ describe('the generated rule carries its target path', () => {
   it('renders the storage profile staging root plus the template fragment', async () => {
     const h = harness();
     h.prisma.discoveryTemplate.findMany = jest.fn(async () => [withPath()]);
-    await h.svc.runAll();
+    await h.svc.runAll(NOW);
     expect(genArg(h).savePath).toBe(
       '/downloads/Intake/TV Shows/Show a (2026)',
     );
@@ -729,7 +729,7 @@ describe('the generated rule carries its target path', () => {
   it('creates the directory even with the old flag off', async () => {
     const h = harness();
     h.prisma.discoveryTemplate.findMany = jest.fn(async () => [withPath({ createIntakeDirectory: false })]);
-    await h.svc.runAll();
+    await h.svc.runAll(NOW);
     expect(genArg(h).savePath).toContain('/downloads/Intake/');
     expect(h.intake.provision).toHaveBeenCalled();
   });
@@ -737,7 +737,7 @@ describe('the generated rule carries its target path', () => {
   it('creates no directory when there is no path to create', async () => {
     const h = harness();
     h.prisma.discoveryTemplate.findMany = jest.fn(async () => [withPath({ pathTemplate: null })]);
-    await h.svc.runAll();
+    await h.svc.runAll(NOW);
     expect(h.intake.provision).not.toHaveBeenCalled();
   });
 
@@ -746,7 +746,7 @@ describe('the generated rule carries its target path', () => {
     const h = harness();
     h.intake.provision = jest.fn(async () => ({ ok: false, detail: 'Permission denied', path: '/x' }));
     h.prisma.discoveryTemplate.findMany = jest.fn(async () => [withPath()]);
-    await h.svc.runAll();
+    await h.svc.runAll(NOW);
     expect(h.watchlist.linkOrCreate).toHaveBeenCalled();
     expect(h.rules.generate).toHaveBeenCalled();
     expect(h.stamps[0].decisionReason).toMatch(/Permission denied/);
@@ -755,7 +755,7 @@ describe('the generated rule carries its target path', () => {
   it('uses one rendered path for both the rule and the directory', async () => {
     const h = harness();
     h.prisma.discoveryTemplate.findMany = jest.fn(async () => [withPath({ createIntakeDirectory: true })]);
-    await h.svc.runAll();
+    await h.svc.runAll(NOW);
     expect(h.intake.provision).toHaveBeenCalled();
     const provisioned = (h.intake.provision as jest.Mock).mock.calls[0][0];
     expect(provisioned.stagingRoot).toBe('/downloads/Intake');
@@ -765,7 +765,7 @@ describe('the generated rule carries its target path', () => {
   it('sends no path when the template does not define one', async () => {
     const h = harness();
     h.prisma.discoveryTemplate.findMany = jest.fn(async () => [withPath({ pathTemplate: null })]);
-    await h.svc.runAll();
+    await h.svc.runAll(NOW);
     expect(genArg(h).savePath).toBeNull();
   });
 
@@ -773,7 +773,7 @@ describe('the generated rule carries its target path', () => {
   it('still creates the watchlist entry when the path cannot be rendered', async () => {
     const h = harness({ profile: { id: 'sp-1', stagingRoot: 'not-absolute', movieLibraryId: null, tvLibraryId: null, movieLibrary: null, tvLibrary: null } });
     h.prisma.discoveryTemplate.findMany = jest.fn(async () => [withPath()]);
-    await h.svc.runAll();
+    await h.svc.runAll(NOW);
     expect(h.watchlist.linkOrCreate).toHaveBeenCalled();
     expect(genArg(h).savePath).toBeNull();
   });
@@ -856,7 +856,7 @@ describe('auto-monitor switched off', () => {
   it('holds a qualifying title for review instead of monitoring it', async () => {
     const h = harness();
     h.prisma.discoveryTemplate.findMany = jest.fn(async () => [{ ...TEMPLATE, autoMonitorEnabled: false }]);
-    const [outcome] = await h.svc.runAll();
+    const [outcome] = await h.svc.runAll(NOW);
     expect(outcome.decisions.needs_review).toBe(1);
     expect(outcome.decisions.auto_monitor).toBe(0);
     expect(h.watchlist.linkOrCreate).not.toHaveBeenCalled();
@@ -865,14 +865,14 @@ describe('auto-monitor switched off', () => {
   it('says the title qualified, so the reason is actionable', async () => {
     const h = harness();
     h.prisma.discoveryTemplate.findMany = jest.fn(async () => [{ ...TEMPLATE, autoMonitorEnabled: false }]);
-    await h.svc.runAll();
+    await h.svc.runAll(NOW);
     expect(h.stamps[0].decisionReason).toMatch(/does not monitor automatically/);
   });
 
   it('still monitors when the switch is on', async () => {
     const h = harness();
     h.prisma.discoveryTemplate.findMany = jest.fn(async () => [{ ...TEMPLATE, autoMonitorEnabled: true }]);
-    const [outcome] = await h.svc.runAll();
+    const [outcome] = await h.svc.runAll(NOW);
     expect(outcome.decisions.auto_monitor).toBe(1);
   });
 });
@@ -903,7 +903,7 @@ describe('re-evaluating a title we already monitor', () => {
 
   it('stays monitored rather than being demoted to Existing', async () => {
     const h = harness({ rows: [ours()], existing: resolvedToOurs });
-    const [outcome] = await h.svc.runAll();
+    const [outcome] = await h.svc.runAll(NOW);
     expect(outcome.decisions.auto_monitor).toBe(1);
     expect(outcome.decisions.already_monitored).toBe(0);
     expect(h.stamps[0].decision).toBe('auto_monitor');
@@ -919,7 +919,7 @@ describe('re-evaluating a title we already monitor', () => {
         rssRule: { id: 'r-theirs', name: 'X', generatedByDiscovery: false, userModifiedAt: null },
       },
     });
-    const [outcome] = await h.svc.runAll();
+    const [outcome] = await h.svc.runAll(NOW);
     expect(outcome.decisions.already_monitored).toBe(1);
   });
 });
@@ -944,14 +944,14 @@ describe('the auto-add budget and re-evaluation', () => {
 
   it('does not push an already-monitored title into review when the budget is spent', async () => {
     const h = harness({ rows: [monitored()], remaining: 0 });
-    const [outcome] = await h.svc.runAll();
+    const [outcome] = await h.svc.runAll(NOW);
     expect(outcome.decisions.needs_review).toBe(0);
     expect(outcome.decisions.auto_monitor).toBe(1);
   });
 
   it('still holds a NEW title when the budget is spent', async () => {
     const h = harness({ rows: [row('new1')], remaining: 0 });
-    const [outcome] = await h.svc.runAll();
+    const [outcome] = await h.svc.runAll(NOW);
     expect(outcome.decisions.needs_review).toBe(1);
     expect(outcome.decisions.auto_monitor).toBe(0);
   });
@@ -962,7 +962,7 @@ describe('the auto-add budget and re-evaluation', () => {
    */
   it('spends the budget only when a watchlist entry was actually created', async () => {
     const h = harness({ rows: [row('a'), row('b')], remaining: 1, watchlistOutcome: 'unchanged' });
-    const [outcome] = await h.svc.runAll();
+    const [outcome] = await h.svc.runAll(NOW);
     // Neither created anything, so neither spent — both still auto_monitor.
     expect(outcome.decisions.auto_monitor).toBe(2);
     expect(outcome.decisions.needs_review).toBe(0);
@@ -970,7 +970,7 @@ describe('the auto-add budget and re-evaluation', () => {
 
   it('does spend it for a genuinely new entry', async () => {
     const h = harness({ rows: [row('a'), row('b')], remaining: 1, watchlistOutcome: 'created' });
-    const [outcome] = await h.svc.runAll();
+    const [outcome] = await h.svc.runAll(NOW);
     expect(outcome.decisions.auto_monitor).toBe(1);
     expect(outcome.decisions.needs_review).toBe(1);
   });
@@ -992,13 +992,13 @@ describe('a monitored show that grabs its first release', () => {
 
   it('leaves the catalogue once its rule has grabbed something', async () => {
     const h = harness({ monitoredRows: [monitored], grabs: 1, rows: [] });
-    await h.svc.runAll();
+    await h.svc.runAll(NOW);
     expect(h.removal.suppress).toHaveBeenCalledWith('m1', 'graduated');
   });
 
   it('stays while its rule has grabbed nothing', async () => {
     const h = harness({ monitoredRows: [monitored], grabs: 0, rows: [] });
-    await h.svc.runAll();
+    await h.svc.runAll(NOW);
     expect(h.removal.suppress).not.toHaveBeenCalled();
   });
 
@@ -1008,7 +1008,7 @@ describe('a monitored show that grabs its first release', () => {
    */
   it('never deletes the rule or archives the watchlist entry on the way out', async () => {
     const h = harness({ monitoredRows: [monitored], grabs: 1, rows: [] });
-    await h.svc.runAll();
+    await h.svc.runAll(NOW);
     expect(h.prisma.rssRule.deleteMany).not.toHaveBeenCalled();
     expect(h.prisma.mediaAcquisitionWatchlistItem.update).not.toHaveBeenCalled();
   });
@@ -1019,7 +1019,7 @@ describe('a monitored show that grabs its first release', () => {
    */
   it('announces the graduation as its own event, not as a retraction', async () => {
     const h = harness({ monitoredRows: [monitored], grabs: 1, rows: [] });
-    await h.svc.runAll();
+    await h.svc.runAll(NOW);
     const keys = h.published.map((e: any) => e.eventKey);
     expect(keys).toContain('media_discovery.graduated');
     expect(keys).not.toContain('media_discovery.retracted');
@@ -1031,7 +1031,7 @@ describe('a monitored show that grabs its first release', () => {
       grabs: 1, rows: [],
     });
     h.removal.suppress.mockRejectedValueOnce(new Error('db blew up'));
-    await expect(h.svc.runAll()).resolves.toBeDefined();
+    await expect(h.svc.runAll(NOW)).resolves.toBeDefined();
     expect(h.removal.suppress).toHaveBeenCalledTimes(2);
   });
 
@@ -1042,7 +1042,7 @@ describe('a monitored show that grabs its first release', () => {
   it('treats an unanswerable "has it grabbed?" as yes', async () => {
     const h = harness({ monitoredRows: [monitored], rows: [] });
     h.prisma.rssAcquisition.count.mockRejectedValueOnce(new Error('db unreachable'));
-    await h.svc.runAll();
+    await h.svc.runAll(NOW);
     expect(h.removal.suppress).toHaveBeenCalledWith('m1', 'graduated');
   });
 });
@@ -1065,7 +1065,7 @@ describe('a monitored show whose premiere has passed', () => {
 
   it('is not retracted for having aired', async () => {
     const h = harness({ rows: [premiered], grabs: 0 });
-    await h.svc.runAll();
+    await h.svc.runAll(NOW);
     expect(h.prisma.rssRule.deleteMany).not.toHaveBeenCalled();
     expect(h.removal.suppress).not.toHaveBeenCalled();
   });
@@ -1169,13 +1169,13 @@ describe('a title held for review is still checked against what already exists',
 
   it('resolves identity for a verdict that only asks a person', async () => {
     const h = notAutomatic();
-    await h.svc.runAll();
+    await h.svc.runAll(NOW);
     expect(h.identity.resolve).toHaveBeenCalled();
   });
 
   it('reports it as already in the library instead of asking about it', async () => {
     const h = notAutomatic();
-    const [outcome] = await h.svc.runAll();
+    const [outcome] = await h.svc.runAll(NOW);
     expect(outcome.decisions.exists_not_monitored).toBe(1);
     expect(outcome.decisions.needs_review).toBe(0);
   });
@@ -1187,19 +1187,19 @@ describe('a title held for review is still checked against what already exists',
    */
   it('moves the count off the decision it really held', async () => {
     const h = notAutomatic();
-    const [outcome] = await h.svc.runAll();
+    const [outcome] = await h.svc.runAll(NOW);
     expect(outcome.decisions.auto_monitor).toBe(0);
   });
 
   it('files it under Existing rather than Ignored', async () => {
     const h = notAutomatic();
-    await h.svc.runAll();
+    await h.svc.runAll(NOW);
     expect(h.stamps[0].discoveryStatus).toBe('exists');
   });
 
   it('still creates nothing', async () => {
     const h = notAutomatic();
-    await h.svc.runAll();
+    await h.svc.runAll(NOW);
     expect(h.watchlist.linkOrCreate).not.toHaveBeenCalled();
     expect(h.rules.generate).not.toHaveBeenCalled();
   });
@@ -1214,7 +1214,7 @@ describe('a title held for review is still checked against what already exists',
       existing: inLibrary,
       readiness: { ready: false, reason: 'Select match preferences before enabling automatic monitoring' },
     });
-    await h.svc.runAll();
+    await h.svc.runAll(NOW);
     const steps = (h.evaluations[0].trace as Array<{ step: string }>).map((s) => s.step);
     expect(steps).toContain('template_readiness');
     expect(steps).toContain('existing_identity');
@@ -1239,7 +1239,7 @@ describe('an existing title is filed as existing, not ignored', () => {
 
   it('stamps `exists` for an already-monitored title', async () => {
     const h = harness({ existing: monitoredAlready });
-    await h.svc.runAll();
+    await h.svc.runAll(NOW);
     expect(h.stamps[0].discoveryStatus).toBe('exists');
   });
 
@@ -1248,7 +1248,7 @@ describe('an existing title is filed as existing, not ignored', () => {
       existing: { ...monitoredAlready, state: 'monitoring_incomplete', rssRule: null,
         detail: 'On the watchlist but with no acquisition rule' },
     });
-    await h.svc.runAll();
+    await h.svc.runAll(NOW);
     expect(h.stamps[0].discoveryStatus).toBe('exists');
   });
 
@@ -1282,7 +1282,7 @@ describe('an existing title is filed as existing, not ignored', () => {
   /* The unchanged half: a real rejection still belongs in Ignored. */
   it('still files a genuinely rejected title under Ignored', async () => {
     const h = harness({ rows: [row('a', { genres: ['Reality'] })] });
-    await h.svc.runAll();
+    await h.svc.runAll(NOW);
     expect(h.stamps[0]?.discoveryStatus).toBe('ignored');
   });
 });

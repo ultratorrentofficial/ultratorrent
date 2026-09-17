@@ -60,6 +60,70 @@ describe('categoriesMatch', () => {
   });
 
   /*
+   * TMDB's TELEVISION taxonomy ships compound buckets — `Action & Adventure`,
+   * `Sci-Fi & Fantasy`, `War & Politics` — while its movie taxonomy and every
+   * hand-written template use the split names. Measured on a live install: a
+   * template listing Action, Adventure, Sci-Fi and Fantasy matched none of
+   * them, and the titles were filed as carrying no configured category.
+   */
+  it('matches a compound provider category against a split template entry', () => {
+    expect(categoriesMatch(['Action & Adventure'], ['Action'], 'ANY')).toBe(true);
+    expect(categoriesMatch(['Sci-Fi & Fantasy'], ['Fantasy'], 'ANY')).toBe(true);
+  });
+
+  it('matches a split provider category against a compound template entry', () => {
+    expect(categoriesMatch(['Action'], ['Action & Adventure'], 'ANY')).toBe(true);
+  });
+
+  it('still matches a compound written out in full on both sides', () => {
+    expect(categoriesMatch(['Action & Adventure'], ['Action & Adventure'], 'ANY')).toBe(true);
+  });
+
+  /* The live case: Mystery was configured; the compound is what failed ALL. */
+  it('lets a compound satisfy ALL when one of its parts is configured', () => {
+    expect(
+      categoriesMatch(['Mystery', 'Action & Adventure'], ['Mystery', 'Action', 'Adventure'], 'ALL'),
+    ).toBe(true);
+  });
+
+  /*
+   * One part is enough, deliberately. No provider emits `Politics` alone, so
+   * the stricter reading would leave that bucket unreachable by any template.
+   */
+  it('qualifies on one part even when the other is unlisted', () => {
+    expect(categoriesMatch(['War & Politics'], ['War'], 'ANY')).toBe(true);
+  });
+
+  it('does not match when no part is configured', () => {
+    expect(categoriesMatch(['Sci-Fi & Fantasy'], ['Crime'], 'ANY')).toBe(false);
+  });
+
+  /* Splitting must not weaken exclusion — it should make it fire more often. */
+  it('ignores a compound when one of its parts is on the ignore list', () => {
+    const v = run(
+      { genres: ['Animation & Comedy'] },
+      {
+        autoMonitorCategories: ['Animation'],
+        ignoreCategories: ['Comedy'],
+        categoryMatchMode: 'ANY',
+      },
+    );
+    expect(v.decision).toBe('ignore');
+  });
+
+  it('does not auto-monitor a compound whose part is blocked', () => {
+    const v = run(
+      { genres: ['Sci-Fi & Fantasy'] },
+      {
+        autoMonitorCategories: ['Sci-Fi'],
+        blockedFromAutoCategories: ['Fantasy'],
+        categoryMatchMode: 'ANY',
+      },
+    );
+    expect(v.decision).not.toBe('auto_monitor');
+  });
+
+  /*
    * "Every category qualifies" is vacuously TRUE of an empty list. A vacuous
    * truth here would auto-monitor every untagged daily news programme in the
    * TVmaze schedule — and most of that schedule is untagged.
@@ -68,6 +132,43 @@ describe('categoriesMatch', () => {
     expect(categoriesMatch([], ['Sci-Fi'], 'ANY')).toBe(false);
     expect(categoriesMatch([], ['Sci-Fi'], 'ALL')).toBe(false);
     expect(categoriesMatch([], ['Sci-Fi'], 'PRIMARY')).toBe(false);
+  });
+});
+
+/**
+ * What ALL says when it rejects a title.
+ *
+ * "No configured category matched this title" was emitted whenever the mode's
+ * test failed, including when categories HAD matched and a single unlisted one
+ * sank the rest. On one live install that sentence was wrong for 6 of 122
+ * ignored titles, and it named nothing anybody could act on.
+ */
+describe('why ALL rejected a title', () => {
+  it('names the unlisted category instead of claiming nothing matched', () => {
+    const v = run(
+      { genres: ['Mystery', 'Cooking'] },
+      {
+        autoMonitorCategories: ['Mystery'],
+        notifyOnlyCategories: [],
+        categoryMatchMode: 'ALL',
+      },
+    );
+    expect(v.decision).toBe('ignore');
+    expect(v.reason).toMatch(/Cooking/);
+    expect(v.reason).not.toMatch(/No configured category matched/);
+  });
+
+  /* When nothing matched, the original sentence is true and stays. */
+  it('still says nothing matched when nothing did', () => {
+    const v = run(
+      { genres: ['Cooking'] },
+      {
+        autoMonitorCategories: ['Mystery'],
+        notifyOnlyCategories: [],
+        categoryMatchMode: 'ALL',
+      },
+    );
+    expect(v.reason).toBe('No configured category matched this title');
   });
 });
 
