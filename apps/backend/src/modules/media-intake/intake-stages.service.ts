@@ -1,10 +1,11 @@
 import { stat, readdir, rename } from 'node:fs/promises';
-import { basename, dirname, join } from 'node:path';
+import { basename, dirname, extname, join } from 'node:path';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { selectStrategy, type StorageCapabilities } from '@ultratorrent/shared';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
-import { parseItemIdentity } from '../media/media-identification.service';
+import { isGenericContainer, parseItemIdentity } from '../media/media-identification.service';
 import { kindFromParsed, VIDEO_EXT, type MediaKind } from '../media/media-renamer';
+import { parseTorrentName } from '../rss/torrent-name-parser';
 import { MediaProbeService } from '../media/media-probe.service';
 import { MediaService } from '../media/media.service';
 import { ImportStrategyService } from './import-strategy.service';
@@ -63,7 +64,41 @@ export class IntakeStagesService implements OnModuleInit {
       label: 'Identify release',
       run: async (ctx: StageContext) => {
         const parsed = parseItemIdentity(ctx.sourcePath);
-        const kind = kindFromParsed(parsed);
+        let kind = kindFromParsed(parsed);
+        let basis = 'name';
+
+        /*
+         * A season or series pack is television that the NAME cannot say so.
+         *
+         * `parseTorrentName` sets `tv_episode` only when it finds a season AND
+         * an episode, so a pack — `Chad.Powers.S01…`, `Banshee (2012) Season
+         * 1-4 COMPLETE SERIES…` — falls through to `movie` when it carries a
+         * year and `unknown` (→ `general`) when it does not. Both then fail
+         * `libraryFor` and quarantine, which is how six complete, correctly
+         * downloaded packs sat in staging across two installs.
+         *
+         * The name is the weakest evidence available here, so it is consulted
+         * LAST. Provenance first: the grab already knew it was acquiring
+         * episodes of a monitored series and stamped the torrent hash onto
+         * every `WantedEpisode` it covered. Then structure: a directory
+         * holding `Season N` folders or `SxxEyy` video files is television
+         * whatever its top-level folder is called.
+         *
+         * Only a non-TV verdict is revisited. A correct `tv`/`anime` parse is
+         * left alone, and `general` still quarantines when neither check finds
+         * anything — a sample or a scene extra must not be guessed into a
+         * library, which is the refusal this stage exists to make.
+         */
+        if (kind !== 'tv' && kind !== 'anime') {
+          if (await this.provenanceSaysEpisodes(ctx.torrentHash)) {
+            kind = 'tv';
+            basis = 'provenance';
+          } else if (await this.holdsEpisodes(ctx.sourcePath)) {
+            kind = 'tv';
+            basis = 'structure';
+          }
+        }
+
         const profile = await this.prisma.storageProfile.findUnique({
           where: { id: ctx.profileId },
           include: { movieLibrary: true, tvLibrary: true, musicLibrary: true },
@@ -85,9 +120,11 @@ export class IntakeStagesService implements OnModuleInit {
           data: { libraryId: library.id },
         });
         return {
-          message: `${kind}: ${parsed.title ?? basename(ctx.sourcePath)} → ${library.name}`,
+          message: `${kind}${basis === 'name' ? '' : ` (by ${basis})`}: `
+            + `${parsed.title ?? basename(ctx.sourcePath)} → ${library.name}`,
           data: {
             kind,
+            basis,
             title: parsed.title ?? null,
             season: parsed.season ?? null,
             episode: parsed.episode ?? null,
@@ -379,6 +416,65 @@ export class IntakeStagesService implements OnModuleInit {
     }
     this.logger.log(`Moved an existing copy aside: ${basename(destination)} → ${basename(movedTo)}`);
     return movedTo;
+  }
+
+  /**
+   * Did the acquisition side already say this torrent is episodes?
+   *
+   * The strongest evidence there is, and it costs one indexed count: a pack or
+   * episode grab stamps its `torrentHash` onto every `WantedEpisode` it covers
+   * (see `PackAcquisitionService`), so a hit means a monitored series asked for
+   * this download. No filename can contradict that.
+   *
+   * It is not always available — the reconciler nulls `torrentHash` when a grab
+   * turns out dead, and a `scanAll` rebuild recreates rows without it — which
+   * is exactly why this is a first opinion rather than the only one.
+   */
+  private async provenanceSaysEpisodes(torrentHash: string | null): Promise<boolean> {
+    if (!torrentHash) return false;
+    const hits = await this.prisma.wantedEpisode
+      .count({ where: { torrentHash } })
+      .catch(() => 0);
+    return hits > 0;
+  }
+
+  /**
+   * Does this directory hold episodes, whatever it calls itself?
+   *
+   * Two shapes, both seen live and neither inferable from the folder name:
+   *   - `…/Banshee (2012) Season 1-4 COMPLETE SERIES…/Banshee (2013)/Season 1/*.mkv`
+   *   - `…/Chad Powers S02 REPACK…/Chad Powers S02E01….mkv`
+   *
+   * So it looks for a season-shaped subdirectory OR an episode-marked video,
+   * to a depth of two. Depth two is what the first shape needs and the second
+   * does not; going deeper would start walking a 36 GB release for no gain.
+   *
+   * `isGenericContainer` and `parseTorrentName` are the project's own
+   * definitions of "season folder" and "episode marker" — a second opinion
+   * here is precisely how intake and the renamer once disagreed about what a
+   * release was. A path that cannot be read is simply not evidence: `readdir`
+   * on a file (ENOTDIR) or an unreadable directory yields nothing and the
+   * caller falls through to the filename.
+   */
+  private async holdsEpisodes(sourcePath: string): Promise<boolean> {
+    const entries = await readdir(sourcePath, { withFileTypes: true }).catch(() => []);
+    if (entries.some((e) => this.isEpisodeEvidence(e.isDirectory(), e.name))) return true;
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const inner = await readdir(join(sourcePath, entry.name), { withFileTypes: true })
+        .catch(() => []);
+      if (inner.some((e) => this.isEpisodeEvidence(e.isDirectory(), e.name))) return true;
+    }
+    return false;
+  }
+
+  /** A `Season N`/`Specials` directory, or a video file naming an episode. */
+  private isEpisodeEvidence(isDirectory: boolean, name: string): boolean {
+    if (isDirectory) return isGenericContainer(name);
+    if (!VIDEO_EXT.has(extname(name).toLowerCase())) return false;
+    const parsed = parseTorrentName(name);
+    return parsed.season !== null && parsed.episode !== null;
   }
 
   private libraryFor(

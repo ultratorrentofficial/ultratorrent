@@ -9,20 +9,43 @@
 import { IntakeStagesService } from './intake-stages.service';
 
 let destinationExists = false;
+/**
+ * Directory listings for the structure probe, keyed by path.
+ *
+ * A path that is absent throws ENOTDIR, which is what the real `readdir` does
+ * for a file — the case the probe has to survive without deciding anything.
+ */
+const tree: Record<string, Array<{ name: string; dir: boolean }>> = {};
 jest.mock('node:fs/promises', () => ({
   stat: jest.fn(async () => {
     if (!destinationExists) throw new Error('ENOENT');
     return { size: 1 };
   }),
+  readdir: jest.fn(async (p: string) => {
+    const entries = tree[p];
+    if (!entries) throw new Error('ENOTDIR');
+    return entries.map((e) => ({ name: e.name, isDirectory: () => e.dir }));
+  }),
+  rename: jest.fn(async () => undefined),
 }));
 import type { IntakeStage, StageContext } from './intake-pipeline.service';
 
 const parsed = { value: { title: 'Some Show', season: 1, episode: 2 } as Record<string, unknown> };
 const kind = { value: 'tv' as string };
+/*
+ * `isGenericContainer` and `VIDEO_EXT` come through `requireActual`, not a
+ * hand-written copy: they are the project's definitions of "season folder" and
+ * "video file", and a second copy here would let the test agree with itself
+ * while disagreeing with production.
+ */
 jest.mock('../media/media-identification.service', () => ({
   parseItemIdentity: jest.fn(() => parsed.value),
+  isGenericContainer: jest.requireActual('../media/media-identification.service').isGenericContainer,
 }));
-jest.mock('../media/media-renamer', () => ({ kindFromParsed: jest.fn(() => kind.value) }));
+jest.mock('../media/media-renamer', () => ({
+  kindFromParsed: jest.fn(() => kind.value),
+  VIDEO_EXT: jest.requireActual('../media/media-renamer').VIDEO_EXT,
+}));
 
 const PROFILE = {
   id: 'p1', stagingRoot: '/staging', defaultStrategy: 'auto',
@@ -39,6 +62,8 @@ function build(over: {
   probeThrows?: boolean;
   planItems?: Array<Record<string, unknown>>;
   outcome?: Record<string, unknown>;
+  /** How many WantedEpisode rows carry this torrent hash (grab provenance). */
+  wantedHits?: number;
 } = {}) {
   const stages = new Map<string, IntakeStage>();
   const updates: Record<string, unknown>[] = [];
@@ -46,6 +71,7 @@ function build(over: {
 
   const prisma = {
     storageProfile: { findUnique: jest.fn(async () => over.profile === undefined ? PROFILE : over.profile) },
+    wantedEpisode: { count: jest.fn(async () => over.wantedHits ?? 0) },
     mediaIntakeJob: {
       findUnique: jest.fn(async () => over.job === undefined ? { id: 'j1', libraryId: 'lib-tv' } : over.job),
       update: jest.fn(async (a: { data: Record<string, unknown> }) => { updates.push(a.data); return {}; }),
@@ -117,6 +143,7 @@ beforeEach(() => {
   parsed.value = { title: 'Some Show', season: 1, episode: 2 };
   kind.value = 'tv';
   destinationExists = false;
+  for (const k of Object.keys(tree)) delete tree[k];
 });
 
 describe('identify', () => {
@@ -165,6 +192,94 @@ describe('identify', () => {
   it('quarantines when the profile has been deleted mid-run', async () => {
     const { stages } = build({ profile: null });
     expect((await stages.get('identified')!.run(ctx)).quarantine).toBeDefined();
+  });
+});
+
+/**
+ * A season or series pack is television the NAME cannot describe.
+ *
+ * `parseTorrentName` needs a season AND an episode to say `tv_episode`, so a
+ * pack lands on `movie` (it has a year) or `general` (it does not), fails
+ * `libraryFor`, and quarantines. Six complete, correctly downloaded packs sat
+ * in staging across two installs because of it — including one whose profile
+ * had no movie library, which is the only reason a whole series was not filed
+ * into Movies instead.
+ */
+describe('identifying a pack the filename cannot describe', () => {
+  it('believes the GRAB over the filename', async () => {
+    // The acquisition side stamped this torrent onto six WantedEpisodes, so it
+    // is episodes of a monitored series whatever the folder is called.
+    kind.value = 'general';
+    const { stages, updates } = build({ wantedHits: 6 });
+    const out = await stages.get('identified')!.run(ctx);
+
+    expect(out.quarantine).toBeUndefined();
+    expect(updates[0]).toMatchObject({ libraryId: 'lib-tv' });
+    expect(out.data).toMatchObject({ kind: 'tv', basis: 'provenance' });
+  });
+
+  /* Chad Powers: episode files sit directly in the release folder. */
+  it('detects episode files one level down', async () => {
+    kind.value = 'general';
+    tree[ctx.sourcePath] = [
+      { name: 'Chad Powers S02E01 7th Quarter REPACK 1080P..mkv', dir: false },
+      { name: 'Chad Powers S02E02 8th Quarter REPACK 1080P..mkv', dir: false },
+    ];
+    const { stages, updates } = build();
+    const out = await stages.get('identified')!.run(ctx);
+
+    expect(updates[0]).toMatchObject({ libraryId: 'lib-tv' });
+    expect(out.data).toMatchObject({ kind: 'tv', basis: 'structure' });
+  });
+
+  /* Banshee: season folders nested under a second show-named directory. */
+  it('detects season folders TWO levels down', async () => {
+    kind.value = 'movie';
+    tree[ctx.sourcePath] = [{ name: 'Banshee (2013)', dir: true }];
+    tree[`${ctx.sourcePath}/Banshee (2013)`] = [
+      { name: 'Season 1', dir: true },
+      { name: 'tvshow.nfo', dir: false },
+    ];
+    const { stages, updates } = build();
+    const out = await stages.get('identified')!.run(ctx);
+
+    expect(updates[0]).toMatchObject({ libraryId: 'lib-tv' });
+    expect(out.data).toMatchObject({ kind: 'tv', basis: 'structure' });
+  });
+
+  /*
+   * The refusal has to survive the new evidence. Without provenance and
+   * without episodes on disk, `general` is still genuinely unknown, and
+   * guessing a library for a sample or a scene extra is the failure this
+   * stage exists to prevent.
+   */
+  it('still quarantines an unknown with no provenance and no episodes', async () => {
+    kind.value = 'general';
+    tree[ctx.sourcePath] = [{ name: 'sample.mkv', dir: false }, { name: 'readme.nfo', dir: false }];
+    const { stages, updates } = build();
+
+    expect((await stages.get('identified')!.run(ctx)).quarantine).toBeDefined();
+    expect(updates).toHaveLength(0);
+  });
+
+  /* A real film must not be dragged into TV by a stray video file. */
+  it('leaves a correctly parsed film in the movie library', async () => {
+    kind.value = 'movie';
+    tree[ctx.sourcePath] = [{ name: 'The Film (2020) 1080p.mkv', dir: false }];
+    const { stages, updates } = build();
+    await stages.get('identified')!.run(ctx);
+
+    expect(updates[0]).toMatchObject({ libraryId: 'lib-m' });
+  });
+
+  /* A correct TV parse is never second-guessed, and costs no directory read. */
+  it('does not probe at all when the name already says TV', async () => {
+    const { stages, updates, prisma } = build({ wantedHits: 99 });
+    const out = await stages.get('identified')!.run(ctx);
+
+    expect(updates[0]).toMatchObject({ libraryId: 'lib-tv' });
+    expect(out.data).toMatchObject({ basis: 'name' });
+    expect(prisma.wantedEpisode.count).not.toHaveBeenCalled();
   });
 });
 
