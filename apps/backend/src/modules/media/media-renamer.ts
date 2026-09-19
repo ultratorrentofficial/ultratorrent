@@ -1022,16 +1022,53 @@ export function buildRenamePlan(ctx: RenameContext): RenamePlan {
     // conflict. So when the subtitle names an episode, only a video that IS that
     // episode may claim it; prefix similarity merely breaks ties among those.
     const subOwn = parseTorrentName(path.basename(f.path, ext));
-    const subEpisode = subOwn.episode ?? subOwn.absoluteEpisode;
+    const ownEpisode = subOwn.episode ?? subOwn.absoluteEpisode;
+
+    /*
+     * A subtitle whose own name says nothing asks its PARENT DIRECTORY.
+     *
+     * A scene pack gives each episode its own folder under `Subs/`, named after
+     * that episode's release, while the files inside carry only a language and
+     * an index:
+     *
+     *   Subs/The.4400.S01E03.1080p.BluRay.x265-RARBG/2_English.srt
+     *
+     * `2_English` names no episode, so the batch above leaves every video a
+     * candidate — and `commonPrefix` then scores ZERO against all of them,
+     * because the subtitle's name shares nothing with any video's. `bestScore`
+     * starts at -1, so the FIRST video wins unconditionally and an entire
+     * season's subtitles collapse onto episode one. Measured on a live library:
+     * 84 sidecars across four seasons of one show, every one of them on E01,
+     * while E02 onward had none. The `[dupN]` suffixes that collision-avoidance
+     * then hands out also break the language regex, so 75 of them were stored
+     * as `und` rather than English — the mis-attribution corrupts the language
+     * too.
+     *
+     * The directory is the only place the episode is written, and it is written
+     * as a release name, so the ordinary parser reads it.
+     *
+     * Consulted ONLY when the file itself is silent. A subtitle that names its
+     * own episode still wins over the folder it happens to sit in, and a
+     * `Subs/` folder named by language alone — `ara.srt`, `2_English.srt`
+     * directly inside it — has a parent of `Subs`, which parses to no episode
+     * and behaves exactly as it did before.
+     */
+    const fromParent =
+      ownEpisode == null ? parseTorrentName(path.basename(path.dirname(f.path))) : null;
+    const parentEpisode = fromParent ? fromParent.episode ?? fromParent.absoluteEpisode : null;
+    const subEpisode = ownEpisode ?? parentEpisode;
+    const subSeason =
+      ownEpisode != null ? subOwn.season : (fromParent?.season ?? subOwn.season);
+
     const candidates =
       subEpisode == null
         ? videoDest
-        : videoDest.filter((v) => videoCoversEpisode(v, subOwn.season, subEpisode));
+        : videoDest.filter((v) => videoCoversEpisode(v, subSeason, subEpisode));
 
     // Named an episode, but no video in this batch is that episode. Leaving it where
     // it is keeps it findable; attaching it to the closest-looking name does not.
     if (subEpisode != null && candidates.length === 0) {
-      items.push({ source: f.path, destination: null, action: 'skip', kind: 'general', reason: `no video for episode ${subOwn.season != null ? `S${subOwn.season}` : ''}E${subEpisode} in this batch`, skipped: true, isSubtitle: true, isSample: false, isExtra: false });
+      items.push({ source: f.path, destination: null, action: 'skip', kind: 'general', reason: `no video for episode ${subSeason != null ? `S${subSeason}` : ''}E${subEpisode} in this batch`, skipped: true, isSubtitle: true, isSample: false, isExtra: false });
       continue;
     }
 

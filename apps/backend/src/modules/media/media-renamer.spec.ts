@@ -119,6 +119,90 @@ describe('buildRenamePlan — TV', () => {
   });
 });
 
+describe('buildRenamePlan — a scene pack keeps each episode’s subtitles', () => {
+  /*
+   * A RARBG-style pack puts every episode's subtitles in their own folder under
+   * `Subs/`, named after that episode's release, while the files inside are
+   * called `2_English.srt` — a language and an index, no episode. The filename
+   * therefore scored zero against every video, and the first one won by
+   * default: 84 sidecars across four seasons of one live show all landed on
+   * E01, and every later episode had none.
+   */
+  const pack = (over: Partial<RenameContext> = {}) =>
+    buildRenamePlan(ctx({
+      sourceName: 'The.4400.S01.1080p.BluRay.x265-RARBG',
+      files: [
+        { path: '/dl/The.4400.S01/The.4400.S01E01.1080p.BluRay.x265-RARBG.mp4', size: BIG },
+        { path: '/dl/The.4400.S01/The.4400.S01E02.1080p.BluRay.x265-RARBG.mp4', size: BIG },
+        { path: '/dl/The.4400.S01/Subs/The.4400.S01E01.1080p.BluRay.x265-RARBG/2_English.srt', size: 62_378 },
+        { path: '/dl/The.4400.S01/Subs/The.4400.S01E02.1080p.BluRay.x265-RARBG/2_English.srt', size: 37_782 },
+      ],
+      preset: 'plex',
+      mode: 'rename_move',
+      libraryPath: '/media/TV',
+      ...over,
+    }));
+
+  it('attaches each subtitle to its own episode rather than to the first video', () => {
+    const plan = pack();
+    const destOf = (needle: string) =>
+      plan.items.find((i) => i.source.includes(needle))?.destination ?? '';
+
+    // Asserted on the episode the destination NAMES, so the test survives a
+    // template change and a different spelling of the language tag.
+    expect(destOf('Subs/The.4400.S01E01')).toMatch(/S01E01[^/]*\.srt$/);
+    expect(destOf('Subs/The.4400.S01E02')).toMatch(/S01E02[^/]*\.srt$/);
+    // The bug was both landing on the same name.
+    expect(destOf('Subs/The.4400.S01E01')).not.toBe(destOf('Subs/The.4400.S01E02'));
+  });
+
+  it('mirrors the destination of the video that IS its episode', () => {
+    const plan = pack();
+    const destOf = (needle: string) =>
+      plan.items.find((i) => i.source.includes(needle))?.destination ?? '';
+    const videoStem = destOf('/The.4400.S01E02.1080p.BluRay.x265-RARBG.mp4').replace(/\.mp4$/, '');
+    expect(destOf('Subs/The.4400.S01E02').startsWith(videoStem)).toBe(true);
+  });
+
+  /*
+   * The file's own name outranks the folder it sits in. A subtitle misfiled
+   * under another episode's folder must still follow what it says about itself.
+   */
+  it('lets a subtitle that names its own episode override its folder', () => {
+    const plan = pack({
+      files: [
+        { path: '/dl/The.4400.S01/The.4400.S01E01.1080p.BluRay.x265-RARBG.mp4', size: BIG },
+        { path: '/dl/The.4400.S01/The.4400.S01E02.1080p.BluRay.x265-RARBG.mp4', size: BIG },
+        { path: '/dl/The.4400.S01/Subs/The.4400.S01E01.1080p.BluRay.x265-RARBG/The.4400.S01E02.eng.srt', size: 37_782 },
+      ],
+    });
+    const s = plan.items.find((i) => i.isSubtitle);
+    expect(s?.destination).toMatch(/S01E02[^/]*\.srt$/);
+  });
+
+  /*
+   * The counterweight, and the reason the parent is consulted only as a
+   * fallback: a `Subs/` folder named by language alone has a parent of `Subs`,
+   * which names no episode. This is the shape that once produced a cascade of
+   * collisions, so it must keep behaving exactly as it did.
+   */
+  it('still attaches a language-named Subs folder to the only video', () => {
+    const plan = buildRenamePlan(ctx({
+      sourceName: 'Some.Movie.2024.1080p.BluRay.x265-GROUP',
+      files: [
+        { path: '/dl/Some.Movie.2024/Some.Movie.2024.1080p.BluRay.x265-GROUP.mkv', size: BIG },
+        { path: '/dl/Some.Movie.2024/Subs/2_English.srt', size: 50_000 },
+      ],
+      preset: 'plex',
+      mode: 'rename_move',
+      libraryPath: '/media/Movies',
+    }));
+    const s = plan.items.find((i) => i.isSubtitle);
+    expect(s?.skipped).toBe(false);
+    expect(s?.destination).toBeTruthy();
+  });
+});
+
 describe('buildRenamePlan — identity comes from each file, not the batch', () => {
   // A library preview passes the SHOW FOLDER as sourceName. It carries no SxxEyy, so
   // parsing only it left season/episode undefined for every file: each one rendered to
