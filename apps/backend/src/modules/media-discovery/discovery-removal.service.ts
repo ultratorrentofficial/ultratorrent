@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { MediaBulkService, type TorrentAction } from '../media/media-bulk.service';
@@ -272,9 +273,17 @@ export class DiscoveryRemovalService {
   async suppress(id: string, reason: 'manual' | 'retracted' | 'graduated', userId?: string): Promise<void> {
     const media = await this.prisma.discoveredMedia.findUnique({
       where: { id },
-      select: { id: true, dedupeKey: true, title: true, mediaType: true },
+      select: { id: true, dedupeKey: true, title: true, mediaType: true, externalIds: true },
     });
     if (!media) return;
+
+    /*
+     * The ids are recorded alongside the key, because the key alone is not the
+     * identity — it is whichever id happened to be strongest at removal time,
+     * and a later sync reporting the same work without that id keys it
+     * somewhere else entirely and walks straight past the suppression.
+     */
+    const externalIds = (media.externalIds ?? {}) as Prisma.InputJsonValue;
 
     await this.prisma.discoverySuppression.upsert({
       where: { dedupeKey: media.dedupeKey },
@@ -282,12 +291,22 @@ export class DiscoveryRemovalService {
         dedupeKey: media.dedupeKey,
         title: media.title,
         mediaType: media.mediaType,
+        externalIds,
         reason,
         suppressedBy: userId ?? null,
       },
-      // A person's deletion outranks an automatic retraction, and is not
-      // downgraded by a later sweep reaching the same conclusion.
-      update: reason === 'manual' ? { reason, suppressedBy: userId ?? null } : {},
+      /*
+       * A person's deletion outranks an automatic retraction, and is not
+       * downgraded by a later sweep reaching the same conclusion.
+       *
+       * The ids refresh either way: they are an observation rather than a
+       * judgement, and a row that learned a new id since it was last suppressed
+       * should be suppressed by that one too.
+       */
+      update:
+        reason === 'manual'
+          ? { reason, suppressedBy: userId ?? null, externalIds }
+          : { externalIds },
     });
 
     // Evaluations and release dates cascade from the row.

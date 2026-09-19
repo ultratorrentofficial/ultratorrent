@@ -217,8 +217,29 @@ describe('suppression', () => {
   it('does not let an automatic retraction downgrade a manual removal', async () => {
     const { svc, state } = harness();
     await svc.suppress('dm1', 'retracted');
-    expect(state.suppressions[0].update).toEqual({});
+    // The ids refresh on any suppression; the reason and the person who set it
+    // are what an automatic sweep must not overwrite.
+    expect(state.suppressions[0].update.reason).toBeUndefined();
+    expect(state.suppressions[0].update.suppressedBy).toBeUndefined();
     await svc.suppress('dm1', 'manual', 'user-1');
-    expect(state.suppressions[1].update).toEqual({ reason: 'manual', suppressedBy: 'user-1' });
+    expect(state.suppressions[1].update).toMatchObject({ reason: 'manual', suppressedBy: 'user-1' });
+  });
+
+  /*
+   * The key alone is not the identity — it is whichever id was strongest when
+   * the title was removed. Recording the ids is what keeps the same work
+   * suppressed when a later sync reports it under a different namespace.
+   */
+  it('records the ids as well as the key, so a re-keyed sync still matches', async () => {
+    const { svc, state } = harness();
+    await svc.suppress('dm1', 'manual', 'user-1');
+    expect(state.suppressions[0].create.externalIds).toEqual({
+      imdb: 'tt14688458',
+      tmdb: '125988',
+    });
+    expect(state.suppressions[0].update.externalIds).toEqual({
+      imdb: 'tt14688458',
+      tmdb: '125988',
+    });
   });
 });

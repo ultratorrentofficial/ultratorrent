@@ -228,6 +228,59 @@ describe('running a template', () => {
     expect(h.stamps).toEqual([]);
   });
 
+  /*
+   * Leaving the row alone is right for a title that arrives undecided, and
+   * wrong for one this template already stamped.
+   *
+   * A template EDIT reopens every decision the template made — its evaluations
+   * are deleted — but the `discoveryStatus` the previous pass wrote survives.
+   * The title then keeps an answer from a template version that no longer
+   * exists, and nothing ever revisits it: the sweep only selects rows with no
+   * evaluation for the template, and the next edit reaches this same branch.
+   *
+   * Live case: a series premiered, downloaded its whole first season, and so
+   * fell out of the template's FORWARD release window. Succeeding is what
+   * disqualified it, and it sat in Needs review permanently.
+   */
+  it('clears a stamp it left behind when it no longer has an opinion', async () => {
+    const h = harness({
+      rows: [
+        row('a', {
+          releaseDates: [],
+          discoveryStatus: 'needs_review',
+          decision: 'needs_review',
+          matchedTemplateId: 'dt1',
+        }),
+      ],
+    });
+    await h.svc.runAll(NOW);
+
+    expect(h.stamps).toHaveLength(1);
+    expect(h.stamps[0]).toMatchObject({
+      discoveryStatus: 'new',
+      decision: null,
+      decisionReason: null,
+      matchedTemplateId: null,
+    });
+  });
+
+  // Another template's judgement is that template's to withdraw.
+  it('leaves a stamp another template made alone', async () => {
+    const h = harness({
+      rows: [
+        row('a', {
+          releaseDates: [],
+          discoveryStatus: 'needs_review',
+          decision: 'needs_review',
+          matchedTemplateId: 'some-other-template',
+        }),
+      ],
+    });
+    await h.svc.runAll(NOW);
+
+    expect(h.stamps).toEqual([]);
+  });
+
   it('makes progress: a title evaluated once is not re-fetched', async () => {
     const h = harness();
     await h.svc.runAll(NOW);

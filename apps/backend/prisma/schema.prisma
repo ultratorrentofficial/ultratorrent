@@ -4515,6 +4515,16 @@ model DiscoverySuppression {
   title     String
   mediaType String?
 
+  /// Every external id the removed row carried, so the same work stays
+  /// suppressed when a later sync keys it under a different namespace.
+  ///
+  /// `dedupeKey` is derived from the STRONGEST id present at removal time, and
+  /// that id is not guaranteed to be reported again. Observed live: a series
+  /// suppressed as `imdb:tt33539520` returned nine days later carrying only a
+  /// TMDB id, keyed `tmdb:tv:273207`, matched no suppression and re-entered the
+  /// inbox as a brand-new find while its whole first season sat on disk.
+  externalIds Json @default("{}")
+
   /// manual | retracted | graduated. A person deleting it, versus a template
   /// that stopped matching, versus a show that started grabbing and left the
   /// catalogue under its own steam — different causes, and only the first

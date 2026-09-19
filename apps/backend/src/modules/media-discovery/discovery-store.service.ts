@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
-import { ID_PRIORITY, type MergedDiscovery } from './discovery-identity';
+import { ID_PRIORITY, identityKeys, type IdNamespace, type MergedDiscovery } from './discovery-identity';
 
 /** What one persist pass did, for the sync log and the provider counters. */
 export interface StoreResult {
@@ -28,6 +28,25 @@ export interface StoreResult {
  * cannot — a stored row keyed `imdb:tt5` when the incoming record knows only
  * `tvmaze:1234`, which is precisely the direction the key moves in.
  */
+/**
+ * Every identity key one suppression covers.
+ *
+ * `identityKeys` is reused rather than re-expressed so the strings compared here
+ * are byte-identical to the `dedupeKey` and `alternateKeys` an incoming record
+ * carries — including TMDB's media-type qualification, which is what stops a
+ * suppressed film silencing the series that shares its TMDB number.
+ *
+ * A legacy suppression with no `mediaType` contributes only its globally unique
+ * ids. A bare TMDB number cannot be qualified, and generating both forms would
+ * suppress two different works on the strength of one removal.
+ */
+function suppressionKeys(s: { mediaType?: string | null; externalIds?: unknown }): string[] {
+  const ids = (s.externalIds ?? {}) as Partial<Record<IdNamespace, string>>;
+  if (s.mediaType) return identityKeys(ids, s.mediaType);
+  const { tmdb: _tmdb, ...unambiguous } = ids;
+  return identityKeys(unambiguous, 'unknown');
+}
+
 @Injectable()
 export class DiscoveryStoreService {
   private readonly logger = new Logger(DiscoveryStoreService.name);
@@ -48,11 +67,25 @@ export class DiscoveryStoreService {
      * by the next refresh under the same dedupe key, within six hours, and the
      * deletion reads as a bug rather than a decision.
      */
-    const suppressed = new Set(
-      (await this.prisma.discoverySuppression.findMany({ select: { dedupeKey: true } })).map(
-        (s) => s.dedupeKey,
-      ),
-    );
+    const suppressed = new Set<string>();
+    for (const s of await this.prisma.discoverySuppression.findMany({
+      select: { dedupeKey: true, mediaType: true, externalIds: true },
+    })) {
+      suppressed.add(s.dedupeKey);
+      /*
+       * And every id the removed row carried, in the same key form.
+       *
+       * The stored key is only the strongest id the title had WHEN IT WAS
+       * REMOVED, and providers are not obliged to report that id again. A
+       * series suppressed as `imdb:tt33539520` came back nine days later
+       * reported by TMDB alone, keyed `tmdb:tv:273207` — no overlap with the
+       * suppression, no overlap with its alternates either, because a record
+       * that never saw the IMDb id cannot list it as an alternate. It was
+       * re-created as a brand-new discovery with its whole first season
+       * already on disk.
+       */
+      for (const key of suppressionKeys(s)) suppressed.add(key);
+    }
 
     for (const record of records) {
       try {

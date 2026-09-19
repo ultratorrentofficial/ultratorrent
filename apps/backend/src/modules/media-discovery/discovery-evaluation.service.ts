@@ -345,6 +345,49 @@ export class DiscoveryEvaluationService {
           rssRuleId: null,
           failureReason: null,
         });
+        /*
+         * A stamp THIS template left behind is cleared.
+         *
+         * The reasoning above holds for a title that arrives undecided, which is
+         * the only case it was written for. But a template EDIT reopens every
+         * decision the template ever made — `DiscoveryTemplateService` deletes
+         * its evaluations — and deleting an evaluation does not undo the
+         * `discoveryStatus` the previous pass wrote onto the row. So a title this
+         * template once held for review, and now has no opinion about at all,
+         * keeps the old status forever: the sweep never looks at it again once
+         * the new evaluation exists, and the next edit reaches this same branch
+         * and leaves it alone again for the same reason.
+         *
+         * Measured on a live install: a series that premiered, downloaded its
+         * entire first season and thereby fell out of the template's forward
+         * release window sat in Needs review carrying a reason from a template
+         * version that no longer existed. Having started airing was what
+         * disqualified it, so nothing would ever revisit it.
+         *
+         * Only this template's own stamp is cleared. Another template's
+         * judgement is that template's to withdraw.
+         */
+        if (row.matchedTemplateId === template.id && row.discoveryStatus !== 'new') {
+          await this.prisma.discoveredMedia
+            .update({
+              where: { id: row.id },
+              data: {
+                discoveryStatus: 'new',
+                decision: null,
+                decisionReason: null,
+                evaluatedAt: null,
+                matchedTemplateId: null,
+              },
+            })
+            .then(() =>
+              this.logger.log(
+                `"${row.title}" no longer matches "${template.name}" at all — cleared the stale ${row.discoveryStatus} stamp it left`,
+              ),
+            )
+            .catch((err) =>
+              this.logger.warn(`Could not clear the stamp on ${row.id}: ${(err as Error).message}`),
+            );
+        }
         continue;
       }
 

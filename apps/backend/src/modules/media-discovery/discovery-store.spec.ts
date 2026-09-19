@@ -8,7 +8,7 @@ const merged = (provider: string, over: Partial<RawDiscovery>) =>
 /** In-memory stand-in for the two tables the store writes. */
 function fakePrisma(rows: any[] = []) {
   const dates: any[] = [];
-  const suppressed: { dedupeKey: string }[] = [];
+  const suppressed: any[] = [];
   return {
     rows,
     dates,
@@ -59,8 +59,11 @@ function fakePrisma(rows: any[] = []) {
     discoverySuppression: {
       findMany: jest.fn(async () => suppressed),
     },
-    /** Test hook: identities a person removed. */
+    /** Test hook: identities a person removed, by key alone. */
     __suppress: (...keys: string[]) => suppressed.push(...keys.map((dedupeKey) => ({ dedupeKey }))),
+    /** Test hook: a suppression that also remembers the ids the removed row carried. */
+    __suppressIdentity: (s: { dedupeKey: string; mediaType?: string | null; externalIds?: any }) =>
+      suppressed.push({ mediaType: null, externalIds: {}, ...s }),
   };
 }
 
@@ -246,6 +249,70 @@ describe('DiscoveryStoreService — suppressed titles', () => {
     const result = await new DiscoveryStoreService(p as any).persist([record]);
     expect(result.suppressed).toBe(1);
     expect(p.rows).toEqual([]);
+  });
+
+  /*
+   * The direction neither the key nor the alternates can cover.
+   *
+   * `dedupeKey` is whichever id was strongest AT REMOVAL, and a provider is not
+   * obliged to report that id again. A record reported by TMDB alone never saw
+   * the IMDb id, so it cannot list it as an alternate either — the suppression
+   * is invisible to it and the title walks back in. Observed live: suppressed
+   * `imdb:tt33539520`, returned nine days later as `tmdb:tv:273207` with its
+   * whole first season already on disk.
+   */
+  it('honours a suppression whose key namespace the returning record does not carry', async () => {
+    const p = fakePrisma();
+    (p as any).__suppressIdentity({
+      dedupeKey: 'imdb:tt33539520',
+      mediaType: 'tv',
+      externalIds: { imdb: 'tt33539520', tmdb: '273207' },
+    });
+
+    const record = merged('tmdb', { externalIds: { tmdb: '273207' } });
+    // Nothing the record carries overlaps the stored key.
+    expect(record.dedupeKey).toBe('tmdb:tv:273207');
+    expect(record.alternateKeys).not.toContain('imdb:tt33539520');
+
+    const result = await new DiscoveryStoreService(p as any).persist([record]);
+    expect(result.suppressed).toBe(1);
+    expect(p.rows).toEqual([]);
+  });
+
+  /*
+   * TMDB numbers films and series in separate spaces, so matching on a bare id
+   * would let one removal silence two unrelated works.
+   */
+  it('does not let a suppressed film silence the series sharing its TMDB number', async () => {
+    const p = fakePrisma();
+    (p as any).__suppressIdentity({
+      dedupeKey: 'tmdb:movie:55',
+      mediaType: 'movie',
+      externalIds: { tmdb: '55' },
+    });
+
+    const series = merged('tmdb', { mediaType: 'tv', externalIds: { tmdb: '55' } });
+    const result = await new DiscoveryStoreService(p as any).persist([series]);
+    expect(result.suppressed).toBe(0);
+    expect(p.rows).toHaveLength(1);
+  });
+
+  /*
+   * A legacy suppression predating the id column cannot qualify a TMDB number,
+   * and guessing both forms would suppress a work nobody removed.
+   */
+  it('does not guess a media type for a suppression that has none', async () => {
+    const p = fakePrisma();
+    (p as any).__suppressIdentity({
+      dedupeKey: 'tmdb:movie:55',
+      mediaType: null,
+      externalIds: { tmdb: '55' },
+    });
+
+    const series = merged('tmdb', { mediaType: 'tv', externalIds: { tmdb: '55' } });
+    const result = await new DiscoveryStoreService(p as any).persist([series]);
+    expect(result.suppressed).toBe(0);
+    expect(p.rows).toHaveLength(1);
   });
 
   it('still stores everything that is not suppressed', async () => {
