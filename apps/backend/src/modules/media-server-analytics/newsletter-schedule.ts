@@ -145,6 +145,66 @@ function nextWeekly(from: Date, weekday: number, hour: number, minute: number, t
   return fromZonedTime(p.year, p.month, p.day, hour, minute, tz);
 }
 
+/** The forward window an upcoming-premiere section covers. */
+export interface AirWindow {
+  /** Inclusive lower bound. */
+  from: Date;
+  /** EXCLUSIVE upper bound — a premiere exactly at `to` belongs to the next window. */
+  to: Date;
+}
+
+export interface AirWindowConfig {
+  airWindowMode?: string | null;
+  airWindowDays?: number | null;
+  timezone?: string | null;
+}
+
+/**
+ * Which premieres an issue sent at `from` should announce.
+ *
+ * Two modes, because "the following week" means two different things and the
+ * difference is not cosmetic:
+ *
+ *  - `next_days` — a rolling span. Seven days from a Friday 13:00 send runs to
+ *    the next Friday 13:00, so a Saturday premiere two days out IS included.
+ *  - `next_calendar_week` — Monday through Sunday of the FOLLOWING week, whole
+ *    days in the newsletter's own zone. The boundaries never move, but anything
+ *    premiering between the send and that Monday falls in no window at all.
+ *
+ * Resolved in `timezone` rather than the container's UTC, because "Monday
+ * 00:00" is a wall-clock fact and the hosts here run four hours off their
+ * containers — the same trap the send hour already carries a scar for.
+ */
+export function airWindow(cfg: AirWindowConfig, from: Date): AirWindow {
+  const tz = safeZone(cfg.timezone);
+
+  if ((cfg.airWindowMode ?? 'next_days') === 'next_calendar_week') {
+    const w = weekdayIn(from, tz); // 0 = Sunday
+    /*
+     * Days to the Monday that STARTS the following week. A Sunday send is one
+     * day from it; every other day counts to the next-but-one Monday, so a
+     * Monday send covers next Monday rather than the week it is already in.
+     */
+    const toMonday = w === 0 ? 1 : 8 - w;
+    const mp = partsIn(new Date(from.getTime() + toMonday * DAY_MS), tz);
+    /*
+     * The end bound adds 7 to the calendar DAY, not 168 hours.
+     *
+     * Across a fall-back transition Monday 00:00 + 168h reads as Sunday 23:00
+     * locally, and `partsIn` would then report the wrong date and truncate the
+     * week by a full day. `Date.UTC` normalizes a day overflow (Oct 35 → Nov 4),
+     * so month and year ends need no special case.
+     */
+    return {
+      from: fromZonedTime(mp.year, mp.month, mp.day, 0, 0, tz),
+      to: fromZonedTime(mp.year, mp.month, mp.day + 7, 0, 0, tz),
+    };
+  }
+
+  const days = Math.max(1, Math.round(cfg.airWindowDays ?? 7));
+  return { from, to: new Date(from.getTime() + days * DAY_MS) };
+}
+
 /** Same day-of-month next month, clamped to a short month's last day. */
 function nextMonthly(from: Date, hour: number, minute: number, tz: string): Date {
   const p = partsIn(from, tz);

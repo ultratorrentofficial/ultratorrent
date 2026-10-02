@@ -313,6 +313,13 @@
       "days": "Days",
       "startDate": "Start date"
     },
+    "airWindow": {
+      "label": "Air window",
+      "next_days": "Next N days",
+      "next_calendar_week": "Next calendar week (Mon–Sun)",
+      "days": "Days ahead",
+      "hint": "Which upcoming premieres to include, counted forward from the send."
+    },
     "content": {
       "label": "Content types",
       "allHint": "All types",
@@ -321,7 +328,8 @@
         "movie": "Movies",
         "music": "Music & Concerts",
         "documentary": "Documentaries",
-        "other": "Other"
+        "other": "Other",
+        "upcoming_tv": "Premiering Soon"
       }
     },
     "empty": "No newsletters yet.",

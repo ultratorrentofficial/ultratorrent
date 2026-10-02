@@ -1896,6 +1896,20 @@ model MediaServerNewsletter {
   dateRangeMode        String    @default("since_last_send") // since_last_send | last_days | since_date
   lastDays             Int       @default(7)
   startDate            DateTime? // fixed "included since" date for the since_date mode
+
+  /// The FORWARD window, for the upcoming-premiere section.
+  ///
+  /// `dateRangeMode` above looks BACKWARD, over what was added to the library.
+  /// An upcoming-TV section asks the opposite question — what starts airing
+  /// NEXT, for titles that have no library item at all — so it carries its own
+  /// window rather than overloading a field whose three modes all mean "since".
+  ///
+  /// `next_days` counts `airWindowDays` forward from the send moment.
+  /// `next_calendar_week` is Monday–Sunday of the following calendar week,
+  /// resolved in `timezone` below and never in the container's UTC — the same
+  /// trap the send hour already carries a scar for.
+  airWindowMode        String    @default("next_days") // next_days | next_calendar_week
+  airWindowDays        Int       @default(7)
   /// Day of week for a weekly send, 0=Sunday … 6=Saturday. Null keeps the
   /// legacy behaviour of "seven days after the last send, whenever that was".
   sendWeekday          Int?

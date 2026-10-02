@@ -71,7 +71,10 @@ function VerificationReport({ report }: { report?: NewsletterVerification }) {
 }
 
 /** Content-type groups a newsletter can cover (mirrors backend NEWSLETTER_GROUPS keys). */
-const CONTENT_GROUP_KEYS = ['tv', 'movie', 'music', 'documentary', 'other'] as const;
+const CONTENT_GROUP_KEYS = ['tv', 'movie', 'music', 'documentary', 'other', 'upcoming_tv'] as const;
+
+/** The one section that is not library-sourced — see UPCOMING_SECTION_KEY. */
+const UPCOMING_KEY = 'upcoming_tv';
 
 /**
  * Toggle chips for the content types a newsletter covers. An empty selection
@@ -294,6 +297,8 @@ export function NewslettersPage() {
   const [form, setForm] = useState({
     name: '', brandTitle: '', frequency: 'weekly', recipients: [] as string[],
     dateRangeMode: 'since_last_send', lastDays: 7, startDate: '', contentSections: [] as string[],
+    // The forward window, read only by the upcoming-premiere section.
+    airWindowMode: 'next_days', airWindowDays: 7,
     // '' means "no fixed day" — the legacy 7-days-after-the-last-send cadence.
     sendWeekday: '', sendTime: '09:00',
     // The operator's own zone, not the server's: the container runs UTC.
@@ -384,9 +389,11 @@ export function NewslettersPage() {
       lastDays: form.lastDays,
       startDate: form.dateRangeMode === 'since_date' && form.startDate ? new Date(form.startDate).toISOString() : null,
       contentSections: form.contentSections,
+      airWindowMode: form.airWindowMode,
+      airWindowDays: form.airWindowDays,
       ...scheduleFields(form),
     } as Partial<Newsletter>),
-    onSuccess: () => { setForm({ name: '', brandTitle: '', frequency: 'weekly', recipients: [], dateRangeMode: 'since_last_send', lastDays: 7, startDate: '', contentSections: [], sendWeekday: '', sendTime: '09:00', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' }); toast.success(t('newsletter.created')); invalidate(); },
+    onSuccess: () => { setForm({ name: '', brandTitle: '', frequency: 'weekly', recipients: [], dateRangeMode: 'since_last_send', lastDays: 7, startDate: '', contentSections: [], airWindowMode: 'next_days', airWindowDays: 7, sendWeekday: '', sendTime: '09:00', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' }); toast.success(t('newsletter.created')); invalidate(); },
   });
   const update = useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: Partial<Newsletter> }) => api.mediaServerAnalytics.updateNewsletter(id, patch),
@@ -412,6 +419,8 @@ export function NewslettersPage() {
 
   const freqOptions = (['daily', 'weekly', 'monthly', 'manual'] as const).map((v) => ({ value: v, label: t(`newsletter.freq.${v}`) }));
   const windowOptions = (['since_last_send', 'last_days', 'since_date'] as const).map((v) => ({ value: v, label: t(`newsletter.window.${v}`) }));
+  // The FORWARD window, offered only when the upcoming section is selected.
+  const airWindowOptions = (['next_days', 'next_calendar_week'] as const).map((v) => ({ value: v, label: t(`newsletter.airWindow.${v}`) }));
 
   return (
     <div className="space-y-6">
@@ -536,6 +545,25 @@ export function NewslettersPage() {
                     onChange={(next) => update.mutate({ id: n.id, patch: { contentSections: next } })}
                   />
                 </div>
+                {/* The forward window. Shown only when the upcoming section is on,
+                    because it is the only section that reads it. */}
+                {(n.contentSections ?? []).includes(UPCOMING_KEY) && (
+                  <div className="flex flex-wrap items-center gap-2 border-t border-white/5 pt-2 text-xs">
+                    <span className="text-muted-foreground">{t('newsletter.airWindow.label')}</span>
+                    <Select
+                      className="h-8 w-56"
+                      value={n.airWindowMode}
+                      onChange={(e) => update.mutate({ id: n.id, patch: { airWindowMode: e.target.value } })}
+                      options={airWindowOptions}
+                    />
+                    {n.airWindowMode === 'next_days' && (
+                      <Input
+                        type="number" min={1} className="h-8 w-24" defaultValue={n.airWindowDays}
+                        onBlur={(e) => update.mutate({ id: n.id, patch: { airWindowDays: Math.max(1, Number(e.target.value) || 7) } })}
+                      />
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}
@@ -575,6 +603,21 @@ export function NewslettersPage() {
                 <Label>{t('newsletter.content.label')}</Label>
                 <ContentTypeToggle value={form.contentSections} onChange={(next) => setForm((f) => ({ ...f, contentSections: next }))} />
               </div>
+              {form.contentSections.includes(UPCOMING_KEY) && (
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="n-airwindow">{t('newsletter.airWindow.label')}</Label>
+                    <Select id="n-airwindow" value={form.airWindowMode} onChange={(e) => setForm((f) => ({ ...f, airWindowMode: e.target.value }))} options={airWindowOptions} />
+                    <p className="text-xs text-muted-foreground">{t('newsletter.airWindow.hint')}</p>
+                  </div>
+                  {form.airWindowMode === 'next_days' && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="n-airdays">{t('newsletter.airWindow.days')}</Label>
+                      <Input id="n-airdays" type="number" min={1} value={form.airWindowDays} onChange={(e) => setForm((f) => ({ ...f, airWindowDays: Math.max(1, Number(e.target.value) || 7) }))} />
+                    </div>
+                  )}
+                </div>
+              )}
               <Button onClick={() => create.mutate()} disabled={!form.name.trim() || create.isPending}>{t('newsletter.add.submit')}</Button>
             </CardContent>
           </Card>

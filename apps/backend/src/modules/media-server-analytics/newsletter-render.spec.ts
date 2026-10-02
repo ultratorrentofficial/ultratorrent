@@ -9,6 +9,10 @@ import {
   countLabel,
   escapeHtml,
   sampleContent,
+  upcomingSection,
+  libraryTypesFor,
+  premiereLabel,
+  UPCOMING_SECTION_KEY,
   type NewsletterItem,
   type RenderOptions,
 } from './newsletter-render';
@@ -194,6 +198,116 @@ describe('newsletter i18n parity (en-US / es-PR)', () => {
     for (const [, v] of Object.entries(NEWSLETTER_STRINGS['es-PR'])) {
       expect(v).toBeTruthy();
     }
+  });
+});
+
+describe('libraryTypesFor — which library types a selection covers', () => {
+  it('answers null for an unscoped newsletter', () => {
+    expect(libraryTypesFor([])).toBeNull();
+  });
+
+  it('answers the group types for a library selection', () => {
+    expect(libraryTypesFor(['tv'])?.sort()).toEqual(['anime', 'episode', 'tv']);
+  });
+
+  /*
+   * The distinction the helper exists for. `null` reads as "every type", so a
+   * premieres-only newsletter answered null would quietly carry the whole
+   * recently-added library in an issue that asked for premieres alone.
+   */
+  it('answers NO types for a premieres-only newsletter', () => {
+    expect(libraryTypesFor([UPCOMING_SECTION_KEY])).toEqual([]);
+  });
+
+  /*
+   * `create` defaulted this column to ['movies','episodes'] — neither is a
+   * group key, the groups being `movie` and `tv` — so those newsletters have
+   * always run unscoped. Reading them as "no types" would empty every one of
+   * them on its next send.
+   */
+  it('still answers null for a selection naming no known group', () => {
+    expect(libraryTypesFor(['movies', 'episodes'])).toBeNull();
+  });
+
+  it('keeps the library types when both kinds are selected', () => {
+    expect(libraryTypesFor(['movie', UPCOMING_SECTION_KEY])).toEqual(['movie']);
+  });
+});
+
+describe('the upcoming-premiere section', () => {
+  const upcoming: NewsletterItem[] = [
+    {
+      id: 'u2', title: 'Carrie', mediaType: 'tv', year: 2026, season: null, episode: null,
+      addedAt: since, premiereDate: new Date('2026-10-07T00:00:00Z'),
+      overview: 'A quiet girl discovers what she can do.', rating: 10, genres: ['Drama', 'Horror'],
+    },
+    {
+      id: 'u1', title: 'NCIS: New York', mediaType: 'tv', year: 2026, season: null, episode: null,
+      addedAt: since, premiereDate: new Date('2026-10-06T00:00:00Z'),
+      overview: 'A new field office opens.', genres: ['Crime'],
+    },
+  ];
+  const content = (items: NewsletterItem[]) => ({
+    sections: [upcomingSection(items)], totalItems: items.length, since, until,
+  });
+
+  it('orders by premiere, soonest first', () => {
+    expect(upcomingSection(upcoming).movies.map((m) => m.title)).toEqual(['NCIS: New York', 'Carrie']);
+  });
+
+  it('is its own layout and counts premieres', () => {
+    const s = upcomingSection(upcoming);
+    expect(s).toMatchObject({ key: UPCOMING_SECTION_KEY, layout: 'upcoming', titleKey: 'upcomingTvTitle' });
+    expect(s.count).toEqual([{ n: 2, labelKey: 'premieres' }]);
+    // Carried in `movies` so every consumer that walks a section already sees them.
+    expect(s.shows).toEqual([]);
+  });
+
+  it('says "1 Premiere" rather than "1 Premieres"', () => {
+    const s = newsletterStrings('en-US');
+    expect(countLabel(1, 'premieres', s)).toBe('Premiere');
+    expect(countLabel(2, 'premieres', s)).toBe('Premieres');
+  });
+
+  /*
+   * The facts line carries the premiere date, not year-and-runtime: an unaired
+   * show has no runtime at all, and its year is implied by a premiere days away.
+   */
+  it('renders the premiere date and the synopsis', () => {
+    const html = renderHtml(content(upcoming), opts());
+    expect(html).toContain('Premieres 2026-10-06');
+    expect(html).toContain('NCIS: New York');
+    expect(html).toContain('A quiet girl discovers what she can do.');
+  });
+
+  /*
+   * ISO, because the renderer is handed `strings` but never a locale — a month
+   * name would come out English inside the Spanish newsletter.
+   */
+  it('localizes the premiere line without localizing the date', () => {
+    expect(premiereLabel(upcoming[0], newsletterStrings('es-PR'))).toBe('Se estrena el 2026-10-07');
+    expect(premiereLabel({ ...upcoming[0], premiereDate: null }, newsletterStrings('en-US'))).toBe('');
+  });
+
+  it('carries the premiere into the text part too', () => {
+    expect(renderText(content(upcoming), opts())).toContain('Premieres 2026-10-06');
+  });
+
+  /*
+   * `empty` says nothing was ADDED, which is the wrong sentence for an issue
+   * that never claimed to be about additions.
+   */
+  it('uses its own empty state', () => {
+    const none = { sections: [], totalItems: 0, since, until };
+    const html = renderHtml(none, opts({ upcomingOnly: true }));
+    expect(html).toContain('Nothing new starts airing');
+    expect(html).not.toContain('No new media was added');
+    expect(renderText(none, opts({ upcomingOnly: true }))).toContain('Nothing new starts airing');
+  });
+
+  it('keeps the added-since empty state for an ordinary newsletter', () => {
+    const none = { sections: [], totalItems: 0, since, until };
+    expect(renderHtml(none, opts())).toContain('No new media was added');
   });
 });
 

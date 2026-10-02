@@ -13,13 +13,17 @@ import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { ModuleRegistryService } from '../module-registry/module-registry.service';
 import { MediaServerEmailService, type EmailAttachment } from './media-server-email.service';
 import { NewsletterImageService, type PosterArt } from './newsletter-image.service';
-import { buildContent, renderHtml, renderText, sampleContent, NEWSLETTER_GROUPS, type NewsletterContent, type NewsletterItem, type RenderOptions } from './newsletter-render';
+import {
+  buildContent, renderHtml, renderText, sampleContent, upcomingSection, libraryTypesFor,
+  NEWSLETTER_GROUPS, UPCOMING_SECTION_KEY,
+  type NewsletterContent, type NewsletterItem, type RenderOptions,
+} from './newsletter-render';
 import { newsletterStrings } from './newsletter-strings';
 import {
   BRAND_LOGO_CID, BRAND_LOGO_CONTENT_TYPE, BRAND_LOGO_HEIGHT, BRAND_LOGO_PNG_BASE64, BRAND_LOGO_WIDTH,
 } from './newsletter-brand-logo';
 import { inlineCidImages } from './newsletter-inline-cid';
-import { nextRunAt } from './newsletter-schedule';
+import { airWindow, nextRunAt, type AirWindow } from './newsletter-schedule';
 import { SettingsService } from '../settings/settings.module';
 import { MediaMetadataService } from '../media/media-metadata.service';
 import { MediaArtworkService } from '../media/media-artwork.service';
@@ -41,6 +45,9 @@ interface NewsletterInput {
   dateRangeMode?: string;
   lastDays?: number;
   startDate?: string | null;
+  /** next_days | next_calendar_week — the FORWARD window for premieres. */
+  airWindowMode?: string;
+  airWindowDays?: number;
   /** 0=Sunday … 6=Saturday; null keeps the legacy relative cadence. */
   sendWeekday?: number | null;
   sendHour?: number;
@@ -138,6 +145,8 @@ export class MediaServerNewsletterService {
         dateRangeMode: input.dateRangeMode ?? 'since_last_send',
         lastDays: input.lastDays ?? 7,
         startDate: input.startDate ? new Date(input.startDate) : null,
+        airWindowMode: input.airWindowMode ?? 'next_days',
+        airWindowDays: input.airWindowDays ?? 7,
         sendWeekday: input.sendWeekday ?? null,
         sendHour: input.sendHour ?? 9,
         sendMinute: input.sendMinute ?? 0,
@@ -166,6 +175,7 @@ export class MediaServerNewsletterService {
     const current = await this.get(id);
     const data: Record<string, unknown> = {};
     for (const k of ['name', 'enabled', 'frequency', 'subjectTemplate', 'dateRangeMode', 'lastDays',
+      'airWindowMode', 'airWindowDays',
       'sendWeekday', 'sendHour', 'sendMinute', 'timezone'] as const) {
       if (input[k] !== undefined) data[k] = input[k];
     }
@@ -237,9 +247,17 @@ export class MediaServerNewsletterService {
   }
 
   /** Assemble the render options (localized strings, server, date range, style). */
-  private async renderOpts(since: Date, until: Date, n?: MediaServerNewsletter): Promise<RenderOptions> {
+  private async renderOpts(
+    since: Date,
+    until: Date,
+    n?: MediaServerNewsletter,
+    /** Overrides the header's date range — the forward window, for premieres. */
+    range?: string,
+    upcomingOnly?: boolean,
+  ): Promise<RenderOptions> {
     return {
       strings: newsletterStrings('en-US'),
+      upcomingOnly,
       // Read from config, never a literal. This was a hardcoded '0.15.0' that
       // stayed put through forty releases, so every email shipped claiming a
       // version the product had not been for a year.
@@ -251,7 +269,7 @@ export class MediaServerNewsletterService {
       logoCid: BRAND_LOGO_CID,
       logoWidth: BRAND_LOGO_WIDTH,
       logoHeight: BRAND_LOGO_HEIGHT,
-      dateRange: this.dateRange(since, until),
+      dateRange: range ?? this.dateRange(since, until),
       brand: 'UltraTorrent',
       style: { accent: ACCENT },
     };
@@ -262,13 +280,86 @@ export class MediaServerNewsletterService {
    * grouped into shows, movies kept flat — enriched with metadata and inline
    * poster artwork (CID images, so they render without public URLs).
    */
-  /** Media types this newsletter covers (from `contentSections`); null = everything. */
+  /**
+   * Media types this newsletter covers (from `contentSections`).
+   *
+   * `null` = everything, a list = those types, `[]` = NO library section at all
+   * (a premieres-only newsletter). The last case is why this delegates rather
+   * than computing inline: conflating `[]` with `null` folds the entire
+   * recently-added library into an issue that asked only for premieres.
+   */
   private mediaTypeFilter(n: MediaServerNewsletter): string[] | null {
-    const selected = (n.contentSections as string[] | null) ?? [];
-    const keys = new Set(selected);
-    if (keys.size === 0) return null;
-    const types = NEWSLETTER_GROUPS.filter((g) => keys.has(g.key)).flatMap((g) => g.types as readonly string[]);
-    return types.length ? [...new Set(types)] : null;
+    return libraryTypesFor((n.contentSections as string[] | null) ?? []);
+  }
+
+  /** Does this newsletter carry the upcoming-premiere section? */
+  private wantsUpcoming(n: MediaServerNewsletter): boolean {
+    return (((n.contentSections as string[] | null) ?? []) as string[]).includes(UPCOMING_SECTION_KEY);
+  }
+
+  /**
+   * Monitored discovery titles premiering inside the window.
+   *
+   * Read straight off the catalogue table rather than through Media Discovery's
+   * services, exactly as `gather` reads `mediaItem` directly: it is one indexed
+   * query, and importing that module here would close a cycle this codebase has
+   * already been bitten by.
+   *
+   * Only `monitored` rows. A title in `new` or `needs_review` is one nobody has
+   * decided to follow yet, and announcing it as "coming next week" would
+   * promise something the acquisition side is not even watching for.
+   *
+   * The poster is the catalogue's remote `posterUrl` — these titles have no
+   * library item and so no artwork row at all. `loadAndResize` fetches a remote
+   * URL through its SSRF guard, so attach and external hosting both work; the
+   * returned id set marks them for `assemblePosters`, whose self-hosted branch
+   * signs MEDIA ARTWORK ids and would otherwise mint a URL resolving to nothing.
+   */
+  private async gatherUpcoming(
+    win: AirWindow,
+  ): Promise<{ items: NewsletterItem[]; posters: Map<string, PosterArt>; remoteOnly: Set<string> }> {
+    const rows = await this.prisma.discoveredMedia.findMany({
+      where: {
+        discoveryStatus: 'monitored',
+        mediaType: { not: 'movie' },
+        premiereDate: { gte: win.from, lt: win.to },
+      },
+      orderBy: { premiereDate: 'asc' },
+      take: MAX_ITEMS,
+      select: {
+        id: true, title: true, year: true, premiereDate: true, overview: true,
+        rating: true, genres: true, posterUrl: true,
+      },
+    });
+
+    const posters = new Map<string, PosterArt>();
+    const remoteOnly = new Set<string>();
+    const items: NewsletterItem[] = rows.map((r) => {
+      if (r.posterUrl) {
+        posters.set(r.id, { id: r.id, url: r.posterUrl, localPath: null });
+        remoteOnly.add(r.id);
+      }
+      return {
+        id: r.id,
+        title: r.title,
+        mediaType: 'tv',
+        year: r.year,
+        season: null,
+        episode: null,
+        // Nothing was "added" — the premiere is the only date these carry, and
+        // the card reads it from `premiereDate`. `addedAt` is required by the
+        // shared item type, so it mirrors it rather than inventing a now().
+        addedAt: r.premiereDate ?? win.from,
+        premiereDate: r.premiereDate,
+        overview: r.overview,
+        rating: r.rating,
+        runtime: null,
+        certification: null,
+        genres: Array.isArray(r.genres) ? (r.genres as string[]) : [],
+        library: null,
+      };
+    });
+    return { items, posters, remoteOnly };
   }
 
   /**
@@ -284,6 +375,18 @@ export class MediaServerNewsletterService {
     types: string[] | null,
     carriedIds: string[],
   ): Promise<{ items: NewsletterItem[]; posters: Map<string, PosterArt> }> {
+    /*
+     * An empty `types` list means this newsletter has no library section at
+     * all, so there is nothing to ask the library for. Querying anyway would
+     * return every recent item and `buildContent` would then file them under
+     * groups the operator never selected.
+     *
+     * Carried items are skipped with it: a premieres-only newsletter has no
+     * library card to carry one onto, so a leftover deferral simply ages out
+     * and is reported as abandoned rather than held forever.
+     */
+    if (types && types.length === 0) return { items: [], posters: new Map() };
+
     const inWindow = { createdAt: { gte: since }, ...(types ? { mediaType: { in: types } } : {}) };
     const rows = await this.prisma.mediaItem.findMany({
       where: carriedIds.length ? { OR: [inWindow, { id: { in: carriedIds } }] } : inWindow,
@@ -510,7 +613,41 @@ export class MediaServerNewsletterService {
     showPosters = await this.fetchShowPosters(this.showTitlesOf(content));
     report.published = content.sections.reduce((n2, s) => n2 + s.shows.length + s.movies.length, 0);
 
-    const attachments = await this.assemblePosters(content, posters, showPosters);
+    /*
+     * The upcoming section is appended AFTER verification, deliberately.
+     *
+     * Verification exists to withhold a library entry whose artwork or
+     * metadata has not landed yet, and to carry it into the next issue so the
+     * film is delayed rather than lost. Both halves are wrong here. `repair`
+     * fetches by MEDIA ITEM id and these rows have none, so nothing could ever
+     * complete them; and a premiere deferred past its air date is not delayed,
+     * it is wasted. So they are never checked, never withheld and never
+     * deferred — a title missing artwork publishes with the lettered
+     * placeholder the card already falls back to.
+     */
+    let upcomingPosters = new Map<string, PosterArt>();
+    let remoteOnly = new Set<string>();
+    let airRange: string | undefined;
+    if (this.wantsUpcoming(n)) {
+      const win = airWindow(n, until);
+      airRange = this.dateRange(win.from, win.to);
+      const up = await this.gatherUpcoming(win);
+      upcomingPosters = up.posters;
+      remoteOnly = up.remoteOnly;
+      if (up.items.length) {
+        content = {
+          ...content,
+          // Last: a mixed issue leads with what the reader can watch now, and
+          // closes with what is coming.
+          sections: [...content.sections, upcomingSection(up.items)],
+          totalItems: content.totalItems + up.items.length,
+        };
+        report.published += up.items.length;
+      }
+    }
+    for (const [id, art] of upcomingPosters) posters.set(id, art);
+
+    const attachments = await this.assemblePosters(content, posters, showPosters, remoteOnly);
     // The logo rides along with the posters so preview and send share one path
     // and it never competes with them for the MAX_POSTERS budget.
     attachments.unshift({
@@ -519,10 +656,13 @@ export class MediaServerNewsletterService {
       content: Buffer.from(BRAND_LOGO_PNG_BASE64, 'base64'),
       contentType: BRAND_LOGO_CONTENT_TYPE,
     });
+    // A premieres-only issue gets the forward window in its header and its own
+    // empty state; a mixed one keeps the "added since" range it always had.
+    const upcomingOnly = this.wantsUpcoming(n) && (types?.length === 0);
     return {
       content,
       attachments,
-      opts: await this.renderOpts(since, until, n),
+      opts: await this.renderOpts(since, until, n, upcomingOnly ? airRange : undefined, upcomingOnly),
       verification: report,
       deferred: nextDeferred(report.withheld, stored, until),
     };
@@ -573,6 +713,14 @@ export class MediaServerNewsletterService {
     content: NewsletterContent,
     posters: Map<string, PosterArt>,
     showPosters: Map<string, PosterArt>,
+    /**
+     * Poster ids that exist only as a remote URL, with no artwork row behind
+     * them — the upcoming section's, which come from the discovery catalogue.
+     * The self-hosted branch signs a `MediaArtwork` id, so for these it would
+     * produce a valid-looking URL that resolves to nothing; they fall through
+     * to the fetch-and-embed path instead.
+     */
+    remoteOnly: Set<string> = new Set(),
   ): Promise<EmailAttachment[]> {
     // One poster per show (by show title, falling back to the representative
     // item) + per movie (by id), across all sections, in render order, capped.
@@ -618,7 +766,8 @@ export class MediaServerNewsletterService {
       if (!tgt.art) continue;
 
       // Self-hosted: just link to the signed image endpoint (no bytes needed).
-      if (mode === 'self_hosted' && publicBaseUrl) {
+      // Never for a remote-only poster — see `remoteOnly` above.
+      if (mode === 'self_hosted' && publicBaseUrl && !remoteOnly.has(tgt.art.id)) {
         tgt.setUrl(this.images.imageUrl(publicBaseUrl, tgt.art.id));
         used++;
         continue;

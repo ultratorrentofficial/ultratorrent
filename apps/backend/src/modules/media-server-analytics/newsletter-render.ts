@@ -47,6 +47,55 @@ export const NEWSLETTER_GROUPS = [
 
 export type NewsletterGroupKey = (typeof NEWSLETTER_GROUPS)[number]['key'];
 
+/**
+ * The one content section that is NOT sourced from the library.
+ *
+ * Every key in `NEWSLETTER_GROUPS` maps to library `mediaType` values, because
+ * every other section answers "what was added". This one answers "what starts
+ * airing next", about monitored discovery titles that have no library item and
+ * therefore no `mediaType` to filter on — so it is a section key with no group.
+ *
+ * Anything resolving selected keys to media types must treat it as "no types",
+ * NOT fall through to "everything": a newsletter scoped to upcoming TV alone
+ * would otherwise quietly include every recently-added item in the library.
+ */
+export const UPCOMING_SECTION_KEY = 'upcoming_tv';
+
+/** Every section key an operator can select, library-sourced or not. */
+export const NEWSLETTER_SECTION_KEYS = [
+  ...NEWSLETTER_GROUPS.map((g) => g.key),
+  UPCOMING_SECTION_KEY,
+] as const;
+
+/**
+ * The library `mediaType` values a selection of section keys covers.
+ *
+ * Three answers, and the distinction between two of them is load-bearing:
+ *
+ *  - `null` — nothing selected, so every type is in scope. The historical
+ *    "unscoped newsletter" behaviour.
+ *  - a list — the types those groups cover.
+ *  - `[]` — keys WERE selected and the only recognised one is the upcoming
+ *    section, i.e. a premieres-only newsletter. Returning `null` here would
+ *    read as "everything" and quietly fold the whole recently-added library
+ *    into an issue that asked for premieres alone.
+ *
+ * An UNRECOGNISED selection still answers `null`, which is deliberate rather
+ * than lax: `create` has always defaulted this column to `['movies',
+ * 'episodes']` — keys matching no group, since the groups are `movie` and `tv`
+ * — and those newsletters have been running as unscoped ever since. Reading
+ * them as `[]` would empty every one of them on the next send.
+ */
+export function libraryTypesFor(selected: readonly string[]): string[] | null {
+  if (selected.length === 0) return null;
+  const keys = new Set(selected);
+  const groups = NEWSLETTER_GROUPS.filter((g) => keys.has(g.key));
+  if (groups.length > 0) {
+    return [...new Set(groups.flatMap((g) => g.types as readonly string[]))];
+  }
+  return keys.has(UPCOMING_SECTION_KEY) ? [] : null;
+}
+
 // --- types ---------------------------------------------------------------
 export interface NewsletterItem {
   id?: string;
@@ -63,6 +112,14 @@ export interface NewsletterItem {
   genres?: string[];
   library?: string | null;
   upgraded?: boolean;
+  /**
+   * When this title starts airing.
+   *
+   * Set only for the upcoming section, whose items come from the discovery
+   * catalogue and have no library item at all — so `addedAt` is meaningless
+   * for them and this is the date that actually matters.
+   */
+  premiereDate?: Date | null;
   posterCid?: string | null;
   posterUrl?: string | null;
 }
@@ -90,7 +147,14 @@ export interface NewsletterShow {
 export interface NewsletterSection {
   key: string;
   titleKey: keyof NewsletterStrings;
-  layout: 'shows' | 'grid';
+  /**
+   * `upcoming` carries its items in `movies` deliberately: an unaired title is
+   * one card per title exactly as a film is, and every consumer that walks a
+   * section already reads `shows` + `movies` — poster assembly among them — so
+   * a third array would have to be threaded through all of them to say the
+   * same thing.
+   */
+  layout: 'shows' | 'grid' | 'upcoming';
   shows: NewsletterShow[];
   movies: NewsletterItem[];
   /** Count summary parts, e.g. [{n:11,labelKey:'shows'},{n:37,labelKey:'episodes'}]. */
@@ -112,6 +176,8 @@ export interface NewsletterStrings {
   musicTitle: string;
   documentariesTitle: string;
   otherTitle: string;
+  /** Section title for titles that have not aired yet. */
+  upcomingTvTitle: string;
   shows: string; // "Shows"
   showOne: string; // "Show" — used when the count is exactly 1
   episodes: string; // "Episodes"
@@ -120,9 +186,20 @@ export interface NewsletterStrings {
   movieOne: string; // "Movie"
   items: string; // "Items"
   itemOne: string; // "Item"
+  premieres: string; // "Premieres"
+  premiereOne: string; // "Premiere"
+  /** "Premieres {{date}}" — the card substitutes an ISO date. */
+  premieresOn: string;
   seasonsOne: string; // "Season {{n}}"
   seasonsRange: string; // "Seasons {{a}}–{{b}}"
   empty: string;
+  /**
+   * The empty state for an upcoming-only issue.
+   *
+   * `empty` says nothing was ADDED, which is the wrong sentence for a
+   * newsletter that never claimed to be about additions.
+   */
+  emptyUpcoming: string;
   unrated: string;
   docs: string;
   docsNote: string;
@@ -190,6 +267,15 @@ export interface RenderOptions {
    * recipient — see UNSUB_PLACEHOLDER.
    */
   unsubscribeUrl?: string;
+  /**
+   * True when this issue carries only the upcoming-premiere section.
+   *
+   * Decides which empty state is honest: `empty` says nothing was ADDED, which
+   * is the wrong sentence for a newsletter that never claimed to be about
+   * additions. Set by the caller, because once an issue is empty there are no
+   * sections left to infer it from.
+   */
+  upcomingOnly?: boolean;
   style?: RenderStyle;
 }
 
@@ -285,6 +371,31 @@ export function buildContent(items: NewsletterItem[], since: Date, until: Date, 
   return { sections, totalItems: items.length, since, until };
 }
 
+/**
+ * One section for titles that have not aired yet, soonest premiere first.
+ *
+ * Ordered by premiere rather than by when the catalogue noticed them: the
+ * reader's question is "what starts this week", so the nearest premiere is the
+ * most useful card and belongs at the top. A title with no premiere date sorts
+ * last rather than being dropped — the caller only selects dated rows, but a
+ * silent disappearance would be the worse failure if that ever changed.
+ */
+export function upcomingSection(items: NewsletterItem[]): NewsletterSection {
+  const sorted = [...items].sort((a, b) => {
+    const at = a.premiereDate?.getTime() ?? Number.POSITIVE_INFINITY;
+    const bt = b.premiereDate?.getTime() ?? Number.POSITIVE_INFINITY;
+    return at - bt;
+  });
+  return {
+    key: UPCOMING_SECTION_KEY,
+    titleKey: 'upcomingTvTitle',
+    layout: 'upcoming',
+    shows: [],
+    movies: sorted,
+    count: [{ n: sorted.length, labelKey: 'premieres' }],
+  };
+}
+
 // --- component renderers -------------------------------------------------
 /** Normalize a 0–10 provider rating to a 5-star visual; '' when unrated. */
 export function renderRating(rating: number | null | undefined, accent: string): string {
@@ -315,6 +426,7 @@ const SINGULAR_LABEL: Partial<Record<keyof NewsletterStrings, keyof NewsletterSt
   episodes: 'episodeOne',
   movies: 'movieOne',
   items: 'itemOne',
+  premieres: 'premiereOne',
 };
 
 /** The count label agreeing with `n` — "1 Episode", "3 Episodes". */
@@ -529,6 +641,67 @@ function movieList(movies: NewsletterItem[], opts: RenderOptions): string {
   return `<tr><td style="padding:0 24px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows.join('')}</table></td></tr>`;
 }
 
+/** The premiere line, or '' when the item carries no date. */
+export function premiereLabel(item: NewsletterItem, strings: NewsletterStrings): string {
+  if (!item.premiereDate) return '';
+  /*
+   * ISO, like the header's own date range.
+   *
+   * The renderer is handed `strings` but never a locale, so `toLocaleDateString`
+   * would print an English month name inside a Spanish newsletter. An ISO date
+   * is unambiguous in both and already the convention here.
+   */
+  return strings.premieresOn.replace('{{date}}', item.premiereDate.toISOString().slice(0, 10));
+}
+
+/**
+ * Inner content of an upcoming-premiere card.
+ *
+ * The movie card's two-column geometry, because an unaired title is one card
+ * per title exactly as a film is. What differs is the facts line: it carries
+ * the PREMIERE DATE rather than year and runtime. An unaired show has no
+ * runtime at all, and its year is implied by a premiere days away, so printing
+ * those would spend the most prominent line on the least useful facts.
+ *
+ * No carrier badge. The discovery catalogue leaves `network` and
+ * `streamingService` null for every monitored title on both live installs, so
+ * one would render empty on every card.
+ */
+function upcomingCard(m: NewsletterItem, opts: RenderOptions): string {
+  const style = opts.style ?? {};
+  const accent = style.accent ?? C.amber;
+  const rating = style.showRatings !== false ? renderRating(m.rating, accent) : '';
+  const overview = style.showOverview !== false && m.overview ? truncate(m.overview, 300) : '';
+  const badges: string[] = [];
+  if (style.showGenres !== false && m.genres?.length) badges.push(m.genres.join(' · '));
+  if (m.certification) badges.push(m.certification);
+  const premiere = premiereLabel(m, opts.strings);
+
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+      <td class="mposter" valign="top" width="${MOVIE_POSTER_W}" style="width:${MOVIE_POSTER_W}px">
+        ${poster({ url: m.posterUrl, cid: m.posterCid }, m.title[0] ?? '?', MOVIE_POSTER_W, accent)}
+        ${premiere ? `<div style="margin-top:8px;font:700 11px system-ui,-apple-system,sans-serif;color:${accent}">${escapeHtml(premiere)}</div>` : ''}
+        ${rating ? `<div style="margin-top:6px">${rating}</div>` : ''}
+      </td>
+      <td class="gut" width="16" style="width:16px;font-size:0;line-height:0">&nbsp;</td>
+      <td class="mbody" valign="top">
+        <div style="font:700 15px system-ui,-apple-system,sans-serif;color:${C.text}">${escapeHtml(m.title)}${m.year != null ? ` <span style="font-weight:400;color:${C.muted}">(${m.year})</span>` : ''}</div>
+        ${overview ? `<div style="font:400 13px/1.6 system-ui,-apple-system,sans-serif;color:${C.muted};margin-top:6px">${escapeHtml(overview)}</div>` : ''}
+        ${badges.length ? `<div style="margin-top:10px">${renderBadges(badges)}</div>` : ''}
+      </td>
+    </tr></table>`;
+}
+
+/** Upcoming premieres: one full-width card per title, as movies are. */
+function upcomingList(items: NewsletterItem[], opts: RenderOptions): string {
+  const rows: string[] = [];
+  items.forEach((m, i) => {
+    rows.push(`<tr><td valign="top" bgcolor="${C.card}" style="${CARD_PANEL}">${upcomingCard(m, opts)}</td></tr>`);
+    if (i + 1 < items.length) rows.push(`<tr><td height="12" style="height:12px;font-size:0;line-height:0">&nbsp;</td></tr>`);
+  });
+  return `<tr><td style="padding:0 24px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows.join('')}</table></td></tr>`;
+}
+
 /**
  * The masthead: the full UltraTorrent logo when one was attached, otherwise the
  * lettered tile it replaced.
@@ -612,7 +785,7 @@ const MOBILE_STYLE = `@media only screen and (max-width:600px){
   .mbody{display:block!important;width:100%!important}
 }`;
 
-const SECTION_ICON: Record<string, string> = { tv: '📺', movie: '🎬', music: '🎵', documentary: '🎥', other: '📦' };
+const SECTION_ICON: Record<string, string> = { tv: '📺', movie: '🎬', music: '🎵', documentary: '🎥', other: '📦', upcoming_tv: '🗓️' };
 
 export function renderHtml(content: NewsletterContent, opts: RenderOptions): string {
   const accent = opts.style?.accent ?? C.amber;
@@ -624,9 +797,10 @@ export function renderHtml(content: NewsletterContent, opts: RenderOptions): str
     const summary = countSummary(section.count.map((c) => ({ n: c.n, label: countLabel(c.n, c.labelKey, s) })), accent);
     sections.push(sectionHeader(SECTION_ICON[section.key] ?? '📦', s[section.titleKey], summary));
     if (section.layout === 'shows') sections.push(tvGrid(section.shows.slice(0, cap), opts));
+    else if (section.layout === 'upcoming') sections.push(upcomingList(section.movies.slice(0, cap), opts));
     else sections.push(movieList(section.movies.slice(0, cap), opts));
   }
-  const empty = `<tr><td style="padding:40px 24px;text-align:center;font:400 14px system-ui,-apple-system,sans-serif;color:${C.muted}">${escapeHtml(s.empty)}</td></tr>`;
+  const empty = `<tr><td style="padding:40px 24px;text-align:center;font:400 14px system-ui,-apple-system,sans-serif;color:${C.muted}">${escapeHtml(opts.upcomingOnly ? s.emptyUpcoming : s.empty)}</td></tr>`;
 
   return `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="color-scheme" content="dark"/><meta name="supported-color-schemes" content="dark"/><style>${MOBILE_STYLE}</style></head>
 <body bgcolor="${C.page}" style="margin:0;padding:0;width:100%;background-color:${C.page}">
@@ -664,12 +838,18 @@ export function renderText(content: NewsletterContent, opts: RenderOptions): str
   if (opts.dateRange) lines.push(opts.dateRange);
   lines.push('');
   if (content.totalItems === 0) {
-    lines.push(s.empty);
+    lines.push(opts.upcomingOnly ? s.emptyUpcoming : s.empty);
   } else {
     for (const section of content.sections) {
       const summary = section.count.map((c) => `${c.n} ${countLabel(c.n, c.labelKey, s)}`).join(' / ');
       lines.push(`## ${s[section.titleKey]} — ${summary}`);
-      if (section.layout === 'shows') {
+      if (section.layout === 'upcoming') {
+        for (const m of section.movies) {
+          const premiere = premiereLabel(m, s);
+          lines.push(`  - ${m.title}${m.year ? ` (${m.year})` : ''}${premiere ? ` — ${premiere}` : ''}${m.rating ? ` · ★${m.rating.toFixed(1)}` : ''}`);
+          if (opts.style?.showOverview !== false && m.overview) lines.push(`      ${truncate(m.overview, 140)}`);
+        }
+      } else if (section.layout === 'shows') {
         for (const show of section.shows) {
           lines.push(`  - ${show.title}${show.year ? ` (${show.year})` : ''} — ${show.episodeCount} ${countLabel(show.episodeCount, 'episodes', s)} · ${show.seasonRange}${show.rating ? ` · ★${show.rating.toFixed(1)}` : ''}`);
           if (opts.style?.showOverview !== false && show.overview) lines.push(`      ${truncate(show.overview, 140)}`);

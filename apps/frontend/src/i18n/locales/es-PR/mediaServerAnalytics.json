@@ -313,6 +313,13 @@
       "days": "Días",
       "startDate": "Fecha de inicio"
     },
+    "airWindow": {
+      "label": "Ventana de estreno",
+      "next_days": "Próximos N días",
+      "next_calendar_week": "Próxima semana calendario (lun–dom)",
+      "days": "Días en adelante",
+      "hint": "Cuáles estrenos próximos incluir, contados hacia adelante desde el envío."
+    },
     "content": {
       "label": "Tipos de contenido",
       "allHint": "Todos los tipos",
@@ -321,7 +328,8 @@
         "movie": "Películas",
         "music": "Música y Conciertos",
         "documentary": "Documentales",
-        "other": "Otros"
+        "other": "Otros",
+        "upcoming_tv": "Próximos Estrenos"
       }
     },
     "empty": "Aún no hay boletines.",

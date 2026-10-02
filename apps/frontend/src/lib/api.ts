@@ -6593,6 +6593,14 @@ export interface Newsletter {
   dateRangeMode: string;
   lastDays: number;
   startDate: string | null;
+  /**
+   * The forward window for the upcoming-premiere section, which asks the
+   * opposite question to `dateRangeMode`: not what was added, but what starts
+   * airing next. `next_days` counts `airWindowDays` from the send moment;
+   * `next_calendar_week` is Mon–Sun of the following week in `timezone`.
+   */
+  airWindowMode: string;
+  airWindowDays: number;
   /** 0=Sunday … 6=Saturday. Null keeps the legacy "7 days after the last send". */
   sendWeekday: number | null;
   /** Local send time, in `timezone` — not the server's clock. */
