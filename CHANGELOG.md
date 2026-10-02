@@ -45,6 +45,16 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.94.1] - 2026-10-02
+
+### Fixed
+- Media Discovery: resolve identity for titles held for review, so a show already in the library stops being queued as a question; file existing and past-release titles under their own tabs instead of Ignored; send the evaluation trace and template name to the inbox so an ignore can be tuned; and offer Import on ignored titles, which the API already allowed.
+- Media Discovery: match TMDB's compound television categories (Action & Adventure, Sci-Fi & Fantasy, War & Politics) against templates written with the split names, expanding both sides so exclusion still fires first; and when ALL rejects a title, name the unlisted category instead of claiming nothing matched.
+- Media Intake: identify a season or series pack as television from grab provenance or on-disk structure, not just the release name — a pack has no SxxEyy marker, so parseTorrentName classified it as a movie (with a year) or unknown (without one) and identify quarantined six complete downloads across two installs.
+- Media Discovery: clear a stale inbox status when a template stops matching a title at all, so a series that premiered and downloaded its first season no longer sits in Needs review forever; and record a suppressed title's external ids so the same work stays suppressed when a later sync keys it under a different provider namespace.
+- Media rename: attach a scene pack's subtitles to the episode they belong to. When a subtitle's own filename names no episode - a Subs/ folder holding per-episode directories of 2_English.srt - the episode is now read from the parent directory instead of letting every sidecar fall onto the first video in the batch.
+- Newsletters: send the TV shows that are about to start airing. A new Premiering Soon content section draws from Media Discovery's monitored catalogue rather than the library, with its own forward air window - a rolling number of days, or Monday-Sunday of the following calendar week resolved in the newsletter's own timezone. Cards carry poster art, synopsis, genres, rating and the premiere date.
+
 ## [0.94.0] - 2026-09-16
 
 ### Added
