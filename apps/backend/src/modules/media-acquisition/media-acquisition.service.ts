@@ -13,6 +13,14 @@ const DEFAULT_SETTINGS = {
   searchIntervalMinutes: 60,
   missingSearchProfileId: null as string | null,
   maxSearchesPerSweep: 50,
+  /*
+   * Special episodes — `SxxE00`: unaired pilots, behind-the-scenes featurettes,
+   * holiday one-offs, and two-part pilots a provider numbers from zero. Both
+   * default OFF, and they are separate questions: whether a special is TRACKED
+   * as a gap at all, and whether anything is allowed to go and fetch one.
+   */
+  includeSpecials: false,
+  downloadSpecials: false,
   // Pack-aware backfill: when a whole season (or series) is missing, grab ONE
   // season/series pack instead of per-episode searches that can't match packs.
   // Conservative defaults — only fires on fully-missing seasons.

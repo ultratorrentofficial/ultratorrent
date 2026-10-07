@@ -145,6 +145,18 @@ export class MissingEpisodeSearchService {
           // Episodes outside the operator's requested acquisition scope are NOT
           // wanted (see WantedEpisode.excludedFromScope); the sweep skips them.
           excludedFromScope: false,
+          /*
+           * Specials are not fetched unless the operator allowed it.
+           *
+           * A second gate rather than relying on `includeSpecials` alone: a row
+           * can predate the setting, or be carried in by a rescan, and the
+           * question "should anything go and GET this" is separate from whether
+           * it is tracked. Season zero is covered with episode zero so the two
+           * services agree on what a special is.
+           */
+          ...(settings.downloadSpecials
+            ? {}
+            : { seasonNumber: { not: 0 }, episodeNumber: { not: 0 } }),
           OR: [
             { searchStatus: 'idle' },
             { searchStatus: { in: ['no_results', 'failed'] }, lastSearchedAt: { lt: cutoff } },
@@ -214,8 +226,25 @@ export class MissingEpisodeSearchService {
   async searchSeries(watchlistItemId: string, userId?: string): Promise<{ results: EpisodeSearchOutcome[] }> {
     if (!this.enabled) throw new BadRequestException('Media Acquisition module is disabled');
     const settings = await this.acquisition.getSettings();
+    /*
+     * Gated like the sweep, and this one is easy to miss.
+     *
+     * `searchSeries` is manual, but it is a BULK run — Series Acquisition's
+     * backfill drives it — so nobody picked the specials individually. Left
+     * ungated, specials would be skipped by the scheduled sweep and then
+     * grabbed wholesale by a backfill, which is the worst of both answers.
+     * A search aimed at ONE episode (`searchEpisode`) stays open, consistent
+     * with it already bypassing the `autoSearchMissing` gate.
+     */
     const rows = await this.prisma.wantedEpisode.findMany({
-      where: { watchlistItemId, status: 'missing', excludedFromScope: false },
+      where: {
+        watchlistItemId,
+        status: 'missing',
+        excludedFromScope: false,
+        ...(settings.downloadSpecials
+          ? {}
+          : { seasonNumber: { not: 0 }, episodeNumber: { not: 0 } }),
+      },
       orderBy: [{ seasonNumber: 'asc' }, { episodeNumber: 'asc' }],
     });
     const results: EpisodeSearchOutcome[] = [];

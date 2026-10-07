@@ -2190,6 +2190,8 @@ function SettingsTab() {
       autoSearchMissing: current.autoSearchMissing,
       searchIntervalMinutes: current.searchIntervalMinutes,
       maxSearchesPerSweep: current.maxSearchesPerSweep,
+      includeSpecials: current.includeSpecials,
+      downloadSpecials: current.downloadSpecials,
       packBackfill: current.packBackfill,
     });
   };
@@ -2305,6 +2307,41 @@ function SettingsTab() {
                   />
                 </div>
               </div>
+            )}
+
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                checked={current.includeSpecials}
+                disabled={!canManage}
+                onChange={(e) => update({ includeSpecials: e.target.checked })}
+                className="mt-0.5 h-4 w-4 rounded border-input bg-white/[0.02]"
+              />
+              <span>
+                <span className="text-sm font-medium">{t('acquisition.settings.includeSpecials')}</span>
+                <span className="block text-xs text-muted-foreground">
+                  {t('acquisition.settings.includeSpecialsHint')}
+                </span>
+              </span>
+            </label>
+
+            {/* Fetching a special is only a question once they are tracked. */}
+            {current.includeSpecials && (
+              <label className="ml-7 flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={current.downloadSpecials}
+                  disabled={!canManage}
+                  onChange={(e) => update({ downloadSpecials: e.target.checked })}
+                  className="mt-0.5 h-4 w-4 rounded border-input bg-white/[0.02]"
+                />
+                <span>
+                  <span className="text-sm font-medium">{t('acquisition.settings.downloadSpecials')}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {t('acquisition.settings.downloadSpecialsHint')}
+                  </span>
+                </span>
+              </label>
             )}
 
             <div className="space-y-3 rounded-lg border border-white/10 p-4">

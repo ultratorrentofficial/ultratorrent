@@ -145,6 +145,13 @@ function makePrisma() {
     ]),
     iMDbEpisode: new Table('ep').seed([
       { episodeTitleId: 'ttS0E1', parentTitleId: 'ttSERIES', seasonNumber: 0, episodeNumber: 1 }, // special
+      /*
+       * The special shape that ACTUALLY occurs: episode zero inside a real
+       * season. The catalogue holds 6,479 of these against zero season-zero
+       * rows, so a fixture with only `ttS0E1` proved nothing about the case
+       * this module meets in practice.
+       */
+      { episodeTitleId: 'ttS1E0', parentTitleId: 'ttSERIES', seasonNumber: 1, episodeNumber: 0 },
       { episodeTitleId: 'ttS1E1', parentTitleId: 'ttSERIES', seasonNumber: 1, episodeNumber: 1 },
       { episodeTitleId: 'ttS1E2', parentTitleId: 'ttSERIES', seasonNumber: 1, episodeNumber: 2 },
       { episodeTitleId: 'ttS1E3', parentTitleId: 'ttSERIES', seasonNumber: 1, episodeNumber: 3 },
@@ -152,6 +159,7 @@ function makePrisma() {
     ]),
     iMDbTitle: new Table('title').seed([
       { tconst: 'ttS0E1', primaryTitle: 'Special', startYear: 2002 },
+      { tconst: 'ttS1E0', primaryTitle: 'Unaired Pilot', startYear: 2002 },
       { tconst: 'ttS1E1', primaryTitle: 'The Target', startYear: 2002 },
       { tconst: 'ttS1E2', primaryTitle: 'The Detail', startYear: 2002 },
       { tconst: 'ttS1E3', primaryTitle: 'The Buys', startYear: 2002 },
@@ -163,7 +171,11 @@ function makePrisma() {
   } as any;
 }
 
-function makeService(prisma: any, boundary: { seasonNumber: number; episodeNumber: number } | null = null) {
+function makeService(
+  prisma: any,
+  boundary: { seasonNumber: number; episodeNumber: number } | null = null,
+  settings: { includeSpecials?: boolean; downloadSpecials?: boolean } = {},
+) {
   const audit = { record: jest.fn().mockResolvedValue(undefined) };
   const realtime = { broadcast: jest.fn() };
   // ModuleRef stub: TvShowStatusService's background warming resolves a no-op
@@ -176,7 +188,25 @@ function makeService(prisma: any, boundary: { seasonNumber: number; episodeNumbe
     }),
   };
   const resolver = new ImdbSeriesResolver(prisma);
-  return new MissingEpisodesService(prisma, audit as any, realtime as any, moduleRef as any, resolver);
+  /*
+   * Specials policy, defaulted OFF exactly as DEFAULT_SETTINGS does — so every
+   * pre-existing test keeps asserting what it always asserted, and the cases
+   * that care opt in explicitly.
+   */
+  const acquisition = {
+    getSettings: jest.fn().mockResolvedValue({
+      includeSpecials: settings.includeSpecials ?? false,
+      downloadSpecials: settings.downloadSpecials ?? false,
+    }),
+  };
+  return new MissingEpisodesService(
+    prisma,
+    audit as any,
+    realtime as any,
+    moduleRef as any,
+    resolver,
+    acquisition as any,
+  );
 }
 
 describe('MissingEpisodesService', () => {
@@ -190,13 +220,53 @@ describe('MissingEpisodesService', () => {
 
     expect(gap).toMatchObject({ total: 4, owned: 1, missing: 2, unaired: 1, ignored: 0 });
     const rows = await svc.listForSeries('wl1');
-    // No season-0 special persisted.
+    // Neither shape of special persisted: season zero, nor episode zero inside
+    // a real season — which is the one that actually occurs.
     expect(rows.some((r) => r.seasonNumber === 0)).toBe(false);
+    expect(rows.some((r) => r.episodeNumber === 0)).toBe(false);
     const byKey = (s: number, e: number) => rows.find((r) => r.seasonNumber === s && r.episodeNumber === e)!;
     expect(byKey(1, 1).status).toBe('missing');
     expect(byKey(1, 2).status).toBe('owned');
     expect(byKey(1, 3).status).toBe('missing');
     expect(byKey(2, 1).status).toBe('unaired'); // future air year
+  });
+
+  /*
+   * `SxxE00` — unaired pilots, behind-the-scenes entries, holiday one-offs. Off
+   * by default, so they are neither counted as gaps nor searched for; on, they
+   * are ordinary wanted rows.
+   */
+  it('tracks an SxxE00 special once the operator opts in', async () => {
+    const prisma = makePrisma();
+    const svc = makeService(prisma, null, { includeSpecials: true });
+
+    const gap = await svc.scanSeries('wl1', 'u1');
+
+    /*
+     * TWO more than the default scan, not one: the setting covers both shapes
+     * of special, so it admits the season-zero row and the episode-zero row
+     * together. (Written as 5 first, which the suite caught — the flag was
+     * unified while the expectation still counted only `SxxE00`.)
+     */
+    expect(gap.total).toBe(6);
+    const rows = await svc.listForSeries('wl1');
+    const special = rows.find((r) => r.seasonNumber === 1 && r.episodeNumber === 0);
+    expect(special).toBeDefined();
+    expect(special!.status).toBe('missing');
+    expect(special!.episodeTitle).toBe('Unaired Pilot');
+  });
+
+  /*
+   * Season zero stays excluded even when specials are ON, because the local
+   * IMDb catalogue has none — this asserts the unified rule rather than a
+   * behaviour anyone can observe on this data source.
+   */
+  it('treats season zero as a special under the same setting', async () => {
+    const prisma = makePrisma();
+    const svc = makeService(prisma, null, { includeSpecials: true });
+    await svc.scanSeries('wl1', 'u1');
+    const rows = await svc.listForSeries('wl1');
+    expect(rows.some((r) => r.seasonNumber === 0)).toBe(true);
   });
 
   it('uses the TMDB aired boundary to keep an announced current-year season unaired (Ahsoka)', async () => {

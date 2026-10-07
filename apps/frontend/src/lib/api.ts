@@ -3296,6 +3296,12 @@ export interface AcquisitionSettings {
   searchIntervalMinutes: number;
   missingSearchProfileId: string | null;
   maxSearchesPerSweep: number;
+  /**
+   * Special episodes (`SxxE00`). Two separate questions, both default OFF:
+   * whether a special is tracked as a gap, and whether anything may fetch one.
+   */
+  includeSpecials: boolean;
+  downloadSpecials: boolean;
   // Pack-aware backfill (when a whole season/series is missing, grab one pack).
   packBackfill: {
     enabled: boolean;

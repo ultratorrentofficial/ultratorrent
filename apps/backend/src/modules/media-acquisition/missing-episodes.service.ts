@@ -12,6 +12,7 @@ import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { TvShowStatusService } from '../rss/tv-show-status/tv-show-status.service';
 import { normalizeTitle } from '../rss/tv-show-status/tv-show-status-provider';
 import { ImdbSeriesResolver } from './imdb-series-resolver.service';
+import { MediaAcquisitionService } from './media-acquisition.service';
 
 /** One episode from the local IMDb catalogue for a series. */
 interface CatalogEpisode {
@@ -67,7 +68,32 @@ export interface SeasonSummary {
   complete: boolean; // no missing episodes
 }
 
-const SPECIAL_SEASON = 0; // season 0 = specials, excluded from missing math (MVP)
+/**
+ * What counts as a SPECIAL rather than a numbered episode.
+ *
+ * Two shapes, and only one of them actually occurs against this data source.
+ *
+ * Season 0 is the conventional "Specials" season, and this module excluded it
+ * from the beginning — but the local IMDb catalogue contains **none**: zero
+ * season-zero rows against 7,921,151 episodes. That filter has therefore never
+ * excluded anything, and the comment that used to sit here ("excluded from
+ * missing math") implied a load-bearing rule where there was none.
+ *
+ * What does occur is EPISODE zero inside a real season — `SxxE00` — 6,479 of
+ * them in the catalogue, and 17 wanted rows on a live install: unaired pilots
+ * (MacGyver, Smallville), behind-the-scenes entries (Manhunt, SIX), holiday
+ * one-offs filed into a numbered season (When Calls the Heart ×3), and
+ * two-part pilots a provider numbers from zero (The 4400 "Pilot: Part 1").
+ *
+ * Both shapes answer to the same `includeSpecials` setting, so the name means
+ * one thing to an operator; the season-0 half is simply inert here.
+ */
+const SPECIAL_SEASON = 0;
+const SPECIAL_EPISODE = 0;
+
+function isSpecial(ep: { seasonNumber: number; episodeNumber: number }): boolean {
+  return ep.seasonNumber === SPECIAL_SEASON || ep.episodeNumber === SPECIAL_EPISODE;
+}
 const TITLE_CHUNK = 1000;
 
 /** The last-aired episode across a show — everything after it is unaired. */
@@ -125,6 +151,9 @@ export class MissingEpisodesService {
     private readonly realtime: RealtimeGateway,
     private readonly moduleRef: ModuleRef,
     private readonly resolver: ImdbSeriesResolver,
+    // Appended last deliberately: a dependency inserted mid-list shifts every
+    // positional argument after it, and the spec constructs this by position.
+    private readonly acquisition: MediaAcquisitionService,
   ) {}
 
   /** Scan every active `series` watchlist item. Skips ones without an IMDb id. */
@@ -209,9 +238,19 @@ export class MissingEpisodesService {
     // as missing (see {@link classifyEpisode}). A fully-past library needs no call.
     const today = new Date();
     const currentYear = today.getFullYear();
+    /*
+     * Specials are policy, not a constant — read once per scan.
+     *
+     * Resolved here rather than threaded through the four callers (the
+     * controller, `scanAll`, Series Acquisition provisioning and Discovery's
+     * monitoring hook), none of which has an opinion about episode scope. One
+     * read means every path inherits the same answer.
+     */
+    const { includeSpecials } = await this.acquisition.getSettings();
+
     const ambiguous = scoped.some(
       (e) =>
-        e.seasonNumber !== SPECIAL_SEASON &&
+        (includeSpecials || !isSpecial(e)) &&
         !owned.has(this.key(e.seasonNumber, e.episodeNumber)) &&
         (e.airYear == null || e.airYear >= currentYear),
     );
@@ -254,7 +293,18 @@ export class MissingEpisodesService {
     });
 
     const rows = scoped
-      .filter((ep) => ep.seasonNumber !== SPECIAL_SEASON)
+      /*
+       * A special is not tracked as a gap unless the operator asked for it.
+       *
+       * This runs BEFORE the ignored-key filter and after nothing, so when the
+       * setting is off a special is simply never built — which also means a
+       * previously-`ignored` special is not rebuilt and stops being tracked as
+       * ignored. That is the accepted cost of the clean-sweep behaviour: the
+       * delete-and-rebuild above drops every non-ignored row first, and a key
+       * the filter removes has nothing to carry its decision onto. Files
+       * already on disk are untouched; only the wanted-list bookkeeping goes.
+       */
+      .filter((ep) => includeSpecials || !isSpecial(ep))
       .filter((ep) => !ignoredKeys.has(this.key(ep.seasonNumber, ep.episodeNumber)))
       .map((ep) => {
         const status = classifyEpisode(
