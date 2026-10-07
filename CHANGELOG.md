@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.94.2] - 2026-10-07
+
+### Fixed
+- Missing episodes: two settings for special episodes (SxxE00), both default off. One decides whether a special is tracked as a gap at all; the other whether the scheduled sweep or a whole-series search may fetch one. A search aimed at a single episode still runs regardless.
+
 ## [0.94.1] - 2026-10-02
 
 ### Fixed
