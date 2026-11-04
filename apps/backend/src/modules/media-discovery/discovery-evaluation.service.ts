@@ -494,7 +494,7 @@ export class DiscoveryEvaluationService {
       }
 
       const acted = effective.decision === 'auto_monitor'
-        ? await this.act(row, template, profile, effective)
+        ? await this.act(row, template, profile, effective, now)
         : { watchlistItemId: null, rssRuleId: null, failureReason: null as string | null };
 
       if (effective.decision === 'auto_monitor') {
@@ -602,6 +602,9 @@ export class DiscoveryEvaluationService {
     discoveredMediaId: string,
     userId?: string,
     ctx: { ipAddress?: string; userAgent?: string } = {},
+    /** Defaulted here — an operator's import happens now, by definition — but still
+     * threaded, so the premiere check inside `act` is testable on this path too. */
+    now: Date = new Date(),
   ): Promise<{
     watchlistItemId: string | null;
     rssRuleId: string | null;
@@ -680,14 +683,14 @@ export class DiscoveryEvaluationService {
 
     const acted = await this.act(row, template, profile, {
       applies: true, decision: 'auto_monitor', reason: 'Imported by an operator', trace: [],
-    });
+    }, now);
 
     await this.prisma.discoveredMedia.update({
       where: { id: row.id },
       data: {
         decision: 'auto_monitor',
         decisionReason: acted.failureReason ?? 'Imported by an operator',
-        evaluatedAt: new Date(),
+        evaluatedAt: now,
         matchedTemplateId: template.id,
         discoveryStatus: this.statusFor('auto_monitor', acted),
         ...(acted.watchlistItemId ? { watchlistItemId: acted.watchlistItemId } : {}),
@@ -722,6 +725,15 @@ export class DiscoveryEvaluationService {
       tvLibrary: { path: string } | null;
     } | null,
     _verdict: PolicyVerdict,
+    /**
+     * The evaluation's clock, REQUIRED rather than defaulted. The premiere check
+     * below previously read `new Date()` directly, so a test that injected a
+     * `now` — the whole point of `runAll(now)` / `runTemplate(template, now)` —
+     * had its clock honoured by the policy and then ignored here. Making it a
+     * parameter with no default means a new call site has to state which clock
+     * it means instead of silently getting the real one.
+     */
+    now: Date,
   ): Promise<{
     watchlistItemId: string | null;
     rssRuleId: string | null;
@@ -873,7 +885,7 @@ export class DiscoveryEvaluationService {
      * arrive from TMDB with only a tmdb id) cannot be scanned, and that is an
      * ordinary outcome rather than a fault in the monitoring.
      */
-    if (watchlistItemId && media.mediaType !== 'movie' && this.hasPremiered(row, new Date())) {
+    if (watchlistItemId && media.mediaType !== 'movie' && this.hasPremiered(row, now)) {
       try {
         const gap = await this.missingEpisodes.scanSeries(watchlistItemId);
         this.logger.log(

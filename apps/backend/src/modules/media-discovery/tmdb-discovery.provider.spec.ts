@@ -17,6 +17,21 @@ function provider(routes: Record<string, any>) {
 
 const GENRES = { genres: [{ id: 878, name: 'Science Fiction' }, { id: 99, name: 'Documentary' }] };
 
+/**
+ * A `YYYY-MM-DD` date that many days from today.
+ *
+ * Any fixture date that has to land inside or outside a window the provider
+ * computes from the real clock MUST be built from this, never written as a
+ * literal. `confirmInWindow` compares against `[today, today + windowDays]`, so
+ * a literal is a date that silently walks out of the window as time passes:
+ * the digital fixture below was captured as `2026-09-20`, passed for six weeks,
+ * and then failed with nothing having changed — the film was dropped as
+ * out-of-window and the assertion read `undefined.releaseDates`.
+ */
+function day(offsetDays: number): string {
+  return new Date(Date.now() + offsetDays * 24 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
 describe('TmdbDiscoveryProvider — upcoming movies', () => {
   /*
    * `/movie/upcoming` returned "Avengers: Endgame" (2019-04-26) as its top
@@ -56,16 +71,23 @@ describe('TmdbDiscoveryProvider — upcoming movies', () => {
    * PRIMARY one. A digital window from 2026-09-05 returned "Toy Story 5 —
    * 2026-06-17", its theatrical date. Storing that would record a date the query
    * never matched.
+   *
+   * The shape of the real case is what the offsets encode, and it is the reason
+   * the dates cannot be literals: the film is ALREADY in cinemas (theatrical
+   * behind us) and its digital release is what falls inside the asked-for
+   * window. Both dates move with the clock so that stays true tomorrow.
    */
   it('replaces the headline date with the film’s typed release dates', async () => {
+    const theatrical = day(-90);
+    const digital = day(30);
     const { p } = provider({
       '/discover/movie': {
-        results: [{ id: 1022789, title: 'Toy Story 5', release_date: '2026-06-17', genre_ids: [878] }],
+        results: [{ id: 1022789, title: 'Toy Story 5', release_date: theatrical, genre_ids: [878] }],
         total_pages: 1,
       },
       '/movie/1022789/release_dates': {
         results: [
-          { iso_3166_1: 'US', release_dates: [{ type: 3, release_date: '2026-06-17T00:00:00.000Z' }, { type: 4, release_date: '2026-09-20T00:00:00.000Z' }] },
+          { iso_3166_1: 'US', release_dates: [{ type: 3, release_date: `${theatrical}T00:00:00.000Z` }, { type: 4, release_date: `${digital}T00:00:00.000Z` }] },
         ],
       },
       '/genre/': GENRES,
@@ -73,8 +95,8 @@ describe('TmdbDiscoveryProvider — upcoming movies', () => {
 
     const [film] = await p.getUpcomingMovies({ windowDays: 60, releaseTypes: ['digital'] });
     expect(film.releaseDates).toEqual([
-      { releaseType: 'wide_theatrical', date: '2026-06-17', region: 'US', confidence: 0.9 },
-      { releaseType: 'digital', date: '2026-09-20', region: 'US', confidence: 0.9 },
+      { releaseType: 'wide_theatrical', date: theatrical, region: 'US', confidence: 0.9 },
+      { releaseType: 'digital', date: digital, region: 'US', confidence: 0.9 },
     ]);
   });
 
@@ -200,7 +222,7 @@ describe('TmdbDiscoveryProvider — confirming the window locally', () => {
    * nothing having changed. A fixture compared against a window computed from
    * the real clock has to move with it.
    */
-  const inWindow = new Date(Date.now() + 10 * 24 * 3600 * 1000).toISOString();
+  const inWindow = `${day(10)}T00:00:00.000Z`;
   const spider = {
     '/discover/movie': { results: [{ id: 634649, title: 'Spider-Man: No Way Home', release_date: '2021-12-15', genre_ids: [] }], total_pages: 1 },
     '/movie/634649/release_dates': {

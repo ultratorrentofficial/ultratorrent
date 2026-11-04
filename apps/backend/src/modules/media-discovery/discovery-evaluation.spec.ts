@@ -1160,17 +1160,27 @@ describe('scanning a newly monitored series for missing episodes', () => {
    * to scan. It reaches monitoring only when a person imports it from review,
    * and there "what aired that I do not have?" has a genuine answer.
    */
+  /*
+   * Both import cases pass NOW explicitly, and must.
+   *
+   * The premiere dates here are relative to the fixed NOW, so the question
+   * "has it premiered?" only has the intended answer when asked against that
+   * same clock. `approve` used to read `new Date()` deep inside `act`, which
+   * silently turned `NOW + 14 days` into a date two months in the PAST — so the
+   * unreleased case scanned anyway and this test failed once the suite was run
+   * late enough, having passed for weeks.
+   */
   it('scans a part-aired series a person imports from review', async () => {
     const h = harness({ rows: [withPremiere(-30)] });
     (h.prisma.discoveredMedia.findUnique as jest.Mock).mockResolvedValue(withPremiere(-30));
-    await h.svc.approve('a');
+    await h.svc.approve('a', undefined, {}, NOW);
     expect(h.missingEpisodes.scanSeries).toHaveBeenCalled();
   });
 
   it('does not scan an unreleased series a person imports from review', async () => {
     const h = harness({ rows: [withPremiere(14)] });
     (h.prisma.discoveredMedia.findUnique as jest.Mock).mockResolvedValue(withPremiere(14));
-    await h.svc.approve('a');
+    await h.svc.approve('a', undefined, {}, NOW);
     expect(h.missingEpisodes.scanSeries).not.toHaveBeenCalled();
   });
 
