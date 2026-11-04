@@ -45,6 +45,11 @@ the workspace packages. Release tags are `vX.Y.Z`. See
 
 ---
 
+## [0.94.3] - 2026-11-04
+
+### Fixed
+- Missing episodes: re-check whether an episode is already in the library immediately before grabbing it, and schedule the owned/missing rescan that never had a scheduler. A stale missing verdict - on one install seven weeks old - made the auto-grab sweep re-download a season three times, descending the quality ladder each round as the previous release was blacklisted as dead.
+
 ## [0.94.2] - 2026-10-07
 
 ### Fixed
