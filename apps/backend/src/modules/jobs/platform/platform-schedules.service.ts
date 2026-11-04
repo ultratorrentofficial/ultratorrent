@@ -18,6 +18,8 @@ const SCHEDULE_MODULE: Record<string, string> = {
   media_acquisition_rss_sweep: 'media_acquisition_intelligence',
   media_acquisition_watchlist_sweep: 'media_acquisition_intelligence',
   media_acquisition_quality_upgrade_sweep: 'media_acquisition_intelligence',
+  media_acquisition_stuck_grab_sweep: 'media_acquisition_intelligence',
+  media_acquisition_missing_rescan: 'media_acquisition_intelligence',
   torrent_parking_sweep: 'torrents',
   system_update_check: 'system',
   system_health_monitor: 'system',

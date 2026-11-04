@@ -94,6 +94,19 @@ const SPECIAL_EPISODE = 0;
 function isSpecial(ep: { seasonNumber: number; episodeNumber: number }): boolean {
   return ep.seasonNumber === SPECIAL_SEASON || ep.episodeNumber === SPECIAL_EPISODE;
 }
+
+/**
+ * The `season-episode` key this service compares ownership on.
+ *
+ * Exported because the auto-grab sweep now re-asks the ownership question
+ * immediately before grabbing, and must ask it in exactly this shape. This
+ * module's own history is the reason it is one definition rather than two:
+ * intake and the renamer each grew a private copy of "is this a season pack"
+ * and disagreed invisibly.
+ */
+export function episodeKey(season: number, episode: number): string {
+  return `${season}-${episode}`;
+}
 const TITLE_CHUNK = 1000;
 
 /** The last-aired episode across a show — everything after it is unaired. */
@@ -507,6 +520,34 @@ export class MissingEpisodesService {
     return updated;
   }
 
+  /**
+   * Owned `season-episode` keys for one monitored series, asked NOW.
+   *
+   * The same question {@link scanSeries} answers, exposed so the auto-grab sweep
+   * can re-ask it at the moment of use. A scan writes a verdict that is only
+   * true when it ran; the sweep acts on that verdict later — on a live install,
+   * seven weeks later — and a stale `missing` is indistinguishable from a real
+   * one to anything that merely reads the row.
+   *
+   * An empty set means "no evidence" (unresolvable series, no IMDb id), NOT
+   * "nothing is owned". The caller must not treat the two alike: the safe
+   * direction here is to leave the row alone, never to conclude it is missing.
+   */
+  async ownedEpisodeKeys(watchlistItemId: string): Promise<Set<string>> {
+    const item = await this.prisma.mediaAcquisitionWatchlistItem.findUnique({
+      where: { id: watchlistItemId },
+      select: { title: true, externalIds: true },
+    });
+    if (!item) return new Set();
+    const seriesTconst = this.imdbId(item.externalIds);
+    if (!seriesTconst) return new Set();
+    const series = await this.prisma.iMDbTitle.findUnique({
+      where: { tconst: seriesTconst },
+      select: { startYear: true },
+    });
+    return this.ownedEpisodeSet(seriesTconst, item.title, series?.startYear ?? null);
+  }
+
   // --- internals ------------------------------------------------------------
 
   /** Enumerate a series' episodes from the local IMDb catalogue, with titles/years. */
@@ -637,7 +678,7 @@ export class MissingEpisodesService {
   }
 
   private key(season: number, episode: number): string {
-    return `${season}-${episode}`;
+    return episodeKey(season, episode);
   }
 
   private imdbId(externalIds: unknown): string | null {

@@ -1,4 +1,4 @@
-import { MissingEpisodesService, classifyEpisode } from '../missing-episodes.service';
+import { MissingEpisodesService, classifyEpisode, episodeKey } from '../missing-episodes.service';
 import { ImdbSeriesResolver } from '../imdb-series-resolver.service';
 import { normalizeTitle } from '../../rss/tv-show-status/tv-show-status-provider';
 
@@ -229,6 +229,36 @@ describe('MissingEpisodesService', () => {
     expect(byKey(1, 2).status).toBe('owned');
     expect(byKey(1, 3).status).toBe('missing');
     expect(byKey(2, 1).status).toBe('unaired'); // future air year
+  });
+
+  /**
+   * The ownership answer the auto-grab sweep re-asks before every grab.
+   *
+   * Exposed as its own method so the sweep asks the SAME question `scanSeries`
+   * answers rather than growing a second, quietly divergent copy of "do we have
+   * this episode" — which is how this module came to re-download a season it
+   * already held.
+   */
+  it('answers ownedEpisodeKeys for the auto-grab guard', async () => {
+    const prisma = makePrisma();
+    prisma.mediaItem.seed([
+      { id: 'i1', seriesImdbId: 'ttSERIES', mediaType: 'tv', title: 'The Wire', season: 1, episode: 2 },
+    ]);
+    const svc = makeService(prisma);
+
+    const keys = await svc.ownedEpisodeKeys('wl1');
+
+    expect(keys.has(episodeKey(1, 2))).toBe(true);
+    expect(keys.has(episodeKey(1, 1))).toBe(false);
+  });
+
+  /*
+   * No IMDb id means NO EVIDENCE, and the caller must read it that way. An empty
+   * set that was mistaken for "nothing is owned" would re-grab a whole series.
+   */
+  it('answers an empty set when the series carries no IMDb id', async () => {
+    const svc = makeService(makePrisma());
+    expect((await svc.ownedEpisodeKeys('wl2')).size).toBe(0);
   });
 
   /*

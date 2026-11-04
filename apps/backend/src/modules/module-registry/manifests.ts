@@ -375,7 +375,15 @@ export const OPTIONAL_MANIFESTS: ModuleManifest[] = [
       'media_acquisition.missing_movies.scan.completed',
       'media_acquisition.waiting',
     ],
-    schedulerJobs: ['media_acquisition_rss_sweep', 'media_acquisition_watchlist_sweep', 'media_acquisition_quality_upgrade_sweep'],
+    // `stuck_grab_sweep` was registered in code but never listed here, so it ran
+    // invisibly to the Jobs Center; listed now alongside the new rescan.
+    schedulerJobs: [
+      'media_acquisition_rss_sweep',
+      'media_acquisition_watchlist_sweep',
+      'media_acquisition_quality_upgrade_sweep',
+      'media_acquisition_stuck_grab_sweep',
+      'media_acquisition_missing_rescan',
+    ],
     settingsSections: ['media-acquisition'],
     features: [
       'watchlist',

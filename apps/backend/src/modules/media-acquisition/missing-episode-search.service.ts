@@ -9,6 +9,7 @@ import { IndexerService } from '../indexers/indexer.service';
 import { AcquisitionEvaluatorService } from './evaluator.service';
 import { AcquisitionMatchPreferenceService } from './acquisition-match-preference.service';
 import { MediaAcquisitionService } from './media-acquisition.service';
+import { MissingEpisodesService, episodeKey } from './missing-episodes.service';
 import { MEDIA_ACQUISITION_MODULE_ID } from './decision.engine';
 import { showFolderRoot } from '../media/media-renamer';
 import { showCanonicalKey } from '../media/series-grouping';
@@ -38,6 +39,14 @@ function showKeys(item: { title: string; titleAliases?: string[] | null }): Set<
 export interface EpisodeSearchOutcome {
   wantedEpisodeId: string;
   searchStatus: WantedSearchStatus;
+  /**
+   * The episode was already in the library, so nothing was searched for.
+   *
+   * Distinct from every search status on purpose: it is neither a grab nor a
+   * failure to find one, and counting it as `no_results` would also drag it
+   * into the "not found at your preferences" digest.
+   */
+  alreadyOwned?: boolean;
   releaseTitle?: string;
   evaluationId?: string;
   // Set on a `no_results` outcome so a run can build the "not found at your
@@ -83,6 +92,9 @@ export class MissingEpisodeSearchService {
     private readonly registry: ModuleRegistryService,
     private readonly profiles: StorageProfileService,
     private readonly bus: DomainEventBus,
+    // Appended last: the spec constructs this service by position, and a
+    // dependency inserted mid-list shifts every argument after it.
+    private readonly missingEpisodes: MissingEpisodesService,
   ) {}
 
   private get enabled(): boolean {
@@ -131,7 +143,7 @@ export class MissingEpisodeSearchService {
    * (`autoSearchMissing`). Re-entrancy guarded; processes a bounded, oldest-first
    * batch and applies a per-episode backoff so it doesn't hammer indexers.
    */
-  async sweep(): Promise<{ scanned: number; grabbed: number; pendingApproval: number; noResults: number } | null> {
+  async sweep(): Promise<{ scanned: number; grabbed: number; pendingApproval: number; noResults: number; alreadyOwned: number } | null> {
     if (!this.enabled || this.searching) return null;
     const settings = await this.acquisition.getSettings();
     if (!settings.autoSearchMissing) return null;
@@ -167,13 +179,16 @@ export class MissingEpisodeSearchService {
         take: settings.maxSearchesPerSweep ?? 50,
       });
 
-      const summary = { scanned: 0, grabbed: 0, pendingApproval: 0, noResults: 0 };
+      const summary = { scanned: 0, grabbed: 0, pendingApproval: 0, noResults: 0, alreadyOwned: 0 };
       const unfound: EpisodeSearchOutcome[] = [];
       for (const row of rows) {
         try {
           const outcome = await this.processEpisode(row, settings.missingSearchProfileId);
           summary.scanned += 1;
-          if (outcome.searchStatus === 'grabbed') summary.grabbed += 1;
+          // Counted apart from everything else: an episode we already had is
+          // neither a grab nor a failure to find one.
+          if (outcome.alreadyOwned) summary.alreadyOwned += 1;
+          else if (outcome.searchStatus === 'grabbed') summary.grabbed += 1;
           else if (outcome.searchStatus === 'pending_approval') summary.pendingApproval += 1;
           else summary.noResults += 1;
           // Strictly `no_results` — an indexer outage is `failed`, a transient
@@ -185,7 +200,10 @@ export class MissingEpisodeSearchService {
         }
       }
       if (summary.scanned) {
-        this.logger.log(`Missing-episode sweep: ${summary.scanned} searched, ${summary.grabbed} grabbed, ${summary.pendingApproval} pending approval`);
+        this.logger.log(
+          `Missing-episode sweep: ${summary.scanned} searched, ${summary.grabbed} grabbed, ` +
+            `${summary.pendingApproval} pending approval, ${summary.alreadyOwned} already owned`,
+        );
       }
       // One digest for the whole sweep. No `context` — the sweep spans shows, so
       // each item label carries its own show name and the dedupe window keeps a
@@ -279,6 +297,35 @@ export class MissingEpisodeSearchService {
       where: { id: wanted.watchlistItemId },
     });
     if (!item) throw new NotFoundException('Watchlist item not found');
+
+    /*
+     * Do we ALREADY have this episode? Asked now, not when the row was written.
+     *
+     * `status: 'missing'` is a verdict from whenever something last scanned the
+     * series, and until this guard nothing re-checked it before acting. Measured
+     * on a live install: rows computed 2026-09-17 — three weeks before the show
+     * first aired — still read `missing` seven weeks later, so the sweep
+     * re-grabbed a season that had been on disk since 2026-10-15. Three times.
+     * Each round the previous, better release had been blacklisted as dead, so
+     * the ladder could only descend: 1080p x265 → 720p x265 → a 1472 MB H.264
+     * WEB-DL, which then displaced the 541 MB 1080p copy in the library.
+     *
+     * One query before a grab closes that entire chain. An owned row never
+     * searches, never grabs, and never reaches the reconciler either — both of
+     * its release paths filter on `status: 'missing'`.
+     */
+    const ownedKeys = await this.missingEpisodes.ownedEpisodeKeys(wanted.watchlistItemId);
+    if (ownedKeys.has(episodeKey(wanted.seasonNumber, wanted.episodeNumber))) {
+      await this.prisma.wantedEpisode.update({
+        where: { id: wanted.id },
+        data: { status: 'owned', searchStatus: 'idle', lastCheckedAt: new Date() },
+      });
+      this.logger.log(
+        `"${item.title}" S${pad2(wanted.seasonNumber)}E${pad2(wanted.episodeNumber)} is already in ` +
+          'the library — marked owned instead of grabbing it again.',
+      );
+      return { wantedEpisodeId: wanted.id, searchStatus: 'idle', alreadyOwned: true };
+    }
 
     // Download directory: the show's folder under its media library. Resolving it
     // is mandatory — without it the engine would drop the episode in its default

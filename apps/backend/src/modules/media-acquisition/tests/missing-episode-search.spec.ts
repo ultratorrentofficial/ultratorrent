@@ -53,6 +53,8 @@ function build(over: {
   /** Directory names sitting in the library on disk. */
   libraryDirs?: string[];
   library?: { path: string } | null;
+  /** `season-episode` keys the library already holds, for the pre-grab guard. */
+  owned?: string[];
 } = {}) {
   const wanted = {
     id: 'w1', watchlistItemId: 'wl1', seriesTconst: 'ttS', seasonNumber: 1, episodeNumber: 1,
@@ -158,11 +160,20 @@ function build(over: {
   const eventBus = { emit: jest.fn() };
   const registry = { getStatus: jest.fn(() => ({ enabled: over.enabled ?? true })) };
   const bus = { publish: jest.fn(() => ({ published: true })) };
+  /*
+   * Ownership, re-asked at the moment of use. Defaults to EMPTY — "nothing is
+   * owned" — so every pre-existing test keeps grabbing exactly as it did, and
+   * only the cases that care opt in with `owned: ['1-1']`.
+   */
+  const missingEpisodes = {
+    ownedEpisodeKeys: jest.fn(async () => new Set<string>(over.owned ?? [])),
+  };
   const svc = new MissingEpisodeSearchService(
     prisma as any, indexers as any, evaluator as any, matchPrefs as any, acquisition as any,
     audit as any, realtime as any, registry as any, profiles as any, bus as any,
+    missingEpisodes as any,
   );
-  return { svc, prisma, indexers, evaluator, matchPrefs, acquisition, audit, realtime, eventBus, updates, profiles, bus };
+  return { svc, prisma, indexers, evaluator, matchPrefs, acquisition, audit, realtime, eventBus, updates, profiles, bus, missingEpisodes };
 }
 
 describe('MissingEpisodeSearchService.sweep — gating', () => {
@@ -177,6 +188,49 @@ describe('MissingEpisodeSearchService.sweep — gating', () => {
     const { svc, evaluator } = build({ settings: { autoSearchMissing: false } });
     expect(await svc.sweep()).toBeNull();
     expect(evaluator.grabSelected).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The guard that re-asks ownership at the moment of use.
+ *
+ * `status: 'missing'` is a verdict from whenever the series was last scanned, and
+ * nothing re-checked it before acting. Measured on a live install: rows written
+ * 2026-09-17 — three weeks before the show first aired — still read `missing`
+ * seven weeks later, so the sweep re-grabbed a season that had been on disk since
+ * 2026-10-15. Three times. Each round the previous, better release had been
+ * blacklisted as dead, so the ladder could only descend: 1080p x265 → 720p x265 →
+ * a 1472 MB H.264 WEB-DL that then displaced the 541 MB 1080p copy.
+ */
+describe('MissingEpisodeSearchService.sweep — already in the library', () => {
+  it('marks the episode owned instead of grabbing it again', async () => {
+    const { svc, evaluator, updates, missingEpisodes } = build({ owned: ['1-1'], candidates: [cand()] });
+
+    const summary = await svc.sweep();
+
+    expect(missingEpisodes.ownedEpisodeKeys).toHaveBeenCalledWith('wl1');
+    expect(evaluator.grabSelected).not.toHaveBeenCalled();
+    expect(updates).toEqual(
+      expect.arrayContaining([expect.objectContaining({ status: 'owned', searchStatus: 'idle' })]),
+    );
+    expect(summary).toMatchObject({ scanned: 1, grabbed: 0, alreadyOwned: 1, noResults: 0 });
+  });
+
+  /* An episode we already had is not a release nobody could find. */
+  it('does not report it as not-found', async () => {
+    const { svc, bus } = build({ owned: ['1-1'], candidates: [cand()] });
+    await svc.sweep();
+    expect(bus.publish).not.toHaveBeenCalled();
+  });
+
+  /*
+   * Per EPISODE, not per series. Owning S01E02 says nothing about S01E01, and a
+   * guard that compared only the show would stop acquiring a series halfway.
+   */
+  it('still grabs an episode the library does not have', async () => {
+    const { svc, evaluator } = build({ owned: ['1-2'], candidates: [cand()] });
+    await svc.sweep();
+    expect(evaluator.grabSelected).toHaveBeenCalled();
   });
 });
 

@@ -29,10 +29,13 @@ import { MediaAcquisitionController } from './media-acquisition.controller';
 @Injectable()
 export class MediaAcquisitionScheduler {
   private readonly logger = new Logger(MediaAcquisitionScheduler.name);
+  private rescanning = false;
+
   constructor(
     private readonly registry: ModuleRegistryService,
     private readonly missingSearch: MissingEpisodeSearchService,
     private readonly reconciler: WantedSearchReconciler,
+    private readonly missingEpisodes: MissingEpisodesService,
   ) {}
 
   private get enabled(): boolean {
@@ -55,6 +58,38 @@ export class MediaAcquisitionScheduler {
 
   @Interval('media_acquisition_quality_upgrade_sweep', 30 * 60_000)
   upgradeSweep(): void { if (this.enabled) this.logger.debug('Quality upgrade sweep tick'); }
+
+  /**
+   * Recompute every monitored series' owned / missing / unaired split.
+   *
+   * `scanAll` has existed from the beginning and NOTHING ever scheduled it, so a
+   * series' verdict was only ever as fresh as the last time something happened
+   * to call `scanSeries` — an operator pressing Scan, an Add-Series run, or
+   * Discovery monitoring a show. Measured on a live install: rows written
+   * 2026-09-17, three weeks before the show first aired, were still driving
+   * auto-grabs on 2026-11-04.
+   *
+   * Six-hourly rather than riding the 15-minute sweep: this walks every active
+   * series and re-reads the library for each, which is far heavier than the
+   * per-episode search backoff, and `missing` does not go stale in minutes. The
+   * pre-grab ownership guard is what makes the interval between runs harmless —
+   * this keeps staleness from accumulating, the guard keeps it from acting.
+   *
+   * Re-entrancy guarded: a slow pass over a large watchlist must not overlap
+   * itself, because `scanSeries` is delete-and-rebuild per series.
+   */
+  @Interval('media_acquisition_missing_rescan', 6 * 60 * 60_000)
+  missingRescan(): void {
+    if (!this.enabled || this.rescanning) return;
+    this.rescanning = true;
+    this.missingEpisodes
+      .scanAll()
+      .then((r) => this.logger.log(`Missing-episode rescan: ${r.series} series, ${r.missing} missing`))
+      .catch((err) => this.logger.warn(`Missing-episode rescan failed: ${(err as Error).message}`))
+      .finally(() => {
+        this.rescanning = false;
+      });
+  }
 
   /**
    * Retires grabs that are going nowhere — the torrent is parked with no seeders,
